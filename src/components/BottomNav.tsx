@@ -16,7 +16,7 @@ export default function BottomNav() {
   const router = useRouter()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 pb-safe pt-2 glass-nav">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] pt-2 glass-nav">
       <div className="mx-auto flex max-w-2xl px-2 pb-2 pt-1">
         {TABS.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(tab.href + '/')

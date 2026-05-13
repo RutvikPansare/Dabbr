@@ -115,10 +115,10 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
   const prevRate = completionRate(previous.mealsDelivered, previous.mealsSkipped)
 
   return (
-    <div className="min-h-screen bg-[#FDF8F3] pb-24">
+    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-5 pb-4 pt-8 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+      <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-5 pb-4 pt-8 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
         <div className="mx-auto max-w-2xl">
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Summary</h1>
           <p className="text-xs font-medium text-orange-600/80">
@@ -127,7 +127,7 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-5 pb-6 space-y-5">
+      <main className="mx-auto max-w-2xl px-4 pt-[104px] pb-6 space-y-5">
 
         {/* Period tabs */}
         <div className="flex rounded-2xl bg-white/50 p-1.5 shadow-inner border border-gray-200/50 gap-1">

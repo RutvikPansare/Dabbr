@@ -69,6 +69,8 @@ interface FormState {
   whatsapp_number: string
   address: string
   area: string
+  notes: string
+  tags: string[]
   plan_type: PlanType
   frequency: Frequency
   meal_timing: 'lunch' | 'dinner' | 'both'
@@ -98,6 +100,8 @@ const EMPTY_FORM: FormState = {
   whatsapp_number: '',
   address: '',
   area: '',
+  notes: '',
+  tags: [],
   plan_type: 'veg',
   frequency: 'daily',
   meal_timing: 'lunch',
@@ -140,6 +144,17 @@ function tagColor(tag: string): string {
   let hash = 0
   for (const ch of tag) hash = (hash * 31 + ch.charCodeAt(0)) & 0xff
   return TAG_COLORS[hash % TAG_COLORS.length]
+}
+
+function normalizeTags(input: string): string[] {
+  return Array.from(
+    new Set(
+      input
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(Boolean)
+    )
+  )
 }
 
 const SUGGESTED_TAGS = [
@@ -234,6 +249,8 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       whatsapp_number: c.whatsapp_number,
       address: c.address ?? '',
       area: c.area ?? '',
+      notes: c.notes ?? '',
+      tags: c.tags ?? [],
       plan_type: c.plan_type,
       frequency: c.frequency,
       meal_timing: c.meal_timing ?? 'lunch',
@@ -391,6 +408,8 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
         whatsapp_number: formData.whatsapp_number.trim(),
         address: formData.address.trim() || null,
         area: formData.area.trim() || null,
+        notes: formData.notes.trim() || null,
+        tags: formData.tags,
         plan_type: formData.plan_type,
         frequency: formData.frequency,
         meal_timing: formData.meal_timing,
@@ -421,6 +440,8 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
         whatsapp_number: formData.whatsapp_number.trim(),
         address: formData.address.trim() || null,
         area: formData.area.trim() || null,
+        notes: formData.notes.trim() || null,
+        tags: formData.tags,
         plan_type: formData.plan_type,
         frequency: formData.frequency,
         meal_timing: formData.meal_timing,
@@ -512,7 +533,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <button
               onClick={() => router.push('/dashboard')}
@@ -528,7 +549,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-6 pb-32 space-y-4">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-40 space-y-4">
 
           {/* Search */}
           <div className="relative group">
@@ -668,7 +689,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
         {/* FAB */}
         <button
           onClick={openAdd}
-          className="fixed bottom-[88px] right-5 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] text-white shadow-[0_8px_30px_rgba(244,98,42,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 border border-white/20"
+          className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] right-5 z-40 flex h-[60px] w-[60px] items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] text-white shadow-[0_8px_30px_rgba(244,98,42,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 border border-white/20"
           aria-label="Add customer"
         >
           <Plus className="w-7 h-7" strokeWidth={2.5} />
@@ -689,7 +710,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <button
               onClick={goBack}
@@ -712,7 +733,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-6 pb-32 space-y-4">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 space-y-4">
 
           {/* Status + info header card */}
           <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100">
@@ -1054,7 +1075,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <button
               onClick={goBack}
@@ -1079,7 +1100,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-6 pb-32">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32">
           <form onSubmit={handleFormSubmit} className="space-y-4">
 
             {/* Name */}
@@ -1124,6 +1145,66 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
                   rows={2}
                   className={`${inputClass} resize-none`}
                 />
+              </Field>
+            </div>
+
+            {/* Notes & Tags */}
+            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Notes & Tags</h3>
+
+              <Field label="Customer Note">
+                <textarea
+                  placeholder="Delivery instructions, food preferences, payment notes…"
+                  value={formData.notes}
+                  onChange={(e) => setFormData((f) => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  className={`${inputClass} resize-none`}
+                />
+              </Field>
+
+              <Field label="Tags">
+                <div className="space-y-3">
+                  {formData.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.tags.map(tag => (
+                        <span key={tag} className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${tagColor(tag)}`}>
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => setFormData((f) => ({ ...f, tags: f.tags.filter(t => t !== tag) }))}
+                            className="rounded-full p-0.5 hover:bg-black/5"
+                            aria-label={`Remove ${tag}`}
+                          >
+                            <XIcon className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <input
+                    placeholder="Add tags separated by commas"
+                    value={formData.tags.join(', ')}
+                    onChange={(e) => setFormData((f) => ({ ...f, tags: normalizeTags(e.target.value) }))}
+                    className={inputClass}
+                  />
+
+                  <div className="flex flex-wrap gap-2">
+                    {SUGGESTED_TAGS
+                      .filter(tag => !formData.tags.includes(tag))
+                      .slice(0, 10)
+                      .map(tag => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setFormData((f) => ({ ...f, tags: [...f.tags, tag] }))}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all hover:scale-105 ${tagColor(tag)}`}
+                        >
+                          + {tag}
+                        </button>
+                      ))}
+                  </div>
+                </div>
               </Field>
             </div>
 
@@ -1247,7 +1328,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <button
               onClick={goBack}
@@ -1266,7 +1347,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-6 pb-32">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32">
           <div className="rounded-3xl bg-white px-5 py-6 shadow-sm border border-gray-100">
             <p className="mb-5 text-sm text-gray-500 leading-relaxed">
               Deliveries for <span className="font-bold text-gray-800">{selectedCustomer.name}</span> will be skipped between these dates.
@@ -1323,7 +1404,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <button
               onClick={goBack}
@@ -1342,7 +1423,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-6 pb-32">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32">
           {paymentsLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (

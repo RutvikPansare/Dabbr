@@ -444,7 +444,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FDF8F3] pb-20">
+      <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
         <div className="bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] px-5 pt-5 pb-5">
           <div className="mx-auto max-w-2xl flex items-center gap-3">
             <div className="flex-1 space-y-2">
@@ -556,7 +556,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#FDF8F3] pb-20">
+    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
       {isExpired && <Paywall />}
 
@@ -888,7 +888,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
 
       {/* ── Bulk action bar ── */}
       {deliveryTrackingEnabled && bulkMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 z-30 px-4">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4">
           <div className="mx-auto max-w-2xl">
             <div className="flex items-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl">
               <span className="text-xs font-bold text-gray-300">{selectedIds.size} selected</span>
@@ -912,7 +912,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
 
       {/* ── Undo snackbar ── */}
       {undoSnackbar && !bulkMode && (
-        <div className="fixed bottom-20 left-0 right-0 z-30 px-4 pointer-events-none">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 pointer-events-none">
           <div className="mx-auto max-w-2xl">
             <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl pointer-events-auto">
               <span className={`text-xs font-bold ${undoSnackbar.action === 'Delivered' ? 'text-green-400' : 'text-amber-400'}`}>

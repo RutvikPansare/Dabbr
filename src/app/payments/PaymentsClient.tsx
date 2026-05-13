@@ -217,10 +217,10 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#FDF8F3] pb-20">
+    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-5 pb-4 pt-8 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+      <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-5 pb-4 pt-8 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
         <div className="mx-auto max-w-2xl flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Payment Center</h1>
@@ -245,7 +245,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-5 pb-6 space-y-5">
+      <main className="mx-auto max-w-2xl px-4 pt-[104px] pb-6 space-y-5">
 
         {/* Summary strip */}
         {(overdue.length > 0 || dueSoon.length > 0) && (
@@ -437,7 +437,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
 
       {/* ── Bulk action bar ── */}
       {bulkMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-[72px] inset-x-0 z-20 px-4 pointer-events-none">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] inset-x-0 z-40 px-4 pointer-events-none">
           <div className="mx-auto max-w-2xl pointer-events-auto">
             <div className="rounded-2xl bg-gray-900 text-white px-4 py-3 flex items-center gap-3 shadow-2xl">
               <p className="flex-1 text-sm font-bold">{selectedIds.size} selected</p>
@@ -460,7 +460,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
       {/* ── FAB ── */}
       <button
         onClick={() => openRecord()}
-        className="fixed bottom-[88px] right-5 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] text-white shadow-[0_8px_30px_rgba(244,98,42,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 border border-white/20"
+        className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom))] right-5 z-40 flex h-[60px] w-[60px] items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] text-white shadow-[0_8px_30px_rgba(244,98,42,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 border border-white/20"
       >
         <Plus className="w-7 h-7" strokeWidth={2.5} />
       </button>
