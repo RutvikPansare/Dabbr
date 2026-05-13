@@ -8,6 +8,7 @@ import {
   ArrowLeft, Search, Plus, UserPlus, UserPen, MapPin, MessageCircle,
   Pause, Play, CreditCard, Leaf, Drumstick, SearchX, Box, Smartphone,
   Edit2, ChevronRight, IndianRupee, AlertTriangle, Clock,
+  CheckCircle2, XCircle, Sparkles,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus } from '@/types/database'
 
@@ -34,6 +35,7 @@ interface Customer {
   status: CustomerStatus
   balance_days: number
   pauses: Pause[]
+  created_at: string
 }
 
 interface Payment {
@@ -43,7 +45,14 @@ interface Payment {
   notes: string | null
 }
 
-type LedgerEventType = 'payment' | 'pause_start' | 'pause_end' | 'balance_low'
+type LedgerEventType =
+  | 'payment'
+  | 'pause_start'
+  | 'pause_end'
+  | 'balance_low'
+  | 'delivery_delivered'
+  | 'delivery_skipped'
+  | 'customer_created'
 
 interface LedgerEvent {
   id: string
@@ -203,12 +212,23 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
     setLedgerLoading(true)
     setScreen('detail')
 
-    // Fetch payments for this customer
-    const { data: payData } = await supabase
-      .from('payments')
-      .select('id, amount, recorded_at, notes')
-      .eq('customer_id', c.id)
-      .order('recorded_at', { ascending: false })
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 90)
+
+    // Fetch payments + delivery logs in parallel
+    const [{ data: payData }, { data: deliveryData }] = await Promise.all([
+      supabase
+        .from('payments')
+        .select('id, amount, recorded_at, notes')
+        .eq('customer_id', c.id)
+        .order('recorded_at', { ascending: false }),
+      db
+        .from('delivery_logs')
+        .select('id, date, status')
+        .eq('customer_id', c.id)
+        .gte('date', cutoff.toISOString().split('T')[0])
+        .order('date', { ascending: false }),
+    ])
 
     const events: LedgerEvent[] = []
 
@@ -223,9 +243,23 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
     for (const pause of c.pauses) {
       events.push({ id: `ps-${pause.id}`, date: `${pause.start_date}T08:00:00`, type: 'pause_start' })
       if (pause.end_date < todayStr) {
-        // Pause has ended — show resume
         events.push({ id: `pe-${pause.id}`, date: `${pause.end_date}T18:00:00`, type: 'pause_end' })
       }
+    }
+
+    // Delivery events from delivery_logs
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const d of ((deliveryData ?? []) as any[])) {
+      events.push({
+        id: `dl-${d.id}`,
+        date: `${d.date}T12:00:00`,
+        type: d.status === 'delivered' ? 'delivery_delivered' : 'delivery_skipped',
+      })
+    }
+
+    // Customer created event
+    if (c.created_at) {
+      events.push({ id: 'customer-created', date: c.created_at, type: 'customer_created' })
     }
 
     // Balance low synthetic event — shown only if currently low
@@ -716,48 +750,64 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
               <div className="rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-8 flex flex-col items-center text-center">
                 <Clock className="w-8 h-8 text-gray-200 mb-2" />
                 <p className="text-sm font-semibold text-gray-400">No activity yet</p>
-                <p className="text-xs text-gray-300 mt-0.5">Payments and pauses will appear here</p>
+                <p className="text-xs text-gray-300 mt-0.5">Payments and deliveries will appear here</p>
               </div>
             ) : (
-              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                {ledgerEvents.map((event, idx) => (
-                  <div
-                    key={event.id}
-                    className={`flex items-start gap-3 px-5 py-4 ${idx !== ledgerEvents.length - 1 ? 'border-b border-gray-50' : ''}`}
-                  >
-                    {/* Icon */}
-                    <div className={`flex w-9 h-9 items-center justify-center rounded-2xl shrink-0 mt-0.5 ${
-                      event.type === 'payment'     ? 'bg-green-100 text-green-600' :
-                      event.type === 'pause_start' ? 'bg-amber-100 text-amber-600' :
-                      event.type === 'pause_end'   ? 'bg-blue-100 text-blue-600' :
-                                                     'bg-red-100 text-red-600'
-                    }`}>
-                      {event.type === 'payment'     && <IndianRupee className="w-4 h-4" />}
-                      {event.type === 'pause_start' && <Pause className="w-4 h-4" />}
-                      {event.type === 'pause_end'   && <Play className="w-4 h-4" />}
-                      {event.type === 'balance_low' && <AlertTriangle className="w-4 h-4" />}
-                    </div>
+              <div className="space-y-3">
+                {groupLedgerByDay(ledgerEvents).map(({ label, events: dayEvents }) => (
+                  <div key={label}>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-1 mb-1.5">{label}</p>
+                    <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                      {dayEvents.map((event, idx) => (
+                        <div
+                          key={event.id}
+                          className={`flex items-start gap-3 px-5 py-4 ${idx !== dayEvents.length - 1 ? 'border-b border-gray-50' : ''}`}
+                        >
+                          {/* Icon */}
+                          <div className={`flex w-9 h-9 items-center justify-center rounded-2xl shrink-0 mt-0.5 ${
+                            event.type === 'payment'            ? 'bg-green-100 text-green-600' :
+                            event.type === 'pause_start'        ? 'bg-amber-100 text-amber-600' :
+                            event.type === 'pause_end'          ? 'bg-blue-100 text-blue-600' :
+                            event.type === 'delivery_delivered' ? 'bg-emerald-100 text-emerald-600' :
+                            event.type === 'delivery_skipped'   ? 'bg-gray-100 text-gray-500' :
+                            event.type === 'customer_created'   ? 'bg-purple-100 text-purple-600' :
+                                                                   'bg-red-100 text-red-600'
+                          }`}>
+                            {event.type === 'payment'            && <IndianRupee className="w-4 h-4" />}
+                            {event.type === 'pause_start'        && <Pause className="w-4 h-4" />}
+                            {event.type === 'pause_end'          && <Play className="w-4 h-4" />}
+                            {event.type === 'balance_low'        && <AlertTriangle className="w-4 h-4" />}
+                            {event.type === 'delivery_delivered' && <CheckCircle2 className="w-4 h-4" />}
+                            {event.type === 'delivery_skipped'   && <XCircle className="w-4 h-4" />}
+                            {event.type === 'customer_created'   && <Sparkles className="w-4 h-4" />}
+                          </div>
 
-                    {/* Text */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 leading-snug">
-                        {event.type === 'payment'     && <>Payment received {event.amount != null && <span className="text-green-600">₹{event.amount}</span>}</>}
-                        {event.type === 'pause_start' && 'Pause started'}
-                        {event.type === 'pause_end'   && 'Service resumed'}
-                        {event.type === 'balance_low' && 'Balance critically low'}
-                      </p>
-                      {event.notes && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{event.notes}</p>
-                      )}
-                      {event.type === 'balance_low' && (
-                        <p className="text-xs text-red-400 mt-0.5">{c.balance_days} days remaining — collect payment soon</p>
-                      )}
-                    </div>
+                          {/* Text */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-gray-900 leading-snug">
+                              {event.type === 'payment'            && <>Payment received {event.amount != null && <span className="text-green-600">₹{event.amount}</span>}</>}
+                              {event.type === 'pause_start'        && 'Deliveries paused'}
+                              {event.type === 'pause_end'          && 'Deliveries resumed'}
+                              {event.type === 'balance_low'        && 'Balance running low'}
+                              {event.type === 'delivery_delivered' && 'Meal delivered'}
+                              {event.type === 'delivery_skipped'   && 'Skipped today'}
+                              {event.type === 'customer_created'   && 'Customer added'}
+                            </p>
+                            {event.notes && (
+                              <p className="text-xs text-gray-400 mt-0.5 truncate">{event.notes}</p>
+                            )}
+                            {event.type === 'balance_low' && (
+                              <p className="text-xs text-red-400 mt-0.5">{c.balance_days} days remaining — collect payment soon</p>
+                            )}
+                          </div>
 
-                    {/* Date */}
-                    <p className="text-[11px] font-semibold text-gray-300 shrink-0 pt-0.5">
-                      {new Date(event.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                    </p>
+                          {/* Time */}
+                          <p className="text-[11px] font-semibold text-gray-300 shrink-0 pt-0.5">
+                            {relativeTime(event.date)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1106,6 +1156,46 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
 
   // Fallback (shouldn't reach here)
   return null
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function relativeTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
+
+function groupLedgerByDay(events: LedgerEvent[]): { label: string; events: LedgerEvent[] }[] {
+  const groups = new Map<string, LedgerEvent[]>()
+  for (const e of events) {
+    const key = new Date(e.date).toISOString().split('T')[0]
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(e)
+  }
+  const todayStr = new Date().toISOString().split('T')[0]
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, evts]) => {
+      let label: string
+      if (key === todayStr) label = 'Today'
+      else if (key === yesterdayStr) label = 'Yesterday'
+      else {
+        const d = new Date(key + 'T12:00:00')
+        const sameYear = d.getFullYear() === new Date().getFullYear()
+        label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', ...(!sameYear && { year: 'numeric' }) })
+      }
+      return { label, events: evts }
+    })
 }
 
 // ── Reusable bits ──────────────────────────────────────────────────────────
