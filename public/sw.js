@@ -1,7 +1,5 @@
-const CACHE_NAME = 'dabbr-v1'
+const CACHE_NAME = 'dabbr-v2'
 const STATIC_ASSETS = [
-  '/',
-  '/dashboard',
   '/manifest.json',
 ]
 
@@ -57,10 +55,13 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Network-first for everything else (pages)
+  // Network-first for everything else. Keep HTML fresh so old pages do not
+  // hydrate against newer client bundles after an update.
   event.respondWith(
     fetch(request)
       .then((response) => {
+        if (request.mode === 'navigate') return response
+
         const clone = response.clone()
         caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
         return response
