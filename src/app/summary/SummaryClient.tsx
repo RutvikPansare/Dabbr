@@ -5,7 +5,7 @@ import BottomNav from '@/components/BottomNav'
 import {
   Users, TrendingUp, TrendingDown, IndianRupee,
   CheckCircle2, XCircle, UserPlus, AlertTriangle,
-  Minus,
+  Minus, Clock,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -21,6 +21,8 @@ export interface SummaryData {
   activeCustomers: number
   overdueCount: number
   overdueAmount: number
+  pendingAmount: number
+  pendingCount: number
   deliveryTrackingEnabled: boolean
   providerName: string
   thisWeek: PeriodStats
@@ -211,6 +213,22 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
           </div>
         </div>
 
+        {/* Pending Payments card */}
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm px-5 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex w-10 h-10 items-center justify-center rounded-xl bg-amber-100 shrink-0">
+              <Clock className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Pending Payments</p>
+              <p className="text-xs text-gray-400 mt-0.5">{data.pendingCount} customer{data.pendingCount !== 1 ? 's' : ''} due within 5 days</p>
+            </div>
+          </div>
+          <p className={`text-xl font-black shrink-0 ${data.pendingAmount > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+            {data.pendingAmount > 0 ? fmt(data.pendingAmount) : '₹0'}
+          </p>
+        </div>
+
         {/* Metrics grid */}
         <div className="grid grid-cols-2 gap-3">
           <MetricCard
@@ -230,7 +248,7 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
             />
           ) : (
             <MetricCard
-              label="Total Customers"
+              label="Active Customers"
               value={data.activeCustomers}
               icon={<Users className="w-4 h-4 text-blue-600" />}
               iconBg="bg-blue-100"
