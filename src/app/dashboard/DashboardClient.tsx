@@ -34,6 +34,7 @@ interface Customer {
   balance_days: number
   created_at: string
   pauses: Pause[]
+  notes: string | null
 }
 
 interface Provider {
@@ -118,9 +119,11 @@ function DeliveryRow({ c, index, isLast, hideArea }: {
         <p className="truncate text-sm font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
           {c.name}
         </p>
-        {!hideArea && c.area && (
+        {c.notes ? (
+          <p className="text-xs font-medium text-gray-400 mt-0.5 truncate">{c.notes.split('\n')[0]}</p>
+        ) : !hideArea && c.area ? (
           <p className="text-xs font-medium text-gray-500 mt-0.5">{c.area}</p>
-        )}
+        ) : null}
       </div>
       <span className="shrink-0 text-base" title={c.meal_timing ?? 'lunch'}>{mealBadge}</span>
       <div className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-xl shadow-sm ${c.plan_type === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'}`}>
@@ -238,6 +241,8 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           </p>
           {isSkipped ? (
             <p className="text-xs font-semibold text-amber-600 mt-0.5">Skipped today</p>
+          ) : c.notes && !isDelivered ? (
+            <p className="text-xs font-medium text-gray-400 mt-0.5 truncate">{c.notes.split('\n')[0]}</p>
           ) : !hideArea && c.area ? (
             <p className={`text-xs font-medium mt-0.5 ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{c.area}</p>
           ) : null}

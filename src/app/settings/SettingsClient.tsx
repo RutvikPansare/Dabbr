@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 
 interface Provider {
@@ -28,10 +28,38 @@ export default function SettingsClient({ providerId, provider }: Props) {
   const [name, setName] = useState(provider?.name ?? '')
   const [phone, setPhone] = useState(provider?.phone ?? '')
   const [upiId, setUpiId] = useState(provider?.upi_id ?? '')
-  const [deliveryTracking, setDeliveryTracking] = useState(provider?.enable_delivery_tracking ?? false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Delivery tracking saves instantly on toggle
+  const [deliveryTracking, setDeliveryTracking] = useState(provider?.enable_delivery_tracking ?? false)
+  const [trackingSaving, setTrackingSaving] = useState(false)
+  const [trackingSaved, setTrackingSaved] = useState(false)
+  const [trackingError, setTrackingError] = useState('')
+
+  async function handleToggleTracking() {
+    const next = !deliveryTracking
+    setDeliveryTracking(next)
+    setTrackingSaving(true)
+    setTrackingSaved(false)
+    setTrackingError('')
+
+    const { error: err } = await db
+      .from('providers')
+      .update({ enable_delivery_tracking: next })
+      .eq('id', providerId)
+
+    setTrackingSaving(false)
+    if (err) {
+      setDeliveryTracking(!next) // revert
+      setTrackingError(err.message)
+    } else {
+      setTrackingSaved(true)
+      router.refresh()
+      setTimeout(() => setTrackingSaved(false), 2000)
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -45,7 +73,6 @@ export default function SettingsClient({ providerId, provider }: Props) {
         name: name.trim(),
         phone: phone.trim() || null,
         upi_id: upiId.trim() || null,
-        enable_delivery_tracking: deliveryTracking,
       })
       .eq('id', providerId)
 
@@ -136,39 +163,6 @@ export default function SettingsClient({ providerId, provider }: Props) {
             </div>
           </div>
 
-          {/* Features */}
-          <div className="glass-card rounded-[2rem] p-6 shadow-sm">
-            <h2 className="mb-4 text-sm font-black text-gray-900 flex items-center gap-2">
-              <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
-                <ClipboardList className="w-4 h-4 text-orange-500" />
-              </span>
-              Features
-            </h2>
-
-            <button
-              type="button"
-              onClick={() => setDeliveryTracking(v => !v)}
-              className="w-full flex items-center justify-between gap-4 py-1"
-            >
-              <div className="text-left">
-                <p className="text-sm font-bold text-gray-900">Delivery Tracking</p>
-                <p className="text-xs font-medium text-gray-400 mt-0.5">
-                  Mark delivered or skipped per day. Only delivered customers use a balance day.
-                </p>
-              </div>
-              {/* Toggle pill */}
-              <div
-                className="relative shrink-0 h-7 w-12 rounded-full transition-colors duration-200"
-                style={{ backgroundColor: deliveryTracking ? '#f97316' : '#e5e7eb' }}
-              >
-                <span
-                  className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200"
-                  style={{ transform: deliveryTracking ? 'translateX(1.25rem)' : 'translateX(0.125rem)' }}
-                />
-              </div>
-            </button>
-          </div>
-
           {/* Preview of UPI message snippet */}
           {upiId && (
             <div className="rounded-[1.5rem] bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/50 px-5 py-4 shadow-sm">
@@ -194,9 +188,76 @@ export default function SettingsClient({ providerId, provider }: Props) {
               saved ? 'bg-green-500 text-white shadow-green-500/20' : 'btn-primary'
             }`}
           >
-            {saving ? 'Saving…' : saved ? <><CheckCircle2 className="w-4 h-4" /> Saved successfully!</> : 'Save changes'}
+            {saving ? 'Saving…' : saved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save changes'}
           </button>
         </form>
+
+        {/* Features — separate from profile form, saves instantly */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+          <h2 className="mb-4 text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+              <ClipboardList className="w-4 h-4 text-orange-500" />
+            </span>
+            Features
+          </h2>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-900">Delivery Tracking</p>
+              <p className="text-xs font-medium text-gray-400 mt-0.5">
+                Swipe to mark delivered or skipped. Only delivered customers use a balance day.
+              </p>
+              {trackingError && (
+                <p className="text-xs font-medium text-red-500 mt-1">{trackingError}</p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Inline saved indicator */}
+              {trackingSaved && (
+                <span className="flex items-center gap-1 text-xs font-bold text-green-600">
+                  <Check className="w-3 h-3" /> Saved
+                </span>
+              )}
+              {trackingSaving && (
+                <span className="text-xs font-medium text-gray-400">Saving…</span>
+              )}
+
+              {/* Toggle — uses inline styles + a stable structure so CSS can't override */}
+              <button
+                type="button"
+                disabled={trackingSaving}
+                onClick={handleToggleTracking}
+                aria-pressed={deliveryTracking}
+                style={{
+                  width: 52,
+                  height: 30,
+                  borderRadius: 999,
+                  padding: 3,
+                  backgroundColor: deliveryTracking ? '#f97316' : '#d1d5db',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: deliveryTracking ? 'flex-end' : 'flex-start',
+                  transition: 'background-color 0.2s, opacity 0.2s',
+                  opacity: trackingSaving ? 0.6 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  backgroundColor: 'white',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                  display: 'block',
+                  transition: 'transform 0.2s',
+                }} />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Danger zone */}
         <div className="glass-card rounded-[2rem] p-6 shadow-sm mt-6">

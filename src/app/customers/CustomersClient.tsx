@@ -8,7 +8,7 @@ import {
   ArrowLeft, Search, Plus, UserPlus, UserPen, MapPin, MessageCircle,
   Pause, Play, CreditCard, Leaf, Drumstick, SearchX, Box, Smartphone,
   Edit2, ChevronRight, IndianRupee, AlertTriangle, Clock,
-  CheckCircle2, XCircle, Sparkles,
+  CheckCircle2, XCircle, Sparkles, Tag, StickyNote, X as XIcon,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus } from '@/types/database'
 
@@ -36,6 +36,8 @@ interface Customer {
   balance_days: number
   pauses: Pause[]
   created_at: string
+  notes: string | null
+  tags: string[]
 }
 
 interface Payment {
@@ -123,6 +125,31 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
+// ── Tag helpers ────────────────────────────────────────────────────────────
+
+const TAG_COLORS = [
+  'bg-blue-100 text-blue-700 border-blue-200',
+  'bg-purple-100 text-purple-700 border-purple-200',
+  'bg-green-100 text-green-700 border-green-200',
+  'bg-amber-100 text-amber-700 border-amber-200',
+  'bg-rose-100 text-rose-700 border-rose-200',
+  'bg-cyan-100 text-cyan-700 border-cyan-200',
+]
+
+function tagColor(tag: string): string {
+  let hash = 0
+  for (const ch of tag) hash = (hash * 31 + ch.charCodeAt(0)) & 0xff
+  return TAG_COLORS[hash % TAG_COLORS.length]
+}
+
+const SUGGESTED_TAGS = [
+  'VIP', 'Office', 'Student', 'Family', 'Gym',
+  'Less Spicy', 'Less Oil', 'No Onion',
+  'Late Payment', 'Cash Only', 'UPI Only',
+  'Leave with Security', 'Call Before',
+  'No Friday', 'No Saturday', 'No Sunday',
+]
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function CustomersClient({ initialCustomers, providerId, initialShowAdd = false }: Props) {
@@ -138,6 +165,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'paused'>('all')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
 
   // Form
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add')
@@ -157,11 +185,20 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
   const [payments, setPayments] = useState<Payment[]>([])
   const [paymentsLoading, setPaymentsLoading] = useState(false)
 
+  // Notes & Tags
+  const [notesValue, setNotesValue] = useState('')
+  const [notesSaving, setNotesSaving] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(false)
+  const [showTagInput, setShowTagInput] = useState(false)
+  const [tagInput, setTagInput] = useState('')
+
   // Ledger (auto timeline on detail screen)
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(false)
 
   // ── Derived ───────────────────────────────────────────────────────────
+
+  const allTags = Array.from(new Set(customers.flatMap(c => c.tags ?? []))).sort()
 
   const filtered = customers.filter((c) => {
     const q = search.toLowerCase()
@@ -171,7 +208,8 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       (c.area ?? '').toLowerCase().includes(q) ||
       c.whatsapp_number.includes(q)
     const matchFilter = filter === 'all' || c.status === filter
-    return matchSearch && matchFilter
+    const matchTag = !tagFilter || (c.tags ?? []).includes(tagFilter)
+    return matchSearch && matchFilter && matchTag
   })
 
   const counts = {
@@ -208,6 +246,10 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
 
   async function openDetail(c: Customer) {
     setSelectedCustomer(c)
+    setNotesValue(c.notes ?? '')
+    setNotesSaved(false)
+    setShowTagInput(false)
+    setTagInput('')
     setLedgerEvents([])
     setLedgerLoading(true)
     setScreen('detail')
@@ -292,6 +334,38 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       .order('recorded_at', { ascending: false })
     setPayments(data ?? [])
     setPaymentsLoading(false)
+  }
+
+  async function saveNotes() {
+    if (!selectedCustomer) return
+    setNotesSaving(true)
+    await db.from('customers').update({ notes: notesValue || null }).eq('id', selectedCustomer.id)
+    const updated = { ...selectedCustomer, notes: notesValue || null }
+    setSelectedCustomer(updated)
+    setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
+    setNotesSaving(false)
+    setNotesSaved(true)
+    setTimeout(() => setNotesSaved(false), 2000)
+  }
+
+  async function addTag(tag: string) {
+    if (!selectedCustomer) return
+    const trimmed = tag.trim()
+    if (!trimmed || selectedCustomer.tags.includes(trimmed)) return
+    const newTags = [...selectedCustomer.tags, trimmed]
+    await db.from('customers').update({ tags: newTags }).eq('id', selectedCustomer.id)
+    const updated = { ...selectedCustomer, tags: newTags }
+    setSelectedCustomer(updated)
+    setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
+  }
+
+  async function removeTag(tag: string) {
+    if (!selectedCustomer) return
+    const newTags = selectedCustomer.tags.filter(t => t !== tag)
+    await db.from('customers').update({ tags: newTags }).eq('id', selectedCustomer.id)
+    const updated = { ...selectedCustomer, tags: newTags }
+    setSelectedCustomer(updated)
+    setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
   }
 
   function goBack() {
@@ -494,6 +568,25 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
             ))}
           </div>
 
+          {/* Tag filter chips */}
+          {allTags.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold border transition-all ${
+                    tagFilter === tag
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                      : `${tagColor(tag)} border`
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Empty state */}
           {customers.length === 0 && (
             <div className="glass-card flex flex-col items-center rounded-3xl px-6 py-14 text-center mt-8">
@@ -544,6 +637,20 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
                       <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-400 group-hover:text-gray-500">
                         <Smartphone className="w-3 h-3" /> {c.whatsapp_number}
                       </p>
+                      {c.notes && (
+                        <p className="mt-1.5 text-xs text-gray-400 truncate max-w-[200px]">
+                          <StickyNote className="inline w-3 h-3 mr-1 opacity-60" />{c.notes}
+                        </p>
+                      )}
+                      {(c.tags ?? []).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {c.tags.map(tag => (
+                            <span key={tag} className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${tagColor(tag)}`}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="shrink-0 text-right flex flex-col items-end gap-2">
                       <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm ${balancePillClass(c.balance_days)}`}>
@@ -728,6 +835,119 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
               </div>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </button>
+          </div>
+
+          {/* ── Notes & Tags ────────────────────────────────────────── */}
+          <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
+              <Tag className="w-4 h-4 text-orange-400" />
+              <h3 className="text-sm font-black text-gray-900 tracking-tight">Notes & Tags</h3>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              {/* Tags */}
+              <div>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(c.tags ?? []).map(tag => (
+                    <span key={tag} className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${tagColor(tag)}`}>
+                      {tag}
+                      <button
+                        onClick={() => removeTag(tag)}
+                        className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                        aria-label={`Remove ${tag}`}
+                      >
+                        <XIcon className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {(c.tags ?? []).length === 0 && !showTagInput && (
+                    <p className="text-xs text-gray-400">No tags yet</p>
+                  )}
+                </div>
+
+                {showTagInput ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus
+                        value={tagInput}
+                        onChange={e => setTagInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            addTag(tagInput)
+                            setTagInput('')
+                            setShowTagInput(false)
+                          } else if (e.key === 'Escape') {
+                            setShowTagInput(false)
+                            setTagInput('')
+                          }
+                        }}
+                        placeholder="Type tag + Enter"
+                        className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200"
+                      />
+                      <button
+                        onClick={() => { addTag(tagInput); setTagInput(''); setShowTagInput(false) }}
+                        className="rounded-xl bg-orange-500 text-white px-4 py-2 text-xs font-bold hover:bg-orange-600 transition-colors"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => { setShowTagInput(false); setTagInput('') }}
+                        className="rounded-xl bg-gray-100 text-gray-500 px-3 py-2 text-xs font-bold hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {/* Suggestions */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        ...SUGGESTED_TAGS,
+                        ...allTags.filter(t => !SUGGESTED_TAGS.includes(t)),
+                      ]
+                        .filter(t => !(c.tags ?? []).includes(t))
+                        .slice(0, 12)
+                        .map(t => (
+                          <button
+                            key={t}
+                            onClick={() => { addTag(t); setShowTagInput(false); setTagInput('') }}
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all hover:scale-105 ${tagColor(t)}`}
+                          >
+                            + {t}
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowTagInput(true)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-orange-500 hover:text-orange-700 transition-colors"
+                  >
+                    <Tag className="w-3.5 h-3.5" /> Add tag
+                  </button>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Notes</p>
+                <div className="relative">
+                  <textarea
+                    value={notesValue}
+                    onChange={e => setNotesValue(e.target.value)}
+                    onBlur={saveNotes}
+                    placeholder="Delivery instructions, food preferences, payment notes…"
+                    rows={3}
+                    className="w-full rounded-2xl border border-gray-200 bg-[#FDF8F3] px-4 py-3 text-sm text-gray-800 placeholder-gray-400 resize-none focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-200 transition-colors"
+                  />
+                  {(notesSaving || notesSaved) && (
+                    <span className={`absolute bottom-3 right-3 text-[10px] font-semibold transition-opacity ${notesSaved ? 'text-green-500' : 'text-gray-400'}`}>
+                      {notesSaving ? 'Saving…' : 'Saved ✓'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* ── Auto Ledger ─────────────────────────────────────────── */}

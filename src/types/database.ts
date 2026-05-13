@@ -52,6 +52,8 @@ export interface Database {
           status: CustomerStatus
           balance_days: number
           created_at: string
+          notes: string | null
+          tags: string[]
         }
         Insert: {
           id?: string
@@ -66,6 +68,8 @@ export interface Database {
           status?: CustomerStatus
           balance_days?: number
           created_at?: string
+          notes?: string | null
+          tags?: string[]
         }
         Update: {
           id?: string
@@ -80,6 +84,8 @@ export interface Database {
           status?: CustomerStatus
           balance_days?: number
           created_at?: string
+          notes?: string | null
+          tags?: string[]
         }
       }
       pauses: {
