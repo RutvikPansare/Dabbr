@@ -34,8 +34,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Authenticated user visiting login or root — send to dashboard
-  if (user && (pathname === '/login' || pathname === '/')) {
+  // Authenticated user visiting login — send to dashboard. Keep root public so
+  // the landing page remains visible at localhost:3000.
+  if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
