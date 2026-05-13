@@ -1,11 +1,12 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Users, CreditCard, Settings } from 'lucide-react'
+import { Home, Users, TrendingUp, CreditCard, Settings } from 'lucide-react'
 
 const TABS = [
   { href: '/dashboard', icon: Home, label: 'Home' },
   { href: '/customers', icon: Users, label: 'Customers' },
+  { href: '/summary', icon: TrendingUp, label: 'Summary' },
   { href: '/payments', icon: CreditCard, label: 'Payments' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ]
