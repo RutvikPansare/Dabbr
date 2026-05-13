@@ -731,11 +731,16 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           </div>
 
           {/* ── Auto Ledger ─────────────────────────────────────────── */}
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 px-1 mb-3">Activity</h3>
+          <div className="rounded-[2rem] border border-orange-100 bg-white shadow-sm overflow-hidden">
+            {/* Section header */}
+            <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
+              <Clock className="w-4 h-4 text-orange-400" />
+              <h3 className="text-sm font-black text-gray-900 tracking-tight">Activity</h3>
+            </div>
 
+            <div className="overflow-y-auto max-h-[420px] px-4 py-4 space-y-3">
             {ledgerLoading ? (
-              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-5 space-y-4">
+              <div className="space-y-4 px-1 py-1">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-2xl bg-gray-100 animate-pulse shrink-0" />
@@ -747,8 +752,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
                 ))}
               </div>
             ) : ledgerEvents.length === 0 ? (
-              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-8 flex flex-col items-center text-center">
-                <Clock className="w-8 h-8 text-gray-200 mb-2" />
+              <div className="px-1 py-6 flex flex-col items-center text-center">
                 <p className="text-sm font-semibold text-gray-400">No activity yet</p>
                 <p className="text-xs text-gray-300 mt-0.5">Payments and deliveries will appear here</p>
               </div>
@@ -812,6 +816,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
                 ))}
               </div>
             )}
+            </div>
           </div>
 
         </main>
