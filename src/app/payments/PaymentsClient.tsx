@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
-import { CreditCard, PartyPopper, CheckCircle2, MessageCircle, Plus, Send } from 'lucide-react'
+import {
+  CreditCard, CheckCircle2, MessageCircle, Plus, Send,
+  Phone, PartyPopper, ChevronDown, ChevronUp, IndianRupee,
+  Check, Leaf, Drumstick,
+} from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -25,12 +29,7 @@ interface PaymentWithCustomer {
   amount: number
   recorded_at: string
   notes: string | null
-  customers: {
-    id: string
-    name: string
-    whatsapp_number: string
-    area: string | null
-  } | null
+  customers: { id: string; name: string; whatsapp_number: string; area: string | null } | null
 }
 
 interface Provider {
@@ -49,12 +48,19 @@ interface Props {
 
 // ── Message builders ───────────────────────────────────────────────────────
 
-function receiptMessage(
-  customerName: string,
-  amount: number,
-  newBalance: number,
-  provider: Provider | null
-): string {
+function reminderMessage(customerName: string, balanceDays: number, provider: Provider | null): string {
+  return [
+    `Hi ${customerName},`,
+    balanceDays <= 0
+      ? `Your tiffin balance has expired. Please renew to continue service.`
+      : `Your tiffin balance is running low (${balanceDays} day${balanceDays !== 1 ? 's' : ''} remaining).`,
+    `Please renew to continue uninterrupted service.`,
+    provider?.upi_id ? `Pay via UPI: ${provider.upi_id}` : null,
+    `— ${provider?.name ?? 'Your tiffin provider'}`,
+  ].filter(Boolean).join('\n')
+}
+
+function receiptMessage(customerName: string, amount: number, newBalance: number, provider: Provider | null): string {
   return [
     `Hi ${customerName},`,
     `Payment received: ₹${amount} ✅`,
@@ -62,73 +68,43 @@ function receiptMessage(
     provider?.upi_id ? `UPI: ${provider.upi_id}` : null,
     `Thank you! 🙏`,
     `— ${provider?.name ?? 'Your tiffin provider'}`,
-  ]
-    .filter(Boolean)
-    .join('\n')
-}
-
-function reminderMessage(
-  customerName: string,
-  balanceDays: number,
-  provider: Provider | null
-): string {
-  return [
-    `Hi ${customerName},`,
-    `Your tiffin balance is running low (${balanceDays} days remaining).`,
-    `Please renew to continue uninterrupted service.`,
-    provider?.upi_id ? `Pay via UPI: ${provider.upi_id}` : null,
-    `— ${provider?.name ?? 'Your tiffin provider'}`,
-  ]
-    .filter(Boolean)
-    .join('\n')
+  ].filter(Boolean).join('\n')
 }
 
 function waLink(phone: string, message: string): string {
   return `https://wa.me/91${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
 }
 
-// ── Balance calculation ────────────────────────────────────────────────────
-// days_added = amount / (price_per_month / 30)  →  amount × 30 / price_per_month
 function daysFromAmount(amount: number, pricePerMonth: number): number {
   if (!pricePerMonth) return 0
   return Math.round((amount * 30) / pricePerMonth * 10) / 10
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function balancePill(days: number) {
-  if (days > 7) return 'bg-green-50 text-green-700 border border-green-200'
-  if (days >= 3) return 'bg-amber-50 text-amber-700 border border-amber-200'
-  return 'bg-red-50 text-red-700 border border-red-200'
-}
+const DUE_SOON_THRESHOLD = 5
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function PaymentsClient({
-  providerId,
-  provider,
-  initialCustomers,
-  initialPayments,
-}: Props) {
+export default function PaymentsClient({ providerId, provider, initialCustomers, initialPayments }: Props) {
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  // ── State ──────────────────────────────────────────────────────────────
-
-  const [tab, setTab] = useState<'recent' | 'overdue'>('recent')
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [payments, setPayments] = useState<PaymentWithCustomer[]>(initialPayments)
 
-  // Record sheet
+  // Bulk selection
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Reminder queue sheet
+  const [reminderQueue, setReminderQueue] = useState<Customer[] | null>(null)
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set())
+
+  // Record payment sheet
   const [showRecord, setShowRecord] = useState(false)
   const [selCustomerId, setSelCustomerId] = useState('')
   const [amount, setAmount] = useState('')
@@ -136,26 +112,74 @@ export default function PaymentsClient({
   const [recording, setRecording] = useState(false)
   const [recordError, setRecordError] = useState('')
 
-  // Post-payment WhatsApp CTA
+  // Post-payment receipt CTA
   const [receiptCTA, setReceiptCTA] = useState<{
-    url: string
-    customerName: string
-    amount: number
-    newBalance: number
+    url: string; customerName: string; amount: number; newBalance: number
   } | null>(null)
+
+  // History toggle
+  const [showHistory, setShowHistory] = useState(false)
 
   // ── Derived ────────────────────────────────────────────────────────────
 
-  const overdueCustomers = customers
-    .filter((c) => c.status === 'active' && c.balance_days < 3)
+  const overdue = customers
+    .filter(c => c.status === 'active' && c.balance_days <= 0)
     .sort((a, b) => a.balance_days - b.balance_days)
 
-  const selectedCustomer = customers.find((c) => c.id === selCustomerId) ?? null
+  const dueSoon = customers
+    .filter(c => c.status === 'active' && c.balance_days > 0 && c.balance_days <= DUE_SOON_THRESHOLD)
+    .sort((a, b) => a.balance_days - b.balance_days)
+
+  const urgentCustomers = [...overdue, ...dueSoon]
+
+  const selectedCustomer = customers.find(c => c.id === selCustomerId) ?? null
   const previewDays = selectedCustomer && amount
     ? daysFromAmount(Number(amount), selectedCustomer.price_per_month)
     : null
 
-  // ── Record payment ──────────────────────────────────────────────────────
+  // ── Actions ────────────────────────────────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSectionSelect(ids: string[]) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      const allSelected = ids.every(id => prev.has(id))
+      if (allSelected) ids.forEach(id => next.delete(id))
+      else ids.forEach(id => next.add(id))
+      return next
+    })
+  }
+
+  function openRecord(customerId?: string) {
+    setSelCustomerId(customerId ?? '')
+    if (customerId) {
+      const c = customers.find(x => x.id === customerId)
+      if (c) setAmount(String(c.price_per_month))
+      else setAmount('')
+    } else {
+      setAmount('')
+    }
+    setNote('')
+    setRecordError('')
+    setReceiptCTA(null)
+    setShowRecord(true)
+  }
+
+  function startReminderQueue(list: Customer[]) {
+    setSentIds(new Set())
+    setReminderQueue(list)
+  }
+
+  function markSent(id: string) {
+    setSentIds(prev => new Set([...prev, id]))
+  }
 
   async function handleRecord(e: React.FormEvent) {
     e.preventDefault()
@@ -167,63 +191,26 @@ export default function PaymentsClient({
     const daysAdded = daysFromAmount(amountNum, selectedCustomer.price_per_month)
     const newBalance = Math.round((selectedCustomer.balance_days + daysAdded) * 10) / 10
 
-    // 1. Insert payment
     const { data: newPayment, error: payErr } = await db
       .from('payments')
-      .insert({
-        customer_id: selectedCustomer.id,
-        provider_id: providerId,
-        amount: amountNum,
-        notes: note.trim() || null,
-      })
+      .insert({ customer_id: selectedCustomer.id, provider_id: providerId, amount: amountNum, notes: note.trim() || null })
       .select()
       .single()
 
-    if (payErr) {
-      setRecordError(`Failed: ${payErr.message}`)
-      setRecording(false)
-      return
-    }
+    if (payErr) { setRecordError(`Failed: ${payErr.message}`); setRecording(false); return }
 
-    // 2. Update customer balance
-    await db
-      .from('customers')
-      .update({ balance_days: newBalance })
-      .eq('id', selectedCustomer.id)
+    await db.from('customers').update({ balance_days: newBalance }).eq('id', selectedCustomer.id)
 
-    // 3. Update local state
-    setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === selectedCustomer.id ? { ...c, balance_days: newBalance } : c
-      )
-    )
-    setPayments((prev) => [
-      {
-        ...newPayment,
-        customers: {
-          id: selectedCustomer.id,
-          name: selectedCustomer.name,
-          whatsapp_number: selectedCustomer.whatsapp_number,
-          area: selectedCustomer.area,
-        },
-      },
-      ...prev,
-    ])
+    setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, balance_days: newBalance } : c))
+    setPayments(prev => [{
+      ...newPayment,
+      customers: { id: selectedCustomer.id, name: selectedCustomer.name, whatsapp_number: selectedCustomer.whatsapp_number, area: selectedCustomer.area },
+    }, ...prev])
 
-    // 4. Build receipt CTA
     const msg = receiptMessage(selectedCustomer.name, amountNum, newBalance, provider)
-    setReceiptCTA({
-      url: waLink(selectedCustomer.whatsapp_number, msg),
-      customerName: selectedCustomer.name,
-      amount: amountNum,
-      newBalance,
-    })
-
-    // 5. Reset
+    setReceiptCTA({ url: waLink(selectedCustomer.whatsapp_number, msg), customerName: selectedCustomer.name, amount: amountNum, newBalance })
     setShowRecord(false)
-    setSelCustomerId('')
-    setAmount('')
-    setNote('')
+    setSelCustomerId(''); setAmount(''); setNote('')
     setRecording(false)
   }
 
@@ -234,184 +221,315 @@ export default function PaymentsClient({
 
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-orange-100/50 px-5 pb-4 pt-8 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-        <div className="mx-auto max-w-2xl">
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Payments</h1>
-          <p className="text-xs font-medium text-orange-600/80">Record and track payments</p>
+        <div className="mx-auto max-w-2xl flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Payment Center</h1>
+            <p className="text-xs font-medium text-orange-600/80">
+              {urgentCustomers.length === 0
+                ? 'All customers up to date'
+                : `${urgentCustomers.length} customer${urgentCustomers.length !== 1 ? 's' : ''} need attention`}
+            </p>
+          </div>
+          {urgentCustomers.length > 0 && (
+            <button
+              onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
+              className={`rounded-2xl px-4 py-2.5 text-xs font-bold transition-all mt-1 ${
+                bulkMode
+                  ? 'bg-orange-500 text-white shadow-md'
+                  : 'bg-orange-50 text-orange-600 border border-orange-200'
+              }`}
+            >
+              {bulkMode ? 'Done' : 'Select'}
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="mx-auto max-w-2xl px-4 pt-6">
-        <div className="flex rounded-2xl bg-white/50 p-1.5 shadow-inner border border-gray-200/50 backdrop-blur-sm gap-1">
-          {(['recent', 'overdue'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
-                tab === t
-                  ? 'bg-white text-orange-600 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-gray-100'
-                  : 'text-gray-500 hover:text-gray-800 hover:bg-white/40'
-              }`}
-            >
-              {t === 'overdue' ? (
-                <span className="flex items-center justify-center gap-1.5">
-                  Overdue
-                  {overdueCustomers.length > 0 && (
-                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] ${tab === 'overdue' ? 'bg-orange-100 text-orange-700' : 'bg-red-500 text-white shadow-sm'}`}>
-                      {overdueCustomers.length}
-                    </span>
-                  )}
-                </span>
-              ) : 'Recent'}
-            </button>
-          ))}
-        </div>
-      </div>
+      <main className="mx-auto max-w-2xl px-4 pt-5 pb-6 space-y-5">
 
-      {/* ── Post-payment receipt CTA ── */}
-      {receiptCTA && (
-        <div className="mx-auto mt-4 max-w-2xl px-4">
+        {/* Summary strip */}
+        {(overdue.length > 0 || dueSoon.length > 0) && (
+          <div className="flex gap-2.5">
+            {overdue.length > 0 && (
+              <div className="flex-1 rounded-2xl bg-red-50 border border-red-100 px-4 py-3">
+                <p className="text-2xl font-black text-red-600 leading-none">{overdue.length}</p>
+                <p className="text-[11px] font-bold text-red-400 uppercase tracking-wide mt-1">Overdue</p>
+              </div>
+            )}
+            {dueSoon.length > 0 && (
+              <div className="flex-1 rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3">
+                <p className="text-2xl font-black text-amber-600 leading-none">{dueSoon.length}</p>
+                <p className="text-[11px] font-bold text-amber-400 uppercase tracking-wide mt-1">Due Soon</p>
+              </div>
+            )}
+            <div className="flex-1 rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
+              <p className="text-2xl font-black text-gray-600 leading-none">
+                {customers.filter(c => c.status === 'active' && c.balance_days > DUE_SOON_THRESHOLD).length}
+              </p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mt-1">Healthy</p>
+            </div>
+          </div>
+        )}
+
+        {/* Receipt CTA */}
+        {receiptCTA && (
           <div className="flex items-center gap-3 rounded-2xl bg-green-50 border border-green-200 p-4">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-green-800 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                 ₹{receiptCTA.amount} recorded for {receiptCTA.customerName}
               </p>
-              <p className="text-xs text-green-600">
-                New balance: {receiptCTA.newBalance} days
-              </p>
+              <p className="text-xs text-green-600 mt-0.5">New balance: {receiptCTA.newBalance} days</p>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 shrink-0">
               <a
                 href={receiptCTA.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 rounded-xl bg-green-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-green-600 active:scale-95"
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-green-500 px-3 py-2 text-xs font-bold text-white active:scale-95 transition-all"
               >
                 <Send className="w-3.5 h-3.5" /> Send receipt
               </a>
+              <button onClick={() => setReceiptCTA(null)} className="text-center text-xs text-green-600">Dismiss</button>
+            </div>
+          </div>
+        )}
+
+        {/* All-clear state */}
+        {urgentCustomers.length === 0 && (
+          <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-16">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-green-50 text-green-500 shadow-inner border border-green-100/50">
+              <PartyPopper className="w-10 h-10" strokeWidth={1.5} />
+            </div>
+            <p className="text-base font-black text-gray-800">You&apos;re all caught up!</p>
+            <p className="mt-1 text-xs font-medium text-gray-400 text-center max-w-[200px]">
+              No overdue or low-balance customers right now.
+            </p>
+          </div>
+        )}
+
+        {/* ── Overdue section ── */}
+        {overdue.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚠️</span>
+                <h2 className="text-xs font-black uppercase tracking-wider text-gray-700">Overdue</h2>
+                <span className="rounded-lg px-2 py-0.5 text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">
+                  {overdue.length}
+                </span>
+              </div>
+              {bulkMode ? (
+                <button
+                  onClick={() => toggleSectionSelect(overdue.map(c => c.id))}
+                  className="text-xs font-bold text-orange-500"
+                >
+                  {overdue.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => startReminderQueue(overdue)}
+                  className="flex items-center gap-1.5 rounded-xl bg-green-50 border border-green-200 px-3 py-1.5 text-xs font-bold text-green-700 active:scale-95 transition-all"
+                >
+                  <MessageCircle className="w-3 h-3" /> Remind all
+                </button>
+              )}
+            </div>
+            <div className="rounded-[1.5rem] bg-white border border-red-100/60 shadow-sm overflow-hidden divide-y divide-gray-50">
+              {overdue.map(c => (
+                <CustomerRow
+                  key={c.id}
+                  customer={c}
+                  provider={provider}
+                  bulkMode={bulkMode}
+                  selected={selectedIds.has(c.id)}
+                  onToggle={() => toggleSelect(c.id)}
+                  onRecord={() => openRecord(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Due Soon section ── */}
+        {dueSoon.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🟠</span>
+                <h2 className="text-xs font-black uppercase tracking-wider text-gray-700">Due Soon</h2>
+                <span className="rounded-lg px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-600 border border-amber-200">
+                  {dueSoon.length}
+                </span>
+              </div>
+              {bulkMode ? (
+                <button
+                  onClick={() => toggleSectionSelect(dueSoon.map(c => c.id))}
+                  className="text-xs font-bold text-orange-500"
+                >
+                  {dueSoon.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => startReminderQueue(dueSoon)}
+                  className="flex items-center gap-1.5 rounded-xl bg-green-50 border border-green-200 px-3 py-1.5 text-xs font-bold text-green-700 active:scale-95 transition-all"
+                >
+                  <MessageCircle className="w-3 h-3" /> Remind all
+                </button>
+              )}
+            </div>
+            <div className="rounded-[1.5rem] bg-white border border-amber-100/60 shadow-sm overflow-hidden divide-y divide-gray-50">
+              {dueSoon.map(c => (
+                <CustomerRow
+                  key={c.id}
+                  customer={c}
+                  provider={provider}
+                  bulkMode={bulkMode}
+                  selected={selectedIds.has(c.id)}
+                  onToggle={() => toggleSelect(c.id)}
+                  onRecord={() => openRecord(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Payment history (collapsible) ── */}
+        <div>
+          <button
+            onClick={() => setShowHistory(v => !v)}
+            className="w-full flex items-center justify-between px-1 py-2"
+          >
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Payment History</span>
+            {showHistory
+              ? <ChevronUp className="w-4 h-4 text-gray-400" />
+              : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
+
+          {showHistory && (
+            payments.length === 0 ? (
+              <div className="rounded-3xl bg-white border border-gray-100 px-5 py-8 flex flex-col items-center shadow-sm">
+                <p className="text-sm font-semibold text-gray-400">No payments recorded yet</p>
+              </div>
+            ) : (
+              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                {payments.slice(0, 25).map((p, i) => (
+                  <div
+                    key={p.id}
+                    className={`flex items-center gap-4 px-5 py-4 ${i !== Math.min(payments.length, 25) - 1 ? 'border-b border-gray-50' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{p.customers?.name ?? '—'}</p>
+                      {p.notes && <p className="text-xs text-gray-400 truncate mt-0.5">{p.notes}</p>}
+                      <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.recorded_at)}</p>
+                    </div>
+                    <p className="text-sm font-black text-green-600 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100 shrink-0">
+                      ₹{p.amount}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+
+      </main>
+
+      {/* ── Bulk action bar ── */}
+      {bulkMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-[72px] inset-x-0 z-20 px-4 pointer-events-none">
+          <div className="mx-auto max-w-2xl pointer-events-auto">
+            <div className="rounded-2xl bg-gray-900 text-white px-4 py-3 flex items-center gap-3 shadow-2xl">
+              <p className="flex-1 text-sm font-bold">{selectedIds.size} selected</p>
               <button
-                onClick={() => setReceiptCTA(null)}
-                className="text-center text-xs text-green-600 hover:text-green-800"
+                onClick={() => {
+                  const selected = urgentCustomers.filter(c => selectedIds.has(c.id))
+                  startReminderQueue(selected)
+                  setBulkMode(false)
+                  setSelectedIds(new Set())
+                }}
+                className="rounded-xl bg-green-500 px-4 py-2 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
               >
-                Dismiss
+                <MessageCircle className="w-3.5 h-3.5" /> Remind selected
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Main content ── */}
-      <main className="mx-auto mt-4 max-w-2xl space-y-3 px-4">
-
-        {/* ── Recent tab ── */}
-        {tab === 'recent' && (
-          <div className="space-y-3">
-            {payments.length === 0 ? (
-              <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-16">
-                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-green-50 text-green-500 shadow-inner border border-green-100/50">
-                  <CreditCard className="w-10 h-10" strokeWidth={1.5} />
-                </div>
-                <p className="text-sm font-bold text-gray-800">No payments recorded yet</p>
-                <p className="mt-1 text-xs font-medium text-gray-400">Tap the + button below to record one</p>
-              </div>
-            ) : (
-              <div className="glass-card overflow-hidden rounded-3xl">
-                {payments.map((p, i) => (
-                  <div
-                    key={p.id}
-                    className={`group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-gray-50/50 ${
-                      i !== payments.length - 1 ? 'border-b border-gray-100/50' : ''
-                    }`}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-600 shadow-sm border border-green-100 group-hover:scale-105 transition-transform">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-gray-900 group-hover:text-green-700 transition-colors">
-                        {p.customers?.name ?? '—'}
-                      </p>
-                      {p.notes && (
-                        <p className="truncate text-xs font-medium text-gray-500 mt-0.5">{p.notes}</p>
-                      )}
-                      <p className="text-xs text-gray-400 mt-1 uppercase tracking-wider">{fmtDate(p.recorded_at)}</p>
-                    </div>
-                    <p className="shrink-0 text-base font-black text-green-600 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100/50 shadow-sm">
-                      ₹{p.amount}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Overdue tab ── */}
-        {tab === 'overdue' && (
-          <div className="space-y-3">
-            {overdueCustomers.length === 0 ? (
-              <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-16">
-                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-orange-50 text-orange-400 shadow-inner border border-orange-100/50">
-                  <PartyPopper className="w-10 h-10" strokeWidth={1.5} />
-                </div>
-                <p className="text-sm font-bold text-gray-800">No overdue customers!</p>
-                <p className="mt-1 text-xs font-medium text-gray-400">Everyone has ≥3 days balance</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {overdueCustomers.map((c) => (
-                  <div
-                    key={c.id}
-                    className="glass-card group flex items-center justify-between rounded-[1.5rem] p-4 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border border-red-100/50 relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 right-0 p-8 bg-red-500/5 rounded-bl-full" />
-                    <div className="relative z-10 min-w-0 flex-1">
-                      <p className="text-sm font-bold text-gray-900 group-hover:text-red-700 transition-colors">{c.name}</p>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <span className={`rounded-lg px-2.5 py-1 text-xs font-bold shadow-sm ${balancePill(c.balance_days)}`}>
-                          {c.balance_days}d left
-                        </span>
-                        {c.area && (
-                          <span className="text-xs font-medium text-gray-500">{c.area}</span>
-                        )}
-                      </div>
-                    </div>
-                    <a
-                      href={waLink(
-                        c.whatsapp_number,
-                        reminderMessage(c.name, c.balance_days, provider)
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="relative z-10 flex h-10 w-10 items-center justify-center rounded-2xl bg-green-500 text-white shadow-[0_4px_15px_rgba(34,197,94,0.3)] transition-all duration-300 hover:bg-green-600 hover:scale-110 active:scale-95 group/btn"
-                    >
-                      <MessageCircle className="w-4 h-4 group-hover/btn:-translate-x-0.5 transition-transform" />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* ── Record Payment FAB ── */}
+      {/* ── FAB ── */}
       <button
-        onClick={() => { setShowRecord(true); setReceiptCTA(null) }}
+        onClick={() => openRecord()}
         className="fixed bottom-[88px] right-5 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] text-white shadow-[0_8px_30px_rgba(244,98,42,0.4)] transition-all duration-300 hover:scale-105 active:scale-95 border border-white/20"
       >
         <Plus className="w-7 h-7" strokeWidth={2.5} />
       </button>
 
       {/* ════════════════════════════════════════════════
+          Reminder Queue Sheet
+      ════════════════════════════════════════════════ */}
+      {reminderQueue && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setReminderQueue(null)} />
+          <div className="relative z-10 rounded-t-3xl bg-white px-5 pb-10 pt-4 shadow-2xl max-h-[80vh] flex flex-col">
+            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-gray-200 shrink-0" />
+            <div className="shrink-0 mb-4">
+              <h2 className="text-lg font-black text-gray-900">Send Reminders</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {reminderQueue.length} customer{reminderQueue.length !== 1 ? 's' : ''} · tap Send to open WhatsApp
+              </p>
+            </div>
+
+            <div className="space-y-2 overflow-y-auto flex-1 pb-2">
+              {reminderQueue.map(c => (
+                <div
+                  key={c.id}
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 border transition-colors ${
+                    sentIds.has(c.id) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {c.balance_days <= 0 ? 'Expired' : `${c.balance_days}d left`}
+                      {c.area ? ` · ${c.area}` : ''}
+                    </p>
+                  </div>
+                  {sentIds.has(c.id) ? (
+                    <span className="flex items-center gap-1 text-xs font-bold text-green-600 shrink-0">
+                      <CheckCircle2 className="w-4 h-4" /> Sent
+                    </span>
+                  ) : (
+                    <a
+                      href={waLink(c.whatsapp_number, reminderMessage(c.name, c.balance_days, provider))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => markSent(c.id)}
+                      className="flex items-center gap-1.5 rounded-xl bg-green-500 px-3 py-2 text-xs font-bold text-white active:scale-95 transition-all shrink-0"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" /> Send
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setReminderQueue(null)}
+              className="shrink-0 mt-4 w-full rounded-2xl border-2 border-gray-200 py-3.5 text-sm font-bold text-gray-500 active:scale-95 transition-all"
+            >
+              {sentIds.size === reminderQueue.length && reminderQueue.length > 0 ? 'All sent — Done' : 'Done'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════
           Record Payment Sheet
       ════════════════════════════════════════════════ */}
       {showRecord && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowRecord(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowRecord(false)} />
           <div className="relative z-10 max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white px-5 pb-10 pt-4 shadow-2xl">
             <div className="mx-auto mb-5 h-1 w-12 rounded-full bg-gray-200" />
             <h2 className="mb-5 text-lg font-black text-gray-900 flex items-center gap-2">
@@ -419,33 +537,31 @@ export default function PaymentsClient({
             </h2>
 
             <form onSubmit={handleRecord} className="space-y-4">
-              {/* Customer selector */}
               <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Customer *
-                </p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Customer *</p>
                 <select
                   required
                   value={selCustomerId}
-                  onChange={(e) => setSelCustomerId(e.target.value)}
+                  onChange={(e) => {
+                    setSelCustomerId(e.target.value)
+                    const c = customers.find(x => x.id === e.target.value)
+                    if (c) setAmount(String(c.price_per_month))
+                    else setAmount('')
+                  }}
                   className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
                 >
                   <option value="">Select a customer…</option>
-                  {customers
-                    .filter((c) => c.status === 'active')
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}{c.area ? ` — ${c.area}` : ''}
-                      </option>
-                    ))}
+                  {customers.filter(c => c.status === 'active').map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{c.area ? ` — ${c.area}` : ''}</option>
+                  ))}
                 </select>
                 {selectedCustomer && (
                   <p className="mt-1.5 text-xs text-gray-400">
                     Current balance:{' '}
                     <span className={`font-semibold ${
                       selectedCustomer.balance_days > 7 ? 'text-green-600'
-                      : selectedCustomer.balance_days >= 3 ? 'text-amber-600'
-                      : 'text-red-600'
+                        : selectedCustomer.balance_days >= 3 ? 'text-amber-600'
+                          : 'text-red-600'
                     }`}>
                       {selectedCustomer.balance_days}d
                     </span>
@@ -454,11 +570,8 @@ export default function PaymentsClient({
                 )}
               </div>
 
-              {/* Amount */}
               <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Amount (₹) *
-                </p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Amount (₹) *</p>
                 <input
                   required
                   type="number"
@@ -470,7 +583,7 @@ export default function PaymentsClient({
                 />
                 {previewDays !== null && previewDays > 0 && (
                   <p className="mt-1.5 text-xs text-gray-400">
-                    This adds{' '}
+                    Adds{' '}
                     <span className="font-bold text-green-600">+{previewDays} days</span>
                     {' '}→ new balance:{' '}
                     <span className="font-bold text-gray-700">
@@ -480,11 +593,8 @@ export default function PaymentsClient({
                 )}
               </div>
 
-              {/* Note */}
               <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Note (optional)
-                </p>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Note (optional)</p>
                 <input
                   type="text"
                   placeholder="e.g. Cash received, UPI ref…"
@@ -495,9 +605,7 @@ export default function PaymentsClient({
               </div>
 
               {recordError && (
-                <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
-                  {recordError}
-                </p>
+                <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{recordError}</p>
               )}
 
               <button
@@ -513,6 +621,97 @@ export default function PaymentsClient({
       )}
 
       <BottomNav />
+    </div>
+  )
+}
+
+// ── CustomerRow ────────────────────────────────────────────────────────────
+
+interface CustomerRowProps {
+  customer: Customer
+  provider: Provider | null
+  bulkMode: boolean
+  selected: boolean
+  onToggle: () => void
+  onRecord: () => void
+}
+
+function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRecord }: CustomerRowProps) {
+  const isOverdue = c.balance_days <= 0
+
+  return (
+    <div
+      className={`px-4 py-4 transition-colors ${selected ? 'bg-orange-50' : ''}`}
+      onClick={bulkMode ? onToggle : undefined}
+    >
+      <div className="flex items-start gap-3">
+        {/* Checkbox in bulk mode */}
+        {bulkMode && (
+          <div className={`mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
+            selected ? 'bg-orange-500 border-orange-500' : 'border-gray-300 bg-white'
+          }`}>
+            {selected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Name + balance pill */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-black text-gray-900 truncate">{c.name}</p>
+            <span className={`shrink-0 rounded-xl px-2.5 py-1 text-xs font-black border ${
+              isOverdue
+                ? 'bg-red-50 text-red-600 border-red-200'
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}>
+              {isOverdue ? 'Expired' : `${c.balance_days}d left`}
+            </span>
+          </div>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {c.area && (
+              <>
+                <span className="text-xs text-gray-500">{c.area}</span>
+                <span className="text-gray-300 text-xs">·</span>
+              </>
+            )}
+            <span className="flex items-center gap-0.5 text-xs text-gray-400">
+              {c.plan_type === 'veg'
+                ? <><Leaf className="w-3 h-3 text-emerald-500" /> Veg</>
+                : <><Drumstick className="w-3 h-3 text-orange-400" /> Non-veg</>}
+            </span>
+            <span className="text-gray-300 text-xs">·</span>
+            <span className="text-xs font-semibold text-gray-500">₹{c.price_per_month}/mo</span>
+          </div>
+
+          {/* Action buttons — hidden in bulk mode */}
+          {!bulkMode && (
+            <div className="flex items-center gap-2 mt-3">
+              <a
+                href={waLink(c.whatsapp_number, reminderMessage(c.name, c.balance_days, provider))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 flex-1 justify-center rounded-xl bg-green-50 border border-green-200 py-2 text-xs font-bold text-green-700 active:scale-95 transition-all"
+              >
+                <MessageCircle className="w-3.5 h-3.5" /> Remind
+              </a>
+              <button
+                onClick={onRecord}
+                className="flex items-center gap-1.5 flex-1 justify-center rounded-xl bg-orange-50 border border-orange-200 py-2 text-xs font-bold text-orange-600 active:scale-95 transition-all"
+              >
+                <IndianRupee className="w-3.5 h-3.5" /> Record
+              </button>
+              <a
+                href={`tel:${c.whatsapp_number}`}
+                className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 active:scale-95 transition-all shrink-0"
+              >
+                <Phone className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
