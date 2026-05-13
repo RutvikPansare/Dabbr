@@ -3,25 +3,42 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
+  --background: #FDF8F3;
   --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --primary: #F4622A;
+  --primary-gradient: linear-gradient(135deg, #FF7B3F 0%, #E04F18 100%);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(244, 98, 42, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(244, 98, 42, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(244, 98, 42, 0.05) 0px, transparent 50%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
+  }
+  .glass-nav {
+    @apply bg-white/85 backdrop-blur-2xl border-t border-white/60 shadow-[0_-8px_30px_rgb(0,0,0,0.04)];
+  }
+  .btn-primary {
+    background: var(--primary-gradient);
+    @apply text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:-translate-y-0.5 transition-all duration-300 active:scale-95 active:translate-y-0;
+  }
+  .btn-secondary {
+    @apply bg-white text-gray-800 border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 active:scale-95 active:translate-y-0;
+  }
+  .input-modern {
+    @apply w-full rounded-2xl border border-gray-200 bg-white/80 px-4 py-3.5 text-sm outline-none transition-all duration-300 focus:border-[#F4622A] focus:ring-4 focus:ring-orange-500/10 backdrop-blur-sm;
   }
 }
