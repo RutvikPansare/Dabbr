@@ -100,10 +100,12 @@ function isActiveToday(c: Customer | null | undefined, today: string): boolean {
   if (!c) return false
   if (c.status !== 'active') return false
   const subscription = activeSubscription(c)
-  const plan = subscription?.meal_plans
-  if (!subscription || !plan || plan.status !== 'active') return false
+  if (!subscription || subscription.status !== 'active') return false
+  // Use enriched meal plan if available, fall back to denormalized customer fields
+  const plan = subscription.meal_plans
+  const frequency = plan?.frequency ?? c.frequency
   if (Array.isArray(c.pauses) && c.pauses.some((p) => today >= p.start_date && today <= p.end_date)) return false
-  if (plan.frequency === 'daily') return true
+  if (frequency === 'daily') return true
   return isAlternateDeliveryDay(subscription.start_date ?? c.created_at, today)
 }
 

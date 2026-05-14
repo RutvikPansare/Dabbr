@@ -44,10 +44,21 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialWee
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
+  const today = new Date().toISOString().split('T')[0]
+  // Compute Monday of the current week (client-side) for jump-to-today
+  const thisWeekStart = useMemo(() => {
+    const d = new Date()
+    const dow = d.getDay()
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+    return d.toISOString().split('T')[0]
+  }, [])
+
   const [weekStart, setWeekStart] = useState(initialWeekStart)
   const [menus, setMenus] = useState<DailyMenu[]>(initialMenus)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [savedKey, setSavedKey] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
 
@@ -81,6 +92,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialWee
     if (!dish) return
 
     setSavingKey(key)
+    setSaveError(null)
     const payload = {
       provider_id: providerId,
       menu_date: date,
@@ -94,13 +106,24 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialWee
       : db.from('daily_menus').insert(payload)
     const { data, error } = await query.select('*').single()
     setSavingKey(null)
-    if (error || !data) return
+    if (error || !data) {
+      setSaveError(error?.message ?? 'Save failed — please try again')
+      return
+    }
 
     setMenus(prev => {
       const without = prev.filter(item => item.id !== data.id)
       return [...without, data]
     })
-    setDrafts(prev => ({ ...prev, [key]: '' }))
+    // Remove draft so input falls back to the saved dish_name from state
+    setDrafts(prev => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    // Brief ✓ confirmation on the button
+    setSavedKey(key)
+    setTimeout(() => setSavedKey(k => k === key ? null : k), 1500)
   }
 
   async function deleteMenu(menu: DailyMenu) {
@@ -124,18 +147,48 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialWee
       </header>
 
       <main className="mx-auto max-w-2xl px-4 pt-24 space-y-4">
-        <div className="flex items-center justify-between rounded-3xl bg-white px-4 py-3 border border-gray-100 shadow-sm">
-          <button onClick={() => loadWeek(addDays(weekStart, -7))} className="rounded-2xl bg-orange-50 px-4 py-2 text-xs font-bold text-orange-600">Prev</button>
-          <div className="text-center">
-            <p className="text-sm font-black text-gray-900">Week menu</p>
-            <p className="text-xs font-semibold text-gray-400">{labelDate(weekStart)} - {labelDate(addDays(weekStart, 6))}</p>
+        {saveError && (
+          <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium flex items-center justify-between">
+            <span>⚠️ {saveError}</span>
+            <button onClick={() => setSaveError(null)} className="ml-3 text-red-400 hover:text-red-600 font-bold text-xs">✕</button>
           </div>
-          <button onClick={() => loadWeek(addDays(weekStart, 7))} className="rounded-2xl bg-orange-50 px-4 py-2 text-xs font-bold text-orange-600">Next</button>
+        )}
+        <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <button onClick={() => loadWeek(addDays(weekStart, -7))} className="rounded-2xl bg-orange-50 px-4 py-2 text-xs font-bold text-orange-600">Prev</button>
+            <div className="text-center">
+              <p className="text-sm font-black text-gray-900">Week menu</p>
+              <p className="text-xs font-semibold text-gray-400">{labelDate(weekStart)} – {labelDate(addDays(weekStart, 6))}</p>
+            </div>
+            <button onClick={() => loadWeek(addDays(weekStart, 7))} className="rounded-2xl bg-orange-50 px-4 py-2 text-xs font-bold text-orange-600">Next</button>
+          </div>
+          {/* Today shortcut — only show if today is not in this week */}
+          {(today < weekStart || today > addDays(weekStart, 6)) && (
+            <button
+              onClick={() => loadWeek(thisWeekStart)}
+              className="w-full border-t border-orange-100 py-2 text-xs font-bold text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors"
+            >
+              ↩ Jump to current week
+            </button>
+          )}
         </div>
 
-        {days.map(date => (
-          <section key={date} className="rounded-3xl bg-white p-4 border border-gray-100 shadow-sm">
-            <h2 className="mb-3 text-sm font-black text-gray-900">{labelDate(date)}</h2>
+        {days.map(date => {
+          const isToday = date === today
+          return (
+          <section
+            key={date}
+            id={isToday ? 'today-section' : undefined}
+            className={`rounded-3xl p-4 border shadow-sm ${isToday ? 'bg-orange-50 border-orange-200 ring-2 ring-orange-300/40' : 'bg-white border-gray-100'}`}
+          >
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-900">
+              {labelDate(date)}
+              {isToday && (
+                <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-black text-white uppercase tracking-wider">
+                  Today
+                </span>
+              )}
+            </h2>
             <div className="space-y-3">
               {MEAL_SLOTS.map(slot => (
                 <div key={slot} className="rounded-2xl bg-[#FDF8F3] p-3">
@@ -159,10 +212,10 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialWee
                           />
                           <button
                             onClick={() => saveMenu(date, slot, planType)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-white disabled:opacity-60"
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl text-white disabled:opacity-60 transition-colors ${savedKey === key ? 'bg-emerald-500' : 'bg-orange-500'}`}
                             disabled={savingKey === key}
                           >
-                            <Save className="w-4 h-4" />
+                            {savedKey === key ? '✓' : <Save className="w-4 h-4" />}
                           </button>
                           {menu && (
                             <button onClick={() => deleteMenu(menu)} className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-500">
@@ -177,7 +230,8 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialWee
               ))}
             </div>
           </section>
-        ))}
+          )
+        })}
       </main>
 
       <BottomNav />

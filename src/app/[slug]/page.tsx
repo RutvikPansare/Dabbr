@@ -1,16 +1,17 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { MessageCircle, Utensils, CalendarDays, Phone, Leaf, Drumstick, IndianRupee } from 'lucide-react'
+import { MessageCircle, Phone, Leaf, Drumstick, IndianRupee } from 'lucide-react'
+import MenuSection from './MenuSection'
 
 const SLOT_ORDER = ['breakfast', 'lunch', 'dinner'] as const
 const SLOT_EMOJI: Record<string, string> = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getWeekDates(n: number): string[] {
+  const now = new Date()
   return Array.from({ length: n }, (_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i)
+    const d = new Date(now)
+    d.setUTCDate(now.getUTCDate() + i)
     return d.toISOString().split('T')[0]
   })
 }
@@ -27,7 +28,6 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
     .single()
   if (!p) notFound()
 
-  const today = new Date().toISOString().split('T')[0]
   const weekDates = getWeekDates(7)
 
   // Fetch active meal plans
@@ -55,9 +55,22 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
     menuMap[row.menu_date][row.meal_slot].push({ dish_name: row.dish_name, plan_type: row.plan_type })
   }
 
-  const todayMenu = menuMap[today] ?? {}
-  const hasTodayMenu = Object.keys(todayMenu).length > 0
   const waNumber = p.support_whatsapp || p.phone
+
+  // Build structured days array for the interactive menu section
+  const days = weekDates.map((date, i) => {
+    const dayMap = menuMap[date] ?? {}
+    const slotsWithDishes = SLOT_ORDER
+      .filter(slot => (dayMap[slot]?.length ?? 0) > 0)
+      .map(slot => ({ slot, dishes: dayMap[slot] }))
+    const d = new Date(date + 'T12:00:00Z')
+    return {
+      date,
+      label: i === 0 ? 'Today' : d.toLocaleDateString('en-IN', { weekday: 'short' }),
+      dayNum: String(d.getUTCDate()),
+      slots: slotsWithDishes,
+    }
+  })
 
   return (
     <div className="min-h-screen bg-[#FDF8F3] pb-12">
@@ -96,44 +109,8 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
 
       <main className="mx-auto max-w-md px-4 pt-6 space-y-6">
 
-        {/* ── Today's menu ── */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Utensils className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-            <h2 className="text-sm font-black text-gray-900 uppercase tracking-wide">Today&apos;s Menu</h2>
-            <span className="ml-auto text-xs text-gray-400 font-medium">
-              {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
-            </span>
-          </div>
-
-          {!hasTodayMenu ? (
-            <div className="rounded-2xl bg-white border border-gray-100 px-4 py-8 text-center shadow-sm">
-              <p className="text-2xl mb-2">📋</p>
-              <p className="text-sm font-semibold text-gray-500">Menu not announced yet</p>
-              <p className="text-xs text-gray-400 mt-1">Check back later or contact the provider.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {SLOT_ORDER.filter(slot => todayMenu[slot]).map(slot => (
-                <div key={slot} className="rounded-2xl bg-white border border-gray-100 px-4 py-4 shadow-sm">
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">
-                    {SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}
-                  </p>
-                  <ul className="space-y-1.5">
-                    {todayMenu[slot].map((d, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-gray-800">
-                        <span className="mt-0.5 shrink-0 text-[10px] font-bold">
-                          {d.plan_type === 'veg' ? '🥦' : d.plan_type === 'nonveg' ? '🍗' : '•'}
-                        </span>
-                        <span className="font-medium">{d.dish_name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* ── Menu (interactive day picker) ── */}
+        <MenuSection days={days} />
 
         {/* ── Meal plans ── */}
         {mealPlans && mealPlans.length > 0 && (
@@ -188,40 +165,6 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
           </div>
         )}
 
-        {/* ── Weekly menu strip ── */}
-        {weekDates.some(date => menuMap[date] && Object.keys(menuMap[date]).length > 0) && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarDays className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wide">This Week</h2>
-            </div>
-
-            <div className="space-y-2">
-              {weekDates.filter(date => menuMap[date] && Object.keys(menuMap[date]).length > 0).map(date => {
-                const d = new Date(date + 'T00:00:00')
-                const isToday = date === today
-                const dayMenu = menuMap[date]
-                return (
-                  <div key={date} className={`rounded-2xl border px-4 py-3.5 shadow-sm ${isToday ? 'bg-white border-orange-200' : 'bg-white border-gray-100'}`}>
-                    <p className="text-xs font-black text-gray-500 mb-2 uppercase tracking-wider">
-                      {isToday ? '🔵 Today' : `${DAY_LABELS[d.getDay()]} ${d.getDate()}`}
-                    </p>
-                    <div className="space-y-1.5">
-                      {SLOT_ORDER.filter(slot => dayMenu[slot]).map(slot => (
-                        <div key={slot} className="flex flex-wrap gap-x-3 gap-y-1">
-                          <span className="text-xs font-bold text-gray-400">{SLOT_EMOJI[slot]}</span>
-                          <span className="text-xs text-gray-700 font-medium">
-                            {dayMenu[slot].map(d => d.dish_name).join(', ')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
 
         {/* ── Contact ── */}
         <div className="rounded-2xl bg-white border border-gray-100 px-5 py-5 shadow-sm">

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import {
   ArrowLeft, Leaf, Drumstick, CheckCircle2, PauseCircle, XCircle,
-  AlertTriangle, MessageCircle, ChevronRight, Utensils, CalendarDays,
+  AlertTriangle, MessageCircle, ChevronRight, Utensils,
   BadgeCheck, Clock, RotateCcw,
 } from 'lucide-react'
 import type { CustomerPortalData, MenuSlot, DayMenu } from '@/lib/customer-token'
@@ -103,7 +103,7 @@ function DayPill({ day, selected, onClick }: { day: DayMenu; selected: boolean; 
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function CustomerPortalClient({ data }: { data: CustomerPortalData }) {
-  const { customer, provider, subscription, todayMenu, weekMenu, token } = data
+  const { customer, provider, subscription, weekMenu, token } = data
   const [screen, setScreen] = useState<Screen>('home')
   const [selectedDayIdx, setSelectedDayIdx] = useState(0)
   const [isPending, startTransition] = useTransition()
@@ -293,21 +293,31 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
             </div>
           )}
 
-          {/* ── Today's menu ── */}
+          {/* ── Menu (unified day picker + dishes) ── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Utensils className="w-4 h-4 text-orange-500" />
-              <h3 className="text-sm font-black text-gray-900 uppercase tracking-wide">Today&apos;s Menu</h3>
-              <span className="text-xs text-gray-400 font-medium ml-auto">
-                {new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
-              </span>
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-wide">
+                {selectedDayIdx === 0 ? "Today's Menu" : weekMenu[selectedDayIdx]
+                  ? new Date(weekMenu[selectedDayIdx].date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
+                  : 'Menu'}
+              </h3>
             </div>
 
-            {!sub ? (
-              <div className="rounded-2xl bg-white border border-gray-100 px-4 py-6 text-center text-gray-400">
-                <p className="text-sm">No subscription — menu not available</p>
-              </div>
-            ) : todayMenu.every(s => s.dishes.length === 0) ? (
+            {/* Day strip */}
+            <div className="flex gap-2 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-none">
+              {weekMenu.map((day, idx) => (
+                <DayPill
+                  key={day.date}
+                  day={day}
+                  selected={selectedDayIdx === idx}
+                  onClick={() => setSelectedDayIdx(idx)}
+                />
+              ))}
+            </div>
+
+            {/* Selected day dishes */}
+            {(weekMenu[selectedDayIdx]?.slots ?? []).length === 0 ? (
               <div className="rounded-2xl bg-white border border-gray-100 px-4 py-5 text-center">
                 <p className="text-2xl mb-1">📋</p>
                 <p className="text-sm font-semibold text-gray-500">Menu not announced yet</p>
@@ -315,39 +325,12 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
               </div>
             ) : (
               <div className="space-y-3">
-                {todayMenu.map(slot => <MenuSlotCard key={slot.slot} slot={slot} />)}
-              </div>
-            )}
-          </div>
-
-          {/* ── Weekly menu ── */}
-          {sub && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <CalendarDays className="w-4 h-4 text-orange-500" />
-                <h3 className="text-sm font-black text-gray-900 uppercase tracking-wide">This Week</h3>
-              </div>
-
-              {/* Day strip */}
-              <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
-                {weekMenu.map((day, idx) => (
-                  <DayPill
-                    key={day.date}
-                    day={day}
-                    selected={selectedDayIdx === idx}
-                    onClick={() => setSelectedDayIdx(idx)}
-                  />
-                ))}
-              </div>
-
-              {/* Selected day menu */}
-              <div className="mt-3 space-y-3">
-                {weekMenu[selectedDayIdx]?.slots.map(slot => (
+                {weekMenu[selectedDayIdx].slots.map(slot => (
                   <MenuSlotCard key={slot.slot} slot={slot} />
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* ── Actions ── */}
           {sub && (

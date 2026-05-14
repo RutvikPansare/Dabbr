@@ -11,8 +11,9 @@
  */
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setDate(d.getDate() + days)
+  // Use UTC midnight + setUTCDate to avoid local-timezone shifting
+  const d = new Date(dateStr + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().split('T')[0]
 }
 
@@ -92,8 +93,12 @@ export function formatDayNumber(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric' })
 }
 
-/** Generate array of date strings: today + next N days */
+/** Generate array of date strings: today + next N days (all in UTC) */
 export function getWeekDates(n = 7): string[] {
-  const today = new Date().toISOString().split('T')[0]
-  return Array.from({ length: n }, (_, i) => addDays(today, i))
+  const now = new Date()
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(now)
+    d.setUTCDate(now.getUTCDate() + i)
+    return d.toISOString().split('T')[0]
+  })
 }

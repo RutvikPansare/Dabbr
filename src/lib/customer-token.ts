@@ -152,21 +152,28 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
 
   if (!customer || !provider) return null
 
-  // 4. Fetch active/paused subscription with meal plan
+  // 4. Fetch active/paused subscription — separate query for meal plan (avoids embedded join schema cache dependency)
   const { data: subRaw } = await db
     .from('subscriptions')
-    .select(`
-      id, status, start_date,
-      meal_plans ( id, name, meal_slots, plan_type, frequency, monthly_price, description )
-    `)
+    .select('id, status, start_date, meal_plan_id')
     .eq('customer_id', tokenRow.customer_id)
     .in('status', ['active', 'paused'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
+  let mealPlanData: PortalMealPlan | null = null
+  if (subRaw?.meal_plan_id) {
+    const { data } = await db
+      .from('meal_plans')
+      .select('id, name, meal_slots, plan_type, frequency, monthly_price, description')
+      .eq('id', subRaw.meal_plan_id)
+      .single()
+    mealPlanData = data ?? null
+  }
+
   let subscription: PortalSubscription | null = null
-  if (subRaw?.meal_plans) {
+  if (subRaw && mealPlanData) {
     const today = new Date().toISOString().split('T')[0]
 
     // Active pause for this subscription
@@ -190,7 +197,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       id: subRaw.id,
       status: subRaw.status,
       start_date: subRaw.start_date,
-      meal_plan: subRaw.meal_plans,
+      meal_plan: mealPlanData,
       active_pause: pauseRaw ?? null,
       pending_cancel: !!cancelRaw,
     }
@@ -219,17 +226,17 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
     })
   }
 
-  // Customer's meal slots (from subscription plan, fallback to ['lunch'])
-  const customerSlots: MealSlot[] = subscription?.meal_plan.meal_slots ?? ['lunch']
   const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner']
 
   function buildDayMenu(date: string): MenuSlot[] {
     const dayMap = menuMap[date] ?? {}
+    // Show all slots that have dishes — don't filter by subscription slots,
+    // because the provider decides what to announce and the customer should see it all.
     return SLOT_ORDER
-      .filter(slot => customerSlots.includes(slot))
+      .filter(slot => (dayMap[slot]?.length ?? 0) > 0)
       .map(slot => ({
         slot,
-        dishes: dayMap[slot] ?? [],
+        dishes: dayMap[slot],
       }))
   }
 
