@@ -86,9 +86,10 @@ function DayPill({ day, selected, onClick }: { day: DayMenu; selected: boolean; 
       onClick={onClick}
       className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-2xl transition-all duration-200 shrink-0 min-w-[52px] ${
         selected
-          ? 'bg-[#FF7B3F] text-white shadow-md'
+          ? 'text-white shadow-md'
           : 'bg-white border border-gray-100 text-gray-700 hover:border-orange-200'
       }`}
+      style={selected ? { backgroundColor: 'var(--accent)' } : {}}
     >
       <span className={`text-[10px] font-bold uppercase tracking-wider ${selected ? 'text-orange-100' : 'text-gray-400'}`}>
         {isToday ? 'Today' : formatDayLabel(day.date)}
@@ -162,11 +163,21 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* ── Header ── */}
-        <div className="bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] px-5 pt-10 pb-8 relative overflow-hidden">
+        <div
+          className="px-5 pt-10 pb-8 relative overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
+        >
           <div className="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
           <div className="relative mx-auto max-w-md">
+            {provider.logo_url && (
+              <img
+                src={provider.logo_url}
+                alt={provider.name}
+                className="w-10 h-10 rounded-2xl object-cover mb-2 border-2 border-white/20"
+              />
+            )}
             <p className="text-xs font-bold text-orange-100/70 tracking-widest uppercase mb-1">
-              🍱 {provider.name}
+              {!provider.logo_url && '🍱 '}{provider.name}
             </p>
             <h1 className="text-2xl font-black text-white leading-tight">
               Namaste, {customer.name.split(' ')[0]} 🙏
@@ -386,9 +397,9 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
                 )}
 
                 {/* WhatsApp provider */}
-                {provider.phone && (
+                {(provider.support_whatsapp || provider.phone) && (
                   <a
-                    href={`https://wa.me/91${provider.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi! This is ${customer.name}. I have a query about my tiffin subscription.`)}`}
+                    href={`https://wa.me/91${(provider.support_whatsapp || provider.phone)!.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi! This is ${customer.name}. I have a query about my tiffin subscription.`)}`}
                     target="_blank" rel="noopener noreferrer"
                     className="w-full flex items-center gap-3 rounded-2xl bg-white border border-green-200 px-5 py-4 text-left hover:bg-green-50 active:scale-[0.98] transition-all shadow-sm"
                   >
@@ -424,7 +435,10 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
           )}
 
           {/* ── Footer ── */}
-          <div className="text-center pt-2 pb-4">
+          <div className="text-center pt-2 pb-4 space-y-1">
+            {provider.tagline && (
+              <p className="text-xs text-gray-500 font-medium">{provider.tagline}</p>
+            )}
             <p className="text-xs text-gray-300 font-medium">Powered by Dabbr 🍱</p>
           </div>
 
@@ -467,7 +481,8 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
               </p>
               <button
                 onClick={() => setScreen('home')}
-                className="mt-8 w-full rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] py-4 text-sm font-bold text-white shadow-lg"
+                className="mt-8 w-full rounded-2xl py-4 text-sm font-bold text-white shadow-lg"
+                style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
               >
                 Back to Home
               </button>
@@ -592,7 +607,8 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
               </p>
               <button
                 onClick={() => setScreen('home')}
-                className="mt-8 w-full rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] py-4 text-sm font-bold text-white shadow-lg"
+                className="mt-8 w-full rounded-2xl py-4 text-sm font-bold text-white shadow-lg"
+                style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
               >
                 Back to Home
               </button>

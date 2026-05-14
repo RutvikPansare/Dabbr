@@ -34,6 +34,11 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
+  // /[slug]/c/* are branded customer portal routes — no auth required
+  if (/^\/[^/]+\/c\//.test(pathname)) {
+    return supabaseResponse
+  }
+
   // Unauthenticated user trying to access a protected route
   if (
     !user &&
@@ -69,5 +74,6 @@ export const config = {
     '/settings/:path*',
     '/login',
     '/c/:path*',  // customer portal — passes through unauthenticated
+    '/:slug/c/:path*',  // branded customer portal — passes through unauthenticated
   ],
 }

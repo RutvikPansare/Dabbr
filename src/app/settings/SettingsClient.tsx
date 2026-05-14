@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
+import { validateSlug } from '@/lib/branding'
 
 interface Provider {
   id: string
@@ -12,6 +13,19 @@ interface Provider {
   phone: string | null
   upi_id: string | null
   enable_delivery_tracking: boolean
+  slug: string | null
+  logo_url: string | null
+  accent_color: string
+  tagline: string | null
+  support_whatsapp: string | null
+}
+
+function darkenForPreview(hex: string, by: number) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)))
+  return '#' + [r - by, g - by, b - by].map(v => clamp(v).toString(16).padStart(2, '0')).join('')
 }
 
 interface Props {
@@ -31,6 +45,18 @@ export default function SettingsClient({ providerId, provider }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Branding state
+  const [slug, setSlug] = useState(provider?.slug ?? '')
+  const [slugError, setSlugError] = useState('')
+  const [accentColor, setAccentColor] = useState(provider?.accent_color ?? '#F4622A')
+  const [tagline, setTagline] = useState(provider?.tagline ?? '')
+  const [supportWhatsapp, setSupportWhatsapp] = useState(provider?.support_whatsapp ?? '')
+  const [logoUrl, setLogoUrl] = useState(provider?.logo_url ?? '')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [brandingSaving, setBrandingSaving] = useState(false)
+  const [brandingSaved, setBrandingSaved] = useState(false)
+  const [brandingError, setBrandingError] = useState('')
 
   // Delivery tracking saves instantly on toggle
   const [deliveryTracking, setDeliveryTracking] = useState(provider?.enable_delivery_tracking ?? false)
@@ -58,6 +84,44 @@ export default function SettingsClient({ providerId, provider }: Props) {
       setTrackingSaved(true)
       router.refresh()
       setTimeout(() => setTrackingSaved(false), 2000)
+    }
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { setBrandingError('Logo must be under 2MB'); return }
+    setLogoUploading(true)
+    setBrandingError('')
+    const ext = file.name.split('.').pop()
+    const path = `${providerId}/${Date.now()}.${ext}`
+    const { data, error } = await supabase.storage.from('provider-logos').upload(path, file, { upsert: true })
+    if (error) { setBrandingError('Logo upload failed: ' + error.message); setLogoUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('provider-logos').getPublicUrl(data.path)
+    setLogoUrl(publicUrl)
+    setLogoUploading(false)
+  }
+
+  async function handleBrandingSave() {
+    const trimmedSlug = slug.trim().toLowerCase()
+    const err = trimmedSlug ? validateSlug(trimmedSlug) : null
+    if (err) { setSlugError(err); return }
+    setSlugError('')
+    setBrandingSaving(true)
+    setBrandingError('')
+    const { error: saveErr } = await db.from('providers').update({
+      slug: trimmedSlug || null,
+      accent_color: accentColor,
+      tagline: tagline.trim() || null,
+      logo_url: logoUrl || null,
+      support_whatsapp: supportWhatsapp.trim() || null,
+    }).eq('id', providerId)
+    setBrandingSaving(false)
+    if (saveErr) {
+      setBrandingError(saveErr.message.includes('unique') ? 'This slug is already taken. Try a different one.' : saveErr.message)
+    } else {
+      setBrandingSaved(true)
+      setTimeout(() => setBrandingSaved(false), 3000)
     }
   }
 
@@ -257,6 +321,162 @@ export default function SettingsClient({ providerId, provider }: Props) {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Branding */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+          <h2 className="mb-4 text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+              <Palette className="w-4 h-4 text-orange-500" />
+            </span>
+            Branding
+          </h2>
+
+          {/* Mini portal header preview */}
+          <div
+            className="rounded-2xl px-4 pt-5 pb-4 mb-5 relative overflow-hidden"
+            style={{ background: `linear-gradient(135deg, ${accentColor} 0%, ${darkenForPreview(accentColor, 22)} 100%)` }}
+          >
+            <div className="flex items-center gap-3">
+              {logoUrl
+                ? <img src={logoUrl} alt="" className="w-9 h-9 rounded-xl object-cover border-2 border-white/20" />
+                : <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-sm">{(name || 'B').charAt(0)}</div>
+              }
+              <div>
+                <p className="text-[10px] text-white/70 font-bold uppercase tracking-wider">🍱 {name || 'Business Name'}</p>
+                <p className="text-sm font-black text-white leading-tight">Namaste, Customer 🙏</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Logo upload */}
+          <div className="mb-4">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">Logo</p>
+            {logoUrl && (
+              <div className="mb-2 flex items-center gap-3">
+                <img src={logoUrl} alt="Logo" className="w-12 h-12 rounded-xl object-cover border border-gray-200" />
+                <button
+                  type="button"
+                  onClick={() => setLogoUrl('')}
+                  className="text-xs font-semibold text-red-500 hover:text-red-700"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex items-center gap-2 rounded-2xl border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-orange-300 hover:text-orange-600 transition-colors w-full">
+                <Upload className="w-4 h-4 shrink-0" />
+                <span>{logoUploading ? 'Uploading…' : 'Upload logo (PNG, JPG, WebP — max 2MB)'}</span>
+              </div>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                onChange={handleLogoUpload}
+                disabled={logoUploading}
+                className="sr-only"
+              />
+            </label>
+          </div>
+
+          {/* Accent color */}
+          <div className="mb-4">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">Brand Color</p>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <input
+                  type="color"
+                  value={accentColor}
+                  onChange={e => setAccentColor(e.target.value)}
+                  className="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1 bg-white"
+                />
+              </div>
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={accentColor}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setAccentColor(v)
+                  }}
+                  className="input-modern font-mono text-sm"
+                  placeholder="#F4622A"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Slug */}
+          <div className="mb-4">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">Portal Slug</p>
+            <input
+              type="text"
+              placeholder="e.g. meenas-tiffin"
+              value={slug}
+              onChange={e => {
+                setSlug(e.target.value)
+                setSlugError('')
+              }}
+              className={`input-modern ${slugError ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
+            />
+            {slugError && (
+              <p className="mt-1 text-xs font-semibold text-red-500">{slugError}</p>
+            )}
+            {slug && !slugError && (
+              <p className="mt-1.5 text-xs font-medium text-gray-400">
+                Your portal: <span className="text-orange-600 font-semibold">dabbr.in/{slug.trim().toLowerCase()}</span>
+              </p>
+            )}
+            {!slug && (
+              <p className="mt-1.5 text-xs font-medium text-gray-400">
+                Customers can visit <span className="font-semibold">dabbr.in/your-slug</span> to find you
+              </p>
+            )}
+          </div>
+
+          {/* Tagline */}
+          <div className="mb-4">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">Tagline</p>
+            <input
+              type="text"
+              placeholder="e.g. Fresh homemade food, delivered with love"
+              value={tagline}
+              onChange={e => setTagline(e.target.value)}
+              maxLength={100}
+              className="input-modern"
+            />
+            <p className="mt-1.5 text-xs font-medium text-gray-400">Shown on your landing page and customer portal</p>
+          </div>
+
+          {/* Support WhatsApp */}
+          <div className="mb-5">
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">Support WhatsApp (optional)</p>
+            <input
+              type="tel"
+              placeholder="e.g. 9876543210 (if different from main phone)"
+              value={supportWhatsapp}
+              onChange={e => setSupportWhatsapp(e.target.value)}
+              className="input-modern"
+            />
+            <p className="mt-1.5 text-xs font-medium text-gray-400">Used for the Contact Provider button in the customer portal</p>
+          </div>
+
+          {brandingError && (
+            <p className="mb-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {brandingError}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleBrandingSave}
+            disabled={brandingSaving || logoUploading}
+            className={`w-full rounded-2xl py-4 text-sm font-bold shadow-xl transition-all duration-300 active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 ${
+              brandingSaved ? 'bg-green-500 text-white shadow-green-500/20' : 'btn-primary'
+            }`}
+          >
+            {brandingSaving ? 'Saving…' : brandingSaved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save Branding'}
+          </button>
         </div>
 
         {/* Danger zone */}

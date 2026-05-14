@@ -20,6 +20,12 @@ export interface Database {
           trial_started_at: string | null
           is_subscribed: boolean
           enable_delivery_tracking: boolean
+          slug: string | null
+          logo_url: string | null
+          accent_color: string
+          tagline: string | null
+          support_whatsapp: string | null
+          business_description: string | null
         }
         Insert: {
           id: string
@@ -30,6 +36,12 @@ export interface Database {
           trial_started_at?: string | null
           is_subscribed?: boolean
           enable_delivery_tracking?: boolean
+          slug?: string | null
+          logo_url?: string | null
+          accent_color?: string
+          tagline?: string | null
+          support_whatsapp?: string | null
+          business_description?: string | null
         }
         Update: {
           id?: string
@@ -40,6 +52,12 @@ export interface Database {
           trial_started_at?: string | null
           is_subscribed?: boolean
           enable_delivery_tracking?: boolean
+          slug?: string | null
+          logo_url?: string | null
+          accent_color?: string
+          tagline?: string | null
+          support_whatsapp?: string | null
+          business_description?: string | null
         }
       }
       customers: {

@@ -26,6 +26,11 @@ export interface PortalCustomer {
 export interface PortalProvider {
   id: string
   name: string
+  slug: string | null
+  logo_url: string | null
+  accent_color: string
+  tagline: string | null
+  support_whatsapp: string | null
   cutoff_hour: number
   cutoff_tz: string
   upi_id: string | null
@@ -140,7 +145,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .single(),
     db
       .from('providers')
-      .select('id, name, cutoff_hour, cutoff_tz, upi_id, phone')
+      .select('id, name, slug, logo_url, accent_color, tagline, support_whatsapp, cutoff_hour, cutoff_tz, upi_id, phone')
       .eq('id', tokenRow.provider_id)
       .single(),
   ])
@@ -238,6 +243,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
     customer,
     provider: {
       ...provider,
+      accent_color: provider.accent_color ?? '#F4622A',
       cutoff_hour: provider.cutoff_hour ?? 21,
       cutoff_tz: provider.cutoff_tz ?? 'Asia/Kolkata',
     },

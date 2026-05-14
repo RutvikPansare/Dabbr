@@ -1,4 +1,5 @@
 import { getPortalData } from '@/lib/customer-token'
+import { getThemeVars } from '@/lib/branding'
 import CustomerPortalClient from './CustomerPortalClient'
 
 interface Props {
@@ -26,7 +27,13 @@ export default async function CustomerPortalPage({ params }: Props) {
     )
   }
 
-  return <CustomerPortalClient data={data} />
+  const themeVars = getThemeVars(data.provider.accent_color)
+
+  return (
+    <div style={themeVars as React.CSSProperties}>
+      <CustomerPortalClient data={data} />
+    </div>
+  )
 }
 
 // No caching — portal data should always be fresh
