@@ -339,15 +339,17 @@ export default function DashboardClient({ userId, userEmail }: Props) {
     async function load() {
       const [
         { data: customersData },
+        { data: mealPlansData },
         { data: providerData },
         trial,
         { data: logsData },
       ] = await Promise.all([
         supabase
           .from('customers')
-          .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+          .select('*, pauses(*), subscriptions(*)')
           .eq('provider_id', userId)
           .order('name'),
+        db.from('meal_plans').select('*').eq('provider_id', userId),
         supabase.from('providers').select('*').eq('id', userId).single(),
         getTrialStatus(supabase, userId),
         db.from('delivery_logs')
@@ -356,7 +358,18 @@ export default function DashboardClient({ userId, userEmail }: Props) {
           .eq('date', today),
       ])
 
-      setCustomers(customersData ?? [])
+      // Merge meal_plans into subscriptions manually (PostgREST embedded join workaround)
+      const mpMap: Record<string, any> = {}
+      for (const mp of (mealPlansData ?? [])) mpMap[mp.id] = mp
+      const enriched = (customersData ?? []).map((c: any) => ({
+        ...c,
+        subscriptions: (c.subscriptions ?? []).map((s: any) => ({
+          ...s,
+          meal_plans: mpMap[s.meal_plan_id] ?? null,
+        })),
+      }))
+
+      setCustomers(enriched)
       setProvider(providerData)
       setTrialDaysLeft(trial.trialDaysLeft)
       setIsExpired(trial.isExpired)

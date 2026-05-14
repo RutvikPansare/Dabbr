@@ -9,8 +9,11 @@ export default async function MealPlansPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Cast to any — PostgREST schema cache may lag after migration
+  const db = supabase as any
+
   const [{ data: mealPlans }, trial] = await Promise.all([
-    supabase
+    db
       .from('meal_plans')
       .select('*')
       .eq('provider_id', user.id)

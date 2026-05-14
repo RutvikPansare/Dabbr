@@ -18,13 +18,16 @@ export default async function CustomersPage({
 
   if (!user) redirect('/login')
 
+  // Cast to any for meal_plans queries — PostgREST schema cache may lag after migration
+  const db = supabase as any
+
   const [{ data: customers }, { data: mealPlans }, trial] = await Promise.all([
     supabase
       .from('customers')
-      .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+      .select('*, pauses(*), subscriptions(*)')
       .eq('provider_id', user.id)
       .order('name'),
-    supabase
+    db
       .from('meal_plans')
       .select('*')
       .eq('provider_id', user.id)
@@ -33,11 +36,24 @@ export default async function CustomersPage({
     getTrialStatus(supabase, user.id),
   ])
 
+  // Merge meal_plans data into each customer's subscriptions manually (PostgREST embedded join workaround)
+  const mealPlansMap: Record<string, any> = {}
+  for (const mp of (mealPlans ?? [])) {
+    mealPlansMap[mp.id] = mp
+  }
+  const enrichedCustomers = (customers ?? []).map((c: any) => ({
+    ...c,
+    subscriptions: (c.subscriptions ?? []).map((sub: any) => ({
+      ...sub,
+      meal_plans: mealPlansMap[sub.meal_plan_id] ?? null,
+    })),
+  }))
+
   if (trial.isExpired) return <Paywall />
 
   return (
     <CustomersClient
-      initialCustomers={customers ?? []}
+      initialCustomers={enrichedCustomers}
       initialMealPlans={mealPlans ?? []}
       providerId={user.id}
       initialShowAdd={params.openAdd === 'true'}

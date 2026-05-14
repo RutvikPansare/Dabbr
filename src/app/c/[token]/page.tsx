@@ -7,6 +7,7 @@ interface Props {
 
 export default async function CustomerPortalPage({ params }: Props) {
   const { token } = await params
+
   const data = await getPortalData(token)
 
   // ── Invalid / revoked token ──────────────────────────────────────────────

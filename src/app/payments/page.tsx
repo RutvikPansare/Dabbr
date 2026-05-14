@@ -9,17 +9,22 @@ export default async function PaymentsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Cast to any — PostgREST schema cache may lag after migration
+  const db = supabase as any
+
   const [
     { data: customers },
+    { data: mealPlans },
     { data: payments },
     { data: provider },
     trial,
   ] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, name, whatsapp_number, area, plan_type, price_per_month, balance_days, status, subscriptions(*, meal_plans(*))')
+      .select('id, name, whatsapp_number, area, plan_type, price_per_month, balance_days, status, subscriptions(*)')
       .eq('provider_id', user.id)
       .order('name'),
+    db.from('meal_plans').select('*').eq('provider_id', user.id),
     supabase
       .from('payments')
       .select('*, customers(id, name, whatsapp_number, area)')
@@ -30,13 +35,24 @@ export default async function PaymentsPage() {
     getTrialStatus(supabase, user.id),
   ])
 
+  // Merge meal_plans into subscriptions manually (PostgREST embedded join workaround)
+  const mpMap: Record<string, any> = {}
+  for (const mp of (mealPlans ?? [])) mpMap[mp.id] = mp
+  const enrichedCustomers = (customers ?? []).map((c: any) => ({
+    ...c,
+    subscriptions: (c.subscriptions ?? []).map((s: any) => ({
+      ...s,
+      meal_plans: mpMap[s.meal_plan_id] ?? null,
+    })),
+  }))
+
   if (trial.isExpired) return <Paywall />
 
   return (
     <PaymentsClient
       providerId={user.id}
       provider={provider}
-      initialCustomers={customers ?? []}
+      initialCustomers={enrichedCustomers}
       initialPayments={payments ?? []}
     />
   )

@@ -197,6 +197,19 @@ function customerPlan(c: Customer): MealPlan | null {
   return activeSubscription(c)?.meal_plans ?? null
 }
 
+/** Merge meal plan objects into a customer's subscriptions (avoids embedded join schema cache dependency) */
+function enrichSubscriptions(customer: any, mealPlansList: MealPlan[]): Customer {
+  const mpMap: Record<string, MealPlan> = {}
+  for (const mp of mealPlansList) mpMap[mp.id] = mp
+  return {
+    ...customer,
+    subscriptions: (customer.subscriptions ?? []).map((s: any) => ({
+      ...s,
+      meal_plans: mpMap[s.meal_plan_id] ?? null,
+    })),
+  }
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, initialShowAdd = false }: Props) {
@@ -522,14 +535,15 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           return
         }
 
-        const { data: hydrated } = await db
+        const { data: hydratedRaw } = await db
           .from('customers')
-          .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+          .select('*, pauses(*), subscriptions(*)')
           .eq('id', data.id)
           .single()
+        const hydrated = hydratedRaw ? enrichSubscriptions(hydratedRaw, mealPlans) : data
 
         setCustomers((prev) =>
-          [...prev, hydrated ?? data].sort((a, b) => a.name.localeCompare(b.name))
+          [...prev, hydrated].sort((a, b) => a.name.localeCompare(b.name))
         )
         setScreen('list')
         setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
@@ -557,7 +571,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         .from('customers')
         .update(updatePayload)
         .eq('id', selectedCustomer.id)
-        .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+        .select('*, pauses(*), subscriptions(*)')
         .single()
 
       if (error) {
@@ -583,18 +597,19 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           return
         }
 
-        const { data: hydrated } = await db
+        const { data: hydratedRaw } = await db
           .from('customers')
-          .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+          .select('*, pauses(*), subscriptions(*)')
           .eq('id', selectedCustomer.id)
           .single()
+        const hydrated = hydratedRaw ? enrichSubscriptions(hydratedRaw, mealPlans) : data
 
         setCustomers((prev) =>
           prev
-            .map((c) => (c.id === data.id ? hydrated ?? data : c))
+            .map((c) => (c.id === data.id ? hydrated : c))
             .sort((a, b) => a.name.localeCompare(b.name))
         )
-        void openDetail(hydrated ?? data) // refresh ledger + selected customer
+        void openDetail(hydrated) // refresh ledger + selected customer
       }
     }
 

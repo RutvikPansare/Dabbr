@@ -117,13 +117,13 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
   const db = admin as any
 
   // 1. Validate token
-  const { data: tokenRow } = await db
+  const { data: tokenRow, error: tokenError } = await db
     .from('customer_access_tokens')
     .select('customer_id, provider_id, is_active')
     .eq('token', token)
     .single()
 
-  if (!tokenRow?.is_active) return null
+  if (tokenError || !tokenRow?.is_active) return null
 
   // 2. Update last_used_at (fire-and-forget)
   void db
