@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import Paywall from '@/components/Paywall'
+import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
+import { formatMealSlots, MEAL_SLOT_EMOJI } from '@/lib/meals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -27,14 +29,34 @@ interface Customer {
   whatsapp_number: string
   address: string | null
   area: string | null
-  plan_type: 'veg' | 'nonveg'
-  frequency: 'daily' | 'alternate'
-  meal_timing: 'lunch' | 'dinner' | 'both' | null
+  plan_type: PlanType
+  frequency: Frequency
+  meal_slots: MealSlot[]
   status: 'active' | 'paused' | 'inactive'
   balance_days: number
   created_at: string
   pauses: Pause[]
+  subscriptions?: Subscription[]
   notes: string | null
+}
+
+interface MealPlan {
+  id: string
+  name: string
+  meal_slots: MealSlot[]
+  plan_type: PlanType
+  frequency: Frequency
+  monthly_price: number
+  active_days: number
+  status: 'active' | 'inactive'
+}
+
+interface Subscription {
+  id: string
+  meal_plan_id: string
+  status: SubscriptionStatus
+  start_date: string
+  meal_plans?: MealPlan | null
 }
 
 interface Provider {
@@ -63,12 +85,23 @@ function isAlternateDeliveryDay(createdAt: string, todayStr: string): boolean {
   return diff >= 0 && diff % 2 === 0
 }
 
+function activeSubscription(c: Customer | null | undefined): Subscription | null {
+  return c?.subscriptions?.find(s => s.status === 'active') ?? null
+}
+
+function customerPlan(c: Customer | null | undefined): MealPlan | null {
+  return activeSubscription(c)?.meal_plans ?? null
+}
+
 function isActiveToday(c: Customer | null | undefined, today: string): boolean {
   if (!c) return false
   if (c.status !== 'active') return false
+  const subscription = activeSubscription(c)
+  const plan = subscription?.meal_plans
+  if (!subscription || !plan || plan.status !== 'active') return false
   if (Array.isArray(c.pauses) && c.pauses.some((p) => today >= p.start_date && today <= p.end_date)) return false
-  if (c.frequency === 'daily') return true
-  return isAlternateDeliveryDay(c.created_at, today)
+  if (plan.frequency === 'daily') return true
+  return isAlternateDeliveryDay(subscription.start_date ?? c.created_at, today)
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -105,10 +138,10 @@ function DeliveryRow({ c, index, isLast, hideArea }: {
   isLast: boolean
   hideArea?: boolean
 }) {
-  const mealBadge =
-    c.meal_timing === 'both' ? '☀️🌙'
-    : c.meal_timing === 'dinner' ? '🌙'
-    : '☀️'
+  const plan = customerPlan(c)
+  const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
+  const mealBadge = slots.map(slot => MEAL_SLOT_EMOJI[slot]).join('')
+  const planType = plan?.plan_type ?? c.plan_type
 
   return (
     <div className={`group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-gray-50/50 ${!isLast ? 'border-b border-gray-100/50' : ''}`}>
@@ -125,9 +158,9 @@ function DeliveryRow({ c, index, isLast, hideArea }: {
           <p className="text-xs font-medium text-gray-500 mt-0.5">{c.area}</p>
         ) : null}
       </div>
-      <span className="shrink-0 text-base" title={c.meal_timing ?? 'lunch'}>{mealBadge}</span>
-      <div className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-xl shadow-sm ${c.plan_type === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'}`}>
-        {c.plan_type === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
+      <span className="shrink-0 text-base" title={formatMealSlots(slots)}>{mealBadge}</span>
+      <div className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-xl shadow-sm ${planType === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'}`}>
+        {planType === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
       </div>
     </div>
   )
@@ -153,7 +186,10 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   const [deltaX, setDeltaX] = useState(0)
   const [tracking, setTracking] = useState(false)
 
-  const mealBadge = c.meal_timing === 'both' ? '☀️🌙' : c.meal_timing === 'dinner' ? '🌙' : '☀️'
+  const plan = customerPlan(c)
+  const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
+  const mealBadge = slots.map(slot => MEAL_SLOT_EMOJI[slot]).join('')
+  const planType = plan?.plan_type ?? c.plan_type
   const isDelivered = status === 'delivered'
   const isSkipped = status === 'skipped'
   const swipeProgress = Math.min(Math.abs(deltaX) / SWIPE_THRESHOLD, 1)
@@ -250,9 +286,9 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
 
         <span className={`shrink-0 text-base ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>{mealBadge}</span>
         <div className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-xl ${
-          c.plan_type === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'
+          planType === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'
         } ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
-          {c.plan_type === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
+          {planType === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
         </div>
       </div>
     </div>
@@ -309,7 +345,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       ] = await Promise.all([
         supabase
           .from('customers')
-          .select('*, pauses(*)')
+          .select('*, pauses(*), subscriptions(*, meal_plans(*))')
           .eq('provider_id', userId)
           .order('name'),
         supabase.from('providers').select('*').eq('id', userId).single(),
@@ -482,10 +518,11 @@ export default function DashboardClient({ userId, userEmail }: Props) {
     return acc
   }, [] as Customer[])
 
-  const vegToday    = deliveryToday.filter(c => c.plan_type === 'veg')
-  const nonvegToday = deliveryToday.filter(c => c.plan_type === 'nonveg')
-  const lunchToday  = deliveryToday.filter(c => !c.meal_timing || c.meal_timing === 'lunch' || c.meal_timing === 'both')
-  const dinnerToday = deliveryToday.filter(c => c.meal_timing === 'dinner' || c.meal_timing === 'both')
+  const vegToday       = deliveryToday.filter(c => customerPlan(c)?.plan_type === 'veg')
+  const nonvegToday    = deliveryToday.filter(c => customerPlan(c)?.plan_type === 'nonveg')
+  const breakfastToday = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes('breakfast'))
+  const lunchToday     = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes('lunch'))
+  const dinnerToday    = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes('dinner'))
 
   const areaGroups = deliveryToday.reduce((acc, c) => {
     const key = c.area?.trim() || 'Other'
@@ -531,8 +568,8 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       ...deliveryToday.map(
         (c, i) =>
           `${i + 1}. ${c.name}${c.area ? ` — ${c.area}` : ''} — ${
-            c.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
-          }`
+            customerPlan(c)?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
+          } — ${formatMealSlots(customerPlan(c)?.meal_slots)}`
       ),
     ]
     navigator.clipboard
@@ -602,6 +639,11 @@ export default function DashboardClient({ userId, userEmail }: Props) {
             <Drumstick className="absolute -right-3 -top-3 w-16 h-16 text-orange-950 opacity-10" />
             <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">🍗 Non-veg</p>
             <p className="text-3xl font-black text-white relative z-10">{nonvegToday.length}</p>
+          </div>
+          <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-500 p-4 shadow-[0_4px_20px_rgba(14,165,233,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
+            <Sunrise className="absolute -right-3 -top-3 w-16 h-16 text-sky-900 opacity-10" />
+            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">🌅 Breakfast</p>
+            <p className="text-3xl font-black text-white relative z-10">{breakfastToday.length}</p>
           </div>
           <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 p-4 shadow-[0_4px_20px_rgba(251,191,36,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
             <Sun className="absolute -right-3 -top-3 w-16 h-16 text-yellow-900 opacity-10" />

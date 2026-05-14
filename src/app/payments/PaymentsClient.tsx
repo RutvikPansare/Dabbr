@@ -8,6 +8,8 @@ import {
   Phone, PartyPopper, ChevronDown, ChevronUp, IndianRupee,
   Check, Leaf, Drumstick,
 } from 'lucide-react'
+import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
+import { formatMealSlots } from '@/lib/meals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -16,10 +18,23 @@ interface Customer {
   name: string
   whatsapp_number: string
   area: string | null
-  plan_type: string
+  plan_type: PlanType
   price_per_month: number
   balance_days: number
   status: string
+  subscriptions?: {
+    id: string
+    status: SubscriptionStatus
+    meal_plans?: {
+      id: string
+      name: string
+      meal_slots: MealSlot[]
+      plan_type: PlanType
+      frequency: Frequency
+      monthly_price: number
+      status: 'active' | 'inactive'
+    } | null
+  }[]
 }
 
 interface PaymentWithCustomer {
@@ -80,6 +95,10 @@ function daysFromAmount(amount: number, pricePerMonth: number): number {
   return Math.round((amount * 30) / pricePerMonth * 10) / 10
 }
 
+function activePlan(c: Customer) {
+  return c.subscriptions?.find(s => s.status === 'active')?.meal_plans ?? null
+}
+
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -133,8 +152,9 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
   const urgentCustomers = [...overdue, ...dueSoon]
 
   const selectedCustomer = customers.find(c => c.id === selCustomerId) ?? null
+  const selectedPrice = selectedCustomer ? (activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month) : 0
   const previewDays = selectedCustomer && amount
-    ? daysFromAmount(Number(amount), selectedCustomer.price_per_month)
+    ? daysFromAmount(Number(amount), selectedPrice)
     : null
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -161,7 +181,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setSelCustomerId(customerId ?? '')
     if (customerId) {
       const c = customers.find(x => x.id === customerId)
-      if (c) setAmount(String(c.price_per_month))
+      if (c) setAmount(String(activePlan(c)?.monthly_price ?? c.price_per_month))
       else setAmount('')
     } else {
       setAmount('')
@@ -188,7 +208,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setRecordError('')
 
     const amountNum = Number(amount)
-    const daysAdded = daysFromAmount(amountNum, selectedCustomer.price_per_month)
+    const daysAdded = daysFromAmount(amountNum, activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month)
     const newBalance = Math.round((selectedCustomer.balance_days + daysAdded) * 10) / 10
 
     const { data: newPayment, error: payErr } = await db
@@ -545,7 +565,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   onChange={(e) => {
                     setSelCustomerId(e.target.value)
                     const c = customers.find(x => x.id === e.target.value)
-                    if (c) setAmount(String(c.price_per_month))
+                    if (c) setAmount(String(activePlan(c)?.monthly_price ?? c.price_per_month))
                     else setAmount('')
                   }}
                   className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
@@ -565,7 +585,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                     }`}>
                       {selectedCustomer.balance_days}d
                     </span>
-                    {' · '}₹{selectedCustomer.price_per_month}/mo
+                    {' · '}₹{activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month}/mo
                   </p>
                 )}
               </div>
@@ -638,6 +658,8 @@ interface CustomerRowProps {
 
 function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRecord }: CustomerRowProps) {
   const isOverdue = c.balance_days <= 0
+  const plan = activePlan(c)
+  const planType = plan?.plan_type ?? c.plan_type
 
   return (
     <div
@@ -677,12 +699,18 @@ function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRe
               </>
             )}
             <span className="flex items-center gap-0.5 text-xs text-gray-400">
-              {c.plan_type === 'veg'
+              {planType === 'veg'
                 ? <><Leaf className="w-3 h-3 text-emerald-500" /> Veg</>
                 : <><Drumstick className="w-3 h-3 text-orange-400" /> Non-veg</>}
             </span>
             <span className="text-gray-300 text-xs">·</span>
-            <span className="text-xs font-semibold text-gray-500">₹{c.price_per_month}/mo</span>
+            <span className="text-xs font-semibold text-gray-500">₹{plan?.monthly_price ?? c.price_per_month}/mo</span>
+            {plan && (
+              <>
+                <span className="text-gray-300 text-xs">·</span>
+                <span className="text-xs text-gray-400">{formatMealSlots(plan.meal_slots)}</span>
+              </>
+            )}
           </div>
 
           {/* Action buttons — hidden in bulk mode */}

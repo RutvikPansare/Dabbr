@@ -18,11 +18,17 @@ export default async function CustomersPage({
 
   if (!user) redirect('/login')
 
-  const [{ data: customers }, trial] = await Promise.all([
+  const [{ data: customers }, { data: mealPlans }, trial] = await Promise.all([
     supabase
       .from('customers')
-      .select('*, pauses(*)')
+      .select('*, pauses(*), subscriptions(*, meal_plans(*))')
       .eq('provider_id', user.id)
+      .order('name'),
+    supabase
+      .from('meal_plans')
+      .select('*')
+      .eq('provider_id', user.id)
+      .order('status')
       .order('name'),
     getTrialStatus(supabase, user.id),
   ])
@@ -32,6 +38,7 @@ export default async function CustomersPage({
   return (
     <CustomersClient
       initialCustomers={customers ?? []}
+      initialMealPlans={mealPlans ?? []}
       providerId={user.id}
       initialShowAdd={params.openAdd === 'true'}
     />

@@ -17,7 +17,7 @@ export default async function PaymentsPage() {
   ] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, name, whatsapp_number, area, plan_type, price_per_month, balance_days, status')
+      .select('id, name, whatsapp_number, area, plan_type, price_per_month, balance_days, status, subscriptions(*, meal_plans(*))')
       .eq('provider_id', user.id)
       .order('name'),
     supabase

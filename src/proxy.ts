@@ -29,8 +29,23 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // /c/* routes are the customer portal — no auth required, token-based access
+  if (pathname.startsWith('/c/')) {
+    return supabaseResponse
+  }
+
   // Unauthenticated user trying to access a protected route
-  if (!user && (pathname.startsWith('/dashboard') || pathname.startsWith('/customers') || pathname.startsWith('/payments') || pathname.startsWith('/settings'))) {
+  if (
+    !user &&
+    (
+      pathname.startsWith('/dashboard') ||
+      pathname.startsWith('/customers') ||
+      pathname.startsWith('/meal-plans') ||
+      pathname.startsWith('/menu') ||
+      pathname.startsWith('/payments') ||
+      pathname.startsWith('/settings')
+    )
+  ) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
@@ -44,5 +59,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/dashboard/:path*', '/customers/:path*', '/payments/:path*', '/settings/:path*', '/login'],
+  matcher: [
+    '/',
+    '/dashboard/:path*',
+    '/customers/:path*',
+    '/meal-plans/:path*',
+    '/menu/:path*',
+    '/payments/:path*',
+    '/settings/:path*',
+    '/login',
+    '/c/:path*',  // customer portal — passes through unauthenticated
+  ],
 }

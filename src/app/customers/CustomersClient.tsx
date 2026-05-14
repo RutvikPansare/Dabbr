@@ -9,8 +9,11 @@ import {
   Pause, Play, CreditCard, Leaf, Drumstick, SearchX, Box, Smartphone,
   Edit2, ChevronRight, IndianRupee, AlertTriangle, Clock,
   CheckCircle2, XCircle, Sparkles, Tag, StickyNote, X as XIcon,
+  Link2, Copy, RefreshCw,
 } from 'lucide-react'
-import type { PlanType, Frequency, CustomerStatus } from '@/types/database'
+import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
+import { formatMealSlots, formatPlanSummary } from '@/lib/meals'
+import { generateCustomerToken } from '@/lib/customer-token'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,14 +33,40 @@ interface Customer {
   area: string | null
   plan_type: PlanType
   frequency: Frequency
-  meal_timing: 'lunch' | 'dinner' | 'both' | null
+  meal_slots: MealSlot[]
   price_per_month: number
   status: CustomerStatus
   balance_days: number
   pauses: Pause[]
+  subscriptions?: Subscription[]
   created_at: string
   notes: string | null
   tags: string[]
+}
+
+interface MealPlan {
+  id: string
+  provider_id: string
+  name: string
+  meal_slots: MealSlot[]
+  plan_type: PlanType
+  frequency: Frequency
+  monthly_price: number
+  active_days: number
+  description: string | null
+  status: MealPlanStatus
+}
+
+interface Subscription {
+  id: string
+  provider_id: string
+  customer_id: string
+  meal_plan_id: string
+  status: SubscriptionStatus
+  start_date: string
+  paused_at?: string | null
+  cancelled_at?: string | null
+  meal_plans?: MealPlan | null
 }
 
 interface Payment {
@@ -71,15 +100,13 @@ interface FormState {
   area: string
   notes: string
   tags: string[]
-  plan_type: PlanType
-  frequency: Frequency
-  meal_timing: 'lunch' | 'dinner' | 'both'
-  price_per_month: string
+  meal_plan_id: string
   balance_days: string
 }
 
 interface Props {
   initialCustomers: Customer[]
+  initialMealPlans: MealPlan[]
   providerId: string
   initialShowAdd?: boolean
 }
@@ -102,10 +129,7 @@ const EMPTY_FORM: FormState = {
   area: '',
   notes: '',
   tags: [],
-  plan_type: 'veg',
-  frequency: 'daily',
-  meal_timing: 'lunch',
-  price_per_month: '',
+  meal_plan_id: '',
   balance_days: '',
 }
 
@@ -165,9 +189,17 @@ const SUGGESTED_TAGS = [
   'No Friday', 'No Saturday', 'No Sunday',
 ]
 
+function activeSubscription(c: Customer): Subscription | null {
+  return c.subscriptions?.find(s => s.status === 'active' || s.status === 'paused') ?? null
+}
+
+function customerPlan(c: Customer): MealPlan | null {
+  return activeSubscription(c)?.meal_plans ?? null
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function CustomersClient({ initialCustomers, providerId, initialShowAdd = false }: Props) {
+export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, initialShowAdd = false }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,13 +210,17 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
 
   // ── Data state ─────────────────────────────────────────────────────────
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
+  const [mealPlans, setMealPlans] = useState<MealPlan[]>(initialMealPlans)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'paused'>('all')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
 
   // Form
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add')
-  const [formData, setFormData] = useState<FormState>(EMPTY_FORM)
+  const [formData, setFormData] = useState<FormState>({
+    ...EMPTY_FORM,
+    meal_plan_id: initialMealPlans.find(plan => plan.status === 'active')?.id ?? initialMealPlans[0]?.id ?? '',
+  })
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -211,8 +247,14 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(false)
 
+  // Portal link
+  const [portalToken, setPortalToken] = useState<string | null>(null)
+  const [portalLinkLoading, setPortalLinkLoading] = useState(false)
+  const [portalLinkCopied, setPortalLinkCopied] = useState(false)
+
   // ── Derived ───────────────────────────────────────────────────────────
 
+  const activeMealPlans = mealPlans.filter(plan => plan.status === 'active')
   const allTags = Array.from(new Set(customers.flatMap(c => c.tags ?? []))).sort()
 
   const filtered = customers.filter((c) => {
@@ -237,7 +279,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
 
   function openAdd() {
     setFormMode('add')
-    setFormData(EMPTY_FORM)
+    setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
     setFormError('')
     setScreen('form')
   }
@@ -251,10 +293,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       area: c.area ?? '',
       notes: c.notes ?? '',
       tags: c.tags ?? [],
-      plan_type: c.plan_type,
-      frequency: c.frequency,
-      meal_timing: c.meal_timing ?? 'lunch',
-      price_per_month: String(c.price_per_month),
+      meal_plan_id: activeSubscription(c)?.meal_plan_id ?? '',
       balance_days: String(c.balance_days),
     })
     setFormError('')
@@ -331,6 +370,43 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
 
     setLedgerEvents(events)
     setLedgerLoading(false)
+
+    // Fetch existing portal token for this customer
+    setPortalToken(null)
+    setPortalLinkLoading(true)
+    const { data: tokenRow } = await db
+      .from('customer_access_tokens')
+      .select('token')
+      .eq('customer_id', c.id)
+      .eq('is_active', true)
+      .maybeSingle()
+    setPortalToken(tokenRow?.token ?? null)
+    setPortalLinkLoading(false)
+  }
+
+  async function generatePortalLink() {
+    if (!selectedCustomer) return
+    setPortalLinkLoading(true)
+    const newToken = generateCustomerToken()
+    // Deactivate any existing token first
+    await db.from('customer_access_tokens').update({ is_active: false }).eq('customer_id', selectedCustomer.id)
+    // Insert new token
+    await db.from('customer_access_tokens').insert({
+      customer_id: selectedCustomer.id,
+      provider_id: providerId,
+      token: newToken,
+    })
+    setPortalToken(newToken)
+    setPortalLinkLoading(false)
+  }
+
+  function copyPortalLink() {
+    if (!portalToken) return
+    const url = `${window.location.origin}/c/${portalToken}`
+    navigator.clipboard.writeText(url).then(() => {
+      setPortalLinkCopied(true)
+      setTimeout(() => setPortalLinkCopied(false), 2500)
+    })
   }
 
   function openPause() {
@@ -400,6 +476,13 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
     setFormLoading(true)
     setFormError('')
 
+    const selectedPlan = mealPlans.find(plan => plan.id === formData.meal_plan_id)
+    if (!selectedPlan) {
+      setFormError('Please choose an active meal plan before saving this customer.')
+      setFormLoading(false)
+      return
+    }
+
     if (formMode === 'add') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
@@ -410,11 +493,11 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
         area: formData.area.trim() || null,
         notes: formData.notes.trim() || null,
         tags: formData.tags,
-        plan_type: formData.plan_type,
-        frequency: formData.frequency,
-        meal_timing: formData.meal_timing,
-        price_per_month: Number(formData.price_per_month),
-        balance_days: Number(formData.balance_days),
+        plan_type: selectedPlan.plan_type,
+        frequency: selectedPlan.frequency,
+        meal_slots: selectedPlan.meal_slots,
+        price_per_month: Number(selectedPlan.monthly_price),
+        balance_days: Number(formData.balance_days || selectedPlan.active_days),
         status: 'active',
       }
       const { data, error } = await db
@@ -426,14 +509,36 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       if (error) {
         setFormError(`Error: ${error.message ?? 'Failed to add customer'}`)
       } else if (data) {
+        const { error: subError } = await db.from('subscriptions').insert({
+          provider_id: providerId,
+          customer_id: data.id,
+          meal_plan_id: selectedPlan.id,
+          status: 'active',
+          start_date: today(),
+        })
+        if (subError) {
+          setFormError(`Customer was added, but subscription assignment failed: ${subError.message}`)
+          setFormLoading(false)
+          return
+        }
+
+        const { data: hydrated } = await db
+          .from('customers')
+          .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+          .eq('id', data.id)
+          .single()
+
         setCustomers((prev) =>
-          [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+          [...prev, hydrated ?? data].sort((a, b) => a.name.localeCompare(b.name))
         )
         setScreen('list')
-        setFormData(EMPTY_FORM)
+        setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
       }
     } else {
-      if (!selectedCustomer) return
+      if (!selectedCustomer) {
+        setFormLoading(false)
+        return
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updatePayload: any = {
         name: formData.name.trim(),
@@ -442,28 +547,54 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
         area: formData.area.trim() || null,
         notes: formData.notes.trim() || null,
         tags: formData.tags,
-        plan_type: formData.plan_type,
-        frequency: formData.frequency,
-        meal_timing: formData.meal_timing,
-        price_per_month: Number(formData.price_per_month),
+        plan_type: selectedPlan.plan_type,
+        frequency: selectedPlan.frequency,
+        meal_slots: selectedPlan.meal_slots,
+        price_per_month: Number(selectedPlan.monthly_price),
         balance_days: Number(formData.balance_days),
       }
       const { data, error } = await db
         .from('customers')
         .update(updatePayload)
         .eq('id', selectedCustomer.id)
-        .select('*, pauses(*)')
+        .select('*, pauses(*), subscriptions(*, meal_plans(*))')
         .single()
 
       if (error) {
         setFormError('Failed to update customer. Please try again.')
       } else if (data) {
+        const existing = activeSubscription(selectedCustomer)
+        const { error: subError } = existing
+          ? await db
+              .from('subscriptions')
+              .update({ meal_plan_id: selectedPlan.id, status: 'active', cancelled_at: null })
+              .eq('id', existing.id)
+          : await db.from('subscriptions').insert({
+              provider_id: providerId,
+              customer_id: selectedCustomer.id,
+              meal_plan_id: selectedPlan.id,
+              status: 'active',
+              start_date: today(),
+            })
+
+        if (subError) {
+          setFormError(`Customer was updated, but subscription assignment failed: ${subError.message}`)
+          setFormLoading(false)
+          return
+        }
+
+        const { data: hydrated } = await db
+          .from('customers')
+          .select('*, pauses(*), subscriptions(*, meal_plans(*))')
+          .eq('id', selectedCustomer.id)
+          .single()
+
         setCustomers((prev) =>
           prev
-            .map((c) => (c.id === data.id ? data : c))
+            .map((c) => (c.id === data.id ? hydrated ?? data : c))
             .sort((a, b) => a.name.localeCompare(b.name))
         )
-        void openDetail(data) // refresh ledger + selected customer
+        void openDetail(hydrated ?? data) // refresh ledger + selected customer
       }
     }
 
@@ -486,7 +617,21 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       .update({ status: 'active' })
       .eq('id', selectedCustomer.id)
 
-    const updated: Customer = { ...selectedCustomer, status: 'active' }
+    const subscription = activeSubscription(selectedCustomer)
+    if (subscription) {
+      await db
+        .from('subscriptions')
+        .update({ status: 'active', paused_at: null })
+        .eq('id', subscription.id)
+    }
+
+    const updated: Customer = {
+      ...selectedCustomer,
+      status: 'active',
+      subscriptions: selectedCustomer.subscriptions?.map(s =>
+        s.id === subscription?.id ? { ...s, status: 'active', paused_at: null } : s
+      ),
+    }
     setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)))
     void openDetail(updated) // refresh ledger + selected customer
   }
@@ -507,6 +652,14 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       .update({ status: 'paused' })
       .eq('id', selectedCustomer.id)
 
+    const subscription = activeSubscription(selectedCustomer)
+    if (subscription) {
+      await db
+        .from('subscriptions')
+        .update({ status: 'paused', paused_at: new Date().toISOString() })
+        .eq('id', subscription.id)
+    }
+
     const newPause: Pause = {
       id: crypto.randomUUID(),
       customer_id: selectedCustomer.id,
@@ -518,6 +671,9 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
       ...selectedCustomer,
       status: 'paused',
       pauses: [...selectedCustomer.pauses, newPause],
+      subscriptions: selectedCustomer.subscriptions?.map(s =>
+        s.id === subscription?.id ? { ...s, status: 'paused', paused_at: new Date().toISOString() } : s
+      ),
     }
     setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)))
     setPauseLoading(false)
@@ -632,56 +788,59 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
           {/* Customer list */}
           {filtered.length > 0 && (
             <div className="space-y-3">
-              {filtered.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => openDetail(c)}
-                  className="group relative w-full rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 text-left transition-all duration-300 hover:shadow-md hover:border-orange-200 active:scale-[0.98] overflow-hidden"
-                >
-                  <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 transition-opacity group-hover:opacity-100" />
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-black text-gray-900 text-base leading-tight group-hover:text-orange-600 transition-colors">
-                          {c.name}
-                        </span>
-                        <span className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusBadgeClass(c.status)}`}>
-                          {c.status}
-                        </span>
-                      </div>
-                      <p className="mt-1.5 flex items-center text-xs font-medium text-gray-500">
-                        {c.area ? <span className="text-gray-600 mr-1.5">{c.area} •</span> : ''}
-                        <span className="flex items-center gap-1">
-                          {PLAN_EMOJI[c.plan_type]} {PLAN_LABEL[c.plan_type]} • {FREQ_LABEL[c.frequency]}
-                        </span>
-                      </p>
-                      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-400 group-hover:text-gray-500">
-                        <Smartphone className="w-3 h-3" /> {c.whatsapp_number}
-                      </p>
-                      {c.notes && (
-                        <p className="mt-1.5 text-xs text-gray-400 truncate max-w-[200px]">
-                          <StickyNote className="inline w-3 h-3 mr-1 opacity-60" />{c.notes}
-                        </p>
-                      )}
-                      {(c.tags ?? []).length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {c.tags.map(tag => (
-                            <span key={tag} className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${tagColor(tag)}`}>
-                              {tag}
-                            </span>
-                          ))}
+              {filtered.map((c) => {
+                const plan = customerPlan(c)
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => openDetail(c)}
+                    className="group relative w-full rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 text-left transition-all duration-300 hover:shadow-md hover:border-orange-200 active:scale-[0.98] overflow-hidden"
+                  >
+                    <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-gray-900 text-base leading-tight group-hover:text-orange-600 transition-colors">
+                            {c.name}
+                          </span>
+                          <span className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusBadgeClass(c.status)}`}>
+                            {c.status}
+                          </span>
                         </div>
-                      )}
+                        <p className="mt-1.5 flex items-center text-xs font-medium text-gray-500">
+                          {c.area ? <span className="text-gray-600 mr-1.5">{c.area} •</span> : ''}
+                          <span className="flex items-center gap-1">
+                            {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]} {plan?.name ?? PLAN_LABEL[c.plan_type]} • {formatMealSlots(plan?.meal_slots ?? c.meal_slots)}
+                          </span>
+                        </p>
+                        <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-400 group-hover:text-gray-500">
+                          <Smartphone className="w-3 h-3" /> {c.whatsapp_number}
+                        </p>
+                        {c.notes && (
+                          <p className="mt-1.5 text-xs text-gray-400 truncate max-w-[200px]">
+                            <StickyNote className="inline w-3 h-3 mr-1 opacity-60" />{c.notes}
+                          </p>
+                        )}
+                        {(c.tags ?? []).length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {c.tags.map(tag => (
+                              <span key={tag} className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${tagColor(tag)}`}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right flex flex-col items-end gap-2">
+                        <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm ${balancePillClass(c.balance_days)}`}>
+                          {c.balance_days}d left
+                        </span>
+                        <p className="text-xs font-bold text-gray-400 group-hover:text-gray-600">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
+                      </div>
                     </div>
-                    <div className="shrink-0 text-right flex flex-col items-end gap-2">
-                      <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm ${balancePillClass(c.balance_days)}`}>
-                        {c.balance_days}d left
-                      </span>
-                      <p className="text-xs font-bold text-gray-400 group-hover:text-gray-600">₹{c.price_per_month}/mo</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                )
+              })}
             </div>
           )}
         </main>
@@ -706,6 +865,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
 
   if (screen === 'detail' && selectedCustomer) {
     const c = selectedCustomer
+    const plan = customerPlan(c)
     return (
       <div className="min-h-screen bg-[#FDF8F3]">
 
@@ -742,8 +902,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
                 {c.status}
               </span>
               <span className="text-xs text-gray-400">
-                {PLAN_LABEL[c.plan_type]} • {FREQ_LABEL[c.frequency]}
-                {c.meal_timing && c.meal_timing !== 'lunch' && ` • ${c.meal_timing === 'dinner' ? '🌙 Dinner' : '☀️🌙 Both'}`}
+                {plan ? formatPlanSummary(plan) : `${PLAN_LABEL[c.plan_type]} • ${FREQ_LABEL[c.frequency]} • ${formatMealSlots(c.meal_slots)}`}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -758,7 +917,7 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
               <div className="rounded-2xl bg-[#FDF8F3] p-4">
                 <p className="text-xs text-gray-400 mb-0.5">Monthly</p>
                 <p className="text-3xl font-black text-gray-800">
-                  ₹{c.price_per_month}
+                  ₹{plan?.monthly_price ?? c.price_per_month}
                 </p>
               </div>
             </div>
@@ -856,6 +1015,68 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
               </div>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </button>
+          </div>
+
+          {/* ── Portal Link ─────────────────────────────────────────── */}
+          <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
+              <Link2 className="w-4 h-4 text-orange-400" />
+              <h3 className="text-sm font-black text-gray-900 tracking-tight">Customer Portal</h3>
+              <span className="ml-auto rounded-full bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5">NEW</span>
+            </div>
+
+            <div className="px-5 py-4">
+              {portalLinkLoading ? (
+                <div className="h-10 rounded-2xl bg-gray-100 animate-pulse" />
+              ) : portalToken ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-2xl bg-gray-50 border border-gray-200 px-3 py-2.5 overflow-hidden">
+                    <span className="text-xs text-gray-500 truncate flex-1 font-mono">
+                      {typeof window !== 'undefined' ? `${window.location.origin}/c/${portalToken}` : `/c/${portalToken}`}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyPortalLink}
+                      className={`flex-1 flex items-center justify-center gap-1.5 rounded-2xl py-2.5 text-xs font-bold transition-all active:scale-95 ${
+                        portalLinkCopied
+                          ? 'bg-green-100 text-green-700 border border-green-200'
+                          : 'bg-orange-500 text-white shadow-sm hover:bg-orange-600'
+                      }`}
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      {portalLinkCopied ? 'Copied!' : 'Copy Link'}
+                    </button>
+                    <button
+                      onClick={generatePortalLink}
+                      disabled={portalLinkLoading}
+                      className="flex items-center justify-center gap-1.5 rounded-2xl border border-gray-200 px-3 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+                      title="Revoke and generate a new link"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Regenerate
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    Share this link with the customer via WhatsApp. They can view their subscription, menu, and pause/resume deliveries. Regenerating will revoke the old link.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Generate a private portal link to share with this customer. They can view their subscription, today&apos;s menu, and manage pauses — no login required.
+                  </p>
+                  <button
+                    onClick={generatePortalLink}
+                    disabled={portalLinkLoading}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] py-3 text-sm font-bold text-white shadow-sm hover:shadow-md active:scale-95 transition-all disabled:opacity-60"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    Generate Portal Link
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── Notes & Tags ────────────────────────────────────────── */}
@@ -1208,94 +1429,63 @@ export default function CustomersClient({ initialCustomers, providerId, initialS
               </Field>
             </div>
 
-            {/* Plan */}
+            {/* Subscription */}
             <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Plan Details</h3>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Subscription</h3>
+                <button
+                  type="button"
+                  onClick={() => router.push('/meal-plans')}
+                  className="text-xs font-bold text-orange-500"
+                >
+                  Manage plans
+                </button>
+              </div>
 
-              <Field label="Plan Type">
-                <div className="flex overflow-hidden rounded-2xl border border-gray-200">
-                  {(['veg', 'nonveg'] as const).map((pt) => (
-                    <button
-                      key={pt}
-                      type="button"
-                      onClick={() => setFormData((f) => ({ ...f, plan_type: pt }))}
-                      className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-sm font-semibold transition ${
-                        formData.plan_type === pt ? 'bg-[#F4622A] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {PLAN_EMOJI[pt]} {PLAN_LABEL[pt]}
-                    </button>
+              <Field label="Meal Plan *">
+                <select
+                  required
+                  value={formData.meal_plan_id}
+                  onChange={(e) => {
+                    const plan = mealPlans.find(p => p.id === e.target.value)
+                    setFormData((f) => ({
+                      ...f,
+                      meal_plan_id: e.target.value,
+                      balance_days: f.balance_days || String(plan?.active_days ?? ''),
+                    }))
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Choose a meal plan…</option>
+                  {mealPlans.map(plan => (
+                    <option key={plan.id} value={plan.id} disabled={plan.status !== 'active'}>
+                      {formatPlanSummary(plan)}{plan.status !== 'active' ? ' (inactive)' : ''}
+                    </option>
                   ))}
-                </div>
-              </Field>
-
-              <Field label="Frequency">
-                <div className="flex overflow-hidden rounded-2xl border border-gray-200">
-                  {(['daily', 'alternate'] as const).map((fr) => (
-                    <button
-                      key={fr}
-                      type="button"
-                      onClick={() => setFormData((f) => ({ ...f, frequency: fr }))}
-                      className={`flex-1 py-3 text-sm font-semibold transition ${
-                        formData.frequency === fr ? 'bg-[#F4622A] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {fr === 'daily' ? '📅 Daily' : '📆 Alternate'}
-                    </button>
-                  ))}
-                </div>
-              </Field>
-
-              <Field label="Meal Timing">
-                <div className="flex overflow-hidden rounded-2xl border border-gray-200">
-                  {([
-                    { value: 'lunch', label: '☀️ Lunch' },
-                    { value: 'dinner', label: '🌙 Dinner' },
-                    { value: 'both', label: '☀️🌙 Both' },
-                  ] as const).map(({ value, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setFormData((f) => ({ ...f, meal_timing: value }))}
-                      className={`flex-1 py-3 text-sm font-semibold transition ${
-                        formData.meal_timing === value ? 'bg-[#F4622A] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                </select>
+                {mealPlans.length === 0 && (
+                  <p className="mt-2 text-xs font-medium text-red-500">
+                    Create a meal plan first, then assign it to this customer.
+                  </p>
+                )}
               </Field>
             </div>
 
             {/* Pricing */}
             <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Pricing & Balance</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Balance</h3>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Price / Month (₹) *">
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 2500"
-                    value={formData.price_per_month}
-                    onChange={(e) => setFormData((f) => ({ ...f, price_per_month: e.target.value }))}
-                    className={inputClass}
-                  />
-                </Field>
-                <Field label="Balance (days) *">
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 30"
-                    value={formData.balance_days}
-                    onChange={(e) => setFormData((f) => ({ ...f, balance_days: e.target.value }))}
-                    className={inputClass}
-                  />
-                </Field>
-              </div>
+              <Field label="Balance (days) *">
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 30"
+                  value={formData.balance_days}
+                  onChange={(e) => setFormData((f) => ({ ...f, balance_days: e.target.value }))}
+                  className={inputClass}
+                />
+              </Field>
             </div>
 
             {formError && (

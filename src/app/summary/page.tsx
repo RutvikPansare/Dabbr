@@ -44,11 +44,16 @@ export default async function SummaryPage() {
 
   // ── Queries (parallel) ───────────────────────────────────────────────────
 
-  const [customersRes, paymentsRes, deliveryRes, providerRes] = await Promise.all([
+  const [customersRes, subscriptionsRes, paymentsRes, deliveryRes, providerRes] = await Promise.all([
     supabase
       .from('customers')
       .select('id, status, balance_days, price_per_month, created_at')
       .eq('provider_id', user.id),
+    supabase
+      .from('subscriptions')
+      .select('status, customers(id, status, balance_days, price_per_month, created_at), meal_plans(status, monthly_price)')
+      .eq('provider_id', user.id)
+      .in('status', ['active', 'paused']),
     supabase
       .from('payments')
       .select('amount, recorded_at')
@@ -67,6 +72,7 @@ export default async function SummaryPage() {
   ])
 
   const customers = customersRes.data
+  const subscriptions = subscriptionsRes.data
   const payments = paymentsRes.data
   const deliveryLogs = deliveryRes.data
   const providerRow = providerRes.data
@@ -74,12 +80,18 @@ export default async function SummaryPage() {
   // ── Typed views (Supabase column-select narrows to never; cast via unknown) ──
 
   type CRow = { status: string; balance_days: number; price_per_month: number; created_at: string }
+  type SRow = {
+    status: string
+    customers: CRow | null
+    meal_plans: { status: string; monthly_price: number } | null
+  }
   type PRow = { amount: number; recorded_at: string }
   type LRow = { date: string; status: string }
   type PrRow = { name: string; enable_delivery_tracking: boolean }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cList = (customers ?? []) as unknown as CRow[]
+  const sList = (subscriptions ?? []) as unknown as SRow[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pList = (payments ?? []) as unknown as PRow[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,7 +131,15 @@ export default async function SummaryPage() {
 
   // ── Snapshot stats (current state, not period-dependent) ─────────────────
 
-  const activeCustomers = cList.filter(c => c.status === 'active')
+  const activeSubscriptions = sList.filter(s =>
+    s.status === 'active' &&
+    s.customers?.status === 'active' &&
+    s.meal_plans?.status === 'active'
+  )
+  const activeCustomers = activeSubscriptions.map(s => ({
+    ...s.customers!,
+    price_per_month: Number(s.meal_plans?.monthly_price ?? s.customers?.price_per_month ?? 0),
+  }))
   const overdueCustomers = activeCustomers.filter(c => c.balance_days <= 0)
   const pendingCustomers = activeCustomers.filter(c => c.balance_days <= 5)
 
