@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { MessageCircle, Utensils, CalendarDays, Phone } from 'lucide-react'
+import { MessageCircle, Utensils, CalendarDays, Phone, Leaf, Drumstick, IndianRupee } from 'lucide-react'
 
 const SLOT_ORDER = ['breakfast', 'lunch', 'dinner'] as const
 const SLOT_EMOJI: Record<string, string> = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
@@ -29,6 +29,14 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
 
   const today = new Date().toISOString().split('T')[0]
   const weekDates = getWeekDates(7)
+
+  // Fetch active meal plans
+  const { data: mealPlans } = await db
+    .from('meal_plans')
+    .select('id, name, meal_slots, plan_type, frequency, monthly_price, description')
+    .eq('provider_id', p.id)
+    .eq('status', 'active')
+    .order('monthly_price')
 
   const { data: menuRows } = await db
     .from('daily_menus')
@@ -126,6 +134,59 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
             </div>
           )}
         </div>
+
+        {/* ── Meal plans ── */}
+        {mealPlans && mealPlans.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <IndianRupee className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wide">Our Plans</h2>
+            </div>
+            <div className="space-y-3">
+              {mealPlans.map((plan: any) => (
+                <div key={plan.id} className="rounded-2xl bg-white border border-gray-100 px-4 py-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        {plan.plan_type === 'veg'
+                          ? <Leaf className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          : <Drumstick className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                        }
+                        <p className="text-sm font-black text-gray-900">{plan.name}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 font-medium">
+                        {plan.meal_slots.map((s: string) => `${SLOT_EMOJI[s]} ${SLOT_LABEL[s]}`).join(' + ')}
+                        <span className="mx-1.5 text-gray-300">·</span>
+                        {plan.frequency === 'daily' ? 'Daily' : 'Alternate days'}
+                      </p>
+                      {plan.description && (
+                        <p className="mt-1.5 text-xs text-gray-400 leading-relaxed">{plan.description}</p>
+                      )}
+                    </div>
+                    {plan.monthly_price > 0 && (
+                      <div className="shrink-0 text-right">
+                        <p className="text-lg font-black text-gray-900">
+                          ₹{plan.monthly_price.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-medium">per month</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {waNumber && (
+              <p className="mt-3 text-xs text-gray-400 text-center">
+                Interested? <a
+                  href={`https://wa.me/91${waNumber.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${p.name}, I'd like to subscribe to a tiffin plan.`)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="font-semibold underline underline-offset-2"
+                  style={{ color: 'var(--accent)' }}
+                >Contact us on WhatsApp</a> to subscribe.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ── Weekly menu strip ── */}
         {weekDates.some(date => menuMap[date] && Object.keys(menuMap[date]).length > 0) && (
