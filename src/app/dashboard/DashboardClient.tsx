@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import Paywall from '@/components/Paywall'
+import { getThemeVars } from '@/lib/branding'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 import { formatMealSlots, MEAL_SLOT_EMOJI } from '@/lib/meals'
 
@@ -65,6 +66,8 @@ interface Provider {
   phone: string | null
   upi_id: string | null
   enable_delivery_tracking: boolean
+  accent_color: string | null
+  logo_url: string | null
 }
 
 interface Props {
@@ -605,17 +608,29 @@ export default function DashboardClient({ userId, userEmail }: Props) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const themeVars = getThemeVars(provider?.accent_color)
+
   return (
-    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]" style={themeVars as React.CSSProperties}>
 
       {isExpired && <Paywall />}
 
       {/* ── Header ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] px-5 pt-5 pb-5 shadow-[0_4px_20px_rgba(244,98,42,0.25)]">
+      <div
+        className="relative overflow-hidden px-5 pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
+      >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
         <div className="relative mx-auto max-w-2xl flex items-center gap-3">
+          {provider?.logo_url && (
+            <img
+              src={provider.logo_url}
+              alt={provider.name}
+              className="w-11 h-11 rounded-2xl object-cover border-2 border-white/25 shrink-0 shadow-md"
+            />
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold text-orange-100/70 tracking-wide leading-none mb-1">
+            <p className="text-[11px] font-semibold text-white/60 tracking-wide leading-none mb-1">
               {formatTodayLong(today)}
             </p>
             <h1 className="text-xl font-black text-white tracking-tight leading-tight flex items-center gap-1.5">

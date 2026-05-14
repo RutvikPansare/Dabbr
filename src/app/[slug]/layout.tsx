@@ -3,12 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getThemeVars } from '@/lib/branding'
 import type { Metadata } from 'next'
 
-interface Props {
-  children: React.ReactNode
-  params: Promise<{ slug: string }>
-}
-
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<Record<string, string>> }): Promise<Metadata> {
   const { slug } = await params
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
@@ -28,7 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
-export default async function SlugLayout({ children, params }: Props) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function SlugLayout({ children, params }: { children: React.ReactNode; params: any }) {
   const { slug } = await params
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any

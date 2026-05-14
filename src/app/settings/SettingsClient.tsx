@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload } from 'lucide-react'
@@ -45,6 +45,10 @@ export default function SettingsClient({ providerId, provider }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Use actual domain (localhost in dev, real domain in prod)
+  const [origin, setOrigin] = useState('dabbr.in')
+  useEffect(() => { setOrigin(window.location.origin.replace(/^https?:\/\//, '')) }, [])
 
   // Branding state
   const [slug, setSlug] = useState(provider?.slug ?? '')
@@ -424,12 +428,12 @@ export default function SettingsClient({ providerId, provider }: Props) {
             )}
             {slug && !slugError && (
               <p className="mt-1.5 text-xs font-medium text-gray-400">
-                Your portal: <span className="text-orange-600 font-semibold">dabbr.in/{slug.trim().toLowerCase()}</span>
+                Your portal: <span className="text-orange-600 font-semibold">{origin}/{slug.trim().toLowerCase()}</span>
               </p>
             )}
             {!slug && (
               <p className="mt-1.5 text-xs font-medium text-gray-400">
-                Customers can visit <span className="font-semibold">dabbr.in/your-slug</span> to find you
+                Customers can visit <span className="font-semibold">{origin}/your-slug</span> to find you
               </p>
             )}
           </div>
