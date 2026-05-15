@@ -320,6 +320,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
   const [isExpired, setIsExpired] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(null)
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>({})
@@ -348,6 +349,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
         { data: providerData },
         trial,
         { data: logsData },
+        { data: holidayData },
       ] = await Promise.all([
         supabase
           .from('customers')
@@ -361,6 +363,11 @@ export default function DashboardClient({ userId, userEmail }: Props) {
           .select('customer_id, status')
           .eq('provider_id', userId)
           .eq('date', today),
+        db.from('provider_holidays')
+          .select('label')
+          .eq('provider_id', userId)
+          .eq('date', today)
+          .maybeSingle(),
       ])
 
       // Merge meal_plans into subscriptions manually (PostgREST embedded join workaround)
@@ -378,6 +385,14 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       setProvider(providerData)
       setTrialDaysLeft(trial.trialDaysLeft)
       setIsExpired(trial.isExpired)
+
+      // Check if today is a provider holiday or off-day
+      const offDays: number[] = (providerData as any)?.off_days ?? []
+      const todayDow = new Date(today + 'T12:00:00Z').getUTCDay()
+      const isOffDay = offDays.includes(todayDow)
+      if (holidayData || isOffDay) {
+        setTodayHoliday({ label: holidayData?.label ?? null })
+      }
 
       if (logsData) {
         const statusMap: Record<string, DeliveryStatus> = {}
@@ -764,6 +779,19 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                 ))}
               </div>
             </section>
+          )}
+
+          {/* ── Holiday banner ── */}
+          {todayHoliday && (
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-4 flex items-center gap-3">
+              <span className="text-2xl shrink-0">🏖️</span>
+              <div>
+                <p className="text-sm font-black text-amber-800">
+                  Today is a holiday{todayHoliday.label ? ` · ${todayHoliday.label}` : ''}
+                </p>
+                <p className="text-xs text-amber-600 mt-0.5">No deliveries scheduled. Balance won&apos;t deduct today.</p>
+              </div>
+            </div>
           )}
 
           {/* ── Today's delivery list ── */}

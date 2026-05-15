@@ -259,6 +259,38 @@ export interface Database {
           updated_at?: string
         }
       }
+      menu_quick_tags: {
+        Row: {
+          id: string
+          provider_id: string
+          meal_slot: MealSlot
+          plan_type: PlanType | null
+          label: string
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider_id: string
+          meal_slot: MealSlot
+          plan_type?: PlanType | null
+          label: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider_id?: string
+          meal_slot?: MealSlot
+          plan_type?: PlanType | null
+          label?: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
       pauses: {
         Row: {
           id: string

@@ -10,6 +10,7 @@
 import type { MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 import { createAdminClient } from './supabase/admin'
 import { getWeekDates } from './cutoff'
+import { isProviderHoliday } from './holidays'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export interface PortalProvider {
   cutoff_tz: string
   upi_id: string | null
   phone: string | null
+  off_days: number[]
 }
 
 export interface PortalMealPlan {
@@ -77,6 +79,8 @@ export interface MenuSlot {
 export interface DayMenu {
   date: string // YYYY-MM-DD
   slots: MenuSlot[]
+  isHoliday: boolean
+  holidayLabel?: string | null
 }
 
 export interface CustomerPortalData {
@@ -145,7 +149,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .single(),
     db
       .from('providers')
-      .select('id, name, slug, logo_url, accent_color, tagline, support_whatsapp, cutoff_hour, cutoff_tz, upi_id, phone')
+      .select('id, name, slug, logo_url, accent_color, tagline, support_whatsapp, cutoff_hour, cutoff_tz, upi_id, phone, off_days')
       .eq('id', tokenRow.provider_id)
       .single(),
   ])
@@ -203,16 +207,29 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
     }
   }
 
-  // 5. Fetch menus (today + 6 days ahead)
+  // 5. Fetch menus + holidays in parallel
   const dates = getWeekDates(7)
-  const { data: menuRows } = await db
-    .from('daily_menus')
-    .select('menu_date, meal_slot, dish_name, plan_type, notes')
-    .eq('provider_id', tokenRow.provider_id)
-    .gte('menu_date', dates[0])
-    .lte('menu_date', dates[dates.length - 1])
-    .order('menu_date')
-    .order('meal_slot')
+  const [{ data: menuRows }, { data: holidayRows }] = await Promise.all([
+    db
+      .from('daily_menus')
+      .select('menu_date, meal_slot, dish_name, plan_type, notes')
+      .eq('provider_id', tokenRow.provider_id)
+      .gte('menu_date', dates[0])
+      .lte('menu_date', dates[dates.length - 1])
+      .order('menu_date')
+      .order('meal_slot'),
+    db
+      .from('provider_holidays')
+      .select('date, label')
+      .eq('provider_id', tokenRow.provider_id)
+      .gte('date', dates[0])
+      .lte('date', dates[dates.length - 1]),
+  ])
+
+  // Build holiday lookup
+  const offDays: number[] = provider.off_days ?? []
+  const holidayMap: Record<string, string | null> = {}
+  for (const h of (holidayRows ?? [])) holidayMap[h.date] = h.label ?? null
 
   // Group menus by date → slot → dishes
   const menuMap: Record<string, Record<string, MenuDish[]>> = {}
@@ -241,10 +258,15 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
   }
 
   const todayMenu = buildDayMenu(dates[0])
-  const weekMenu: DayMenu[] = dates.map(date => ({
-    date,
-    slots: buildDayMenu(date),
-  }))
+  const weekMenu: DayMenu[] = dates.map(date => {
+    const holiday = isProviderHoliday(date, offDays, Object.keys(holidayMap))
+    return {
+      date,
+      slots: buildDayMenu(date),
+      isHoliday: holiday,
+      holidayLabel: holiday ? (holidayMap[date] ?? null) : null,
+    }
+  })
 
   return {
     customer,
@@ -253,6 +275,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       accent_color: provider.accent_color ?? '#F4622A',
       cutoff_hour: provider.cutoff_hour ?? 21,
       cutoff_tz: provider.cutoff_tz ?? 'Asia/Kolkata',
+      off_days: provider.off_days ?? [],
     },
     subscription,
     todayMenu,

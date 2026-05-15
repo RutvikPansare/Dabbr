@@ -81,6 +81,25 @@ function DayPill({ day, selected, onClick }: { day: DayMenu; selected: boolean; 
   const isToday = day.date === today
   const hasMenu = day.slots.some(s => s.dishes.length > 0)
 
+  if (day.isHoliday) {
+    return (
+      <button
+        onClick={onClick}
+        className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-2xl transition-all duration-200 shrink-0 min-w-[52px] ${
+          selected
+            ? 'bg-gray-200 text-gray-600 shadow-sm'
+            : 'bg-gray-50 border border-gray-100 text-gray-400'
+        }`}
+      >
+        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          {isToday ? 'Today' : formatDayLabel(day.date)}
+        </span>
+        <span className="text-base font-black leading-none">{formatDayNumber(day.date)}</span>
+        <span className="text-[8px] font-black uppercase tracking-wider text-gray-400">Off</span>
+      </button>
+    )
+  }
+
   return (
     <button
       onClick={onClick}
@@ -165,6 +184,8 @@ export default function CustomerPortalClient({
     const sub = subscription
     const badge = statusLabel(sub?.status ?? 'inactive', isCurrentlyPaused)
     const today = new Date().toISOString().split('T')[0]
+    const todayIsHoliday = weekMenu[0]?.isHoliday ?? false
+    const todayHolidayLabel = weekMenu[0]?.holidayLabel ?? null
 
     return (
       <div className="min-h-screen bg-[#FDF8F3]">
@@ -208,6 +229,19 @@ export default function CustomerPortalClient({
           {resumeResult && (
             <div className={`rounded-2xl px-4 py-3 text-sm font-semibold ${resumeResult.ok ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
               {resumeResult.ok ? '✅ Your subscription will resume shortly.' : resumeResult.error}
+            </div>
+          )}
+
+          {/* ── Holiday banner (today is a holiday) ── */}
+          {todayIsHoliday && (
+            <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-center gap-3">
+              <span className="text-xl shrink-0">🏖️</span>
+              <div>
+                <p className="text-sm font-black text-amber-800">
+                  No delivery today{todayHolidayLabel ? ` · ${todayHolidayLabel}` : ''}
+                </p>
+                <p className="text-xs text-amber-600 mt-0.5">Your provider is off today. Deliveries resume tomorrow.</p>
+              </div>
             </div>
           )}
 
@@ -324,7 +358,15 @@ export default function CustomerPortalClient({
             </div>
 
             {/* Selected day dishes */}
-            {(weekMenu[selectedDayIdx]?.slots ?? []).length === 0 ? (
+            {weekMenu[selectedDayIdx]?.isHoliday ? (
+              <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-6 text-center">
+                <p className="text-3xl mb-2">🏖️</p>
+                <p className="text-sm font-bold text-gray-600">
+                  {weekMenu[selectedDayIdx].holidayLabel ?? 'No delivery'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Your provider is off this day.</p>
+              </div>
+            ) : (weekMenu[selectedDayIdx]?.slots ?? []).length === 0 ? (
               <div className="rounded-2xl bg-white border border-gray-100 px-4 py-5 text-center">
                 <p className="text-2xl mb-1">📋</p>
                 <p className="text-sm font-semibold text-gray-500">Menu not announced yet</p>

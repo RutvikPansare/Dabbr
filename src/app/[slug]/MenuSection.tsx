@@ -20,6 +20,8 @@ interface DayData {
     slot: string
     dishes: Dish[]
   }[]
+  isHoliday?: boolean
+  holidayLabel?: string | null
 }
 
 interface Props {
@@ -48,6 +50,24 @@ export default function MenuSection({ days }: Props) {
         {days.map((day, idx) => {
           const hasMenu = day.slots.some(s => s.dishes.length > 0)
           const sel = selectedIdx === idx
+          const holiday = day.isHoliday ?? false
+
+          if (holiday) {
+            return (
+              <button
+                key={day.date}
+                onClick={() => setSelectedIdx(idx)}
+                className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-2xl transition-all duration-200 shrink-0 min-w-[52px] ${
+                  sel ? 'bg-gray-200 text-gray-600 shadow-sm' : 'bg-gray-50 border border-gray-100 text-gray-400'
+                }`}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{day.label}</span>
+                <span className="text-base font-black leading-none">{day.dayNum}</span>
+                <span className="text-[8px] font-black uppercase tracking-wider text-gray-400">Off</span>
+              </button>
+            )
+          }
+
           return (
             <button
               key={day.date}
@@ -70,7 +90,15 @@ export default function MenuSection({ days }: Props) {
       </div>
 
       {/* Dishes for selected day */}
-      {selected.slots.length === 0 ? (
+      {selected.isHoliday ? (
+        <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-8 text-center shadow-sm">
+          <p className="text-3xl mb-2">🏖️</p>
+          <p className="text-sm font-bold text-gray-600">
+            {selected.holidayLabel ?? 'No delivery this day'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Provider is off — check back the next delivery day.</p>
+        </div>
+      ) : selected.slots.length === 0 ? (
         <div className="rounded-2xl bg-white border border-gray-100 px-4 py-8 text-center shadow-sm">
           <p className="text-2xl mb-2">📋</p>
           <p className="text-sm font-semibold text-gray-500">Menu not announced yet</p>

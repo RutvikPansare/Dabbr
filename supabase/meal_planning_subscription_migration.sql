@@ -239,6 +239,32 @@ create policy "daily_menus: provider owns"
   using (provider_id = auth.uid())
   with check (provider_id = auth.uid());
 
+create table if not exists public.menu_quick_tags (
+  id            uuid primary key default uuid_generate_v4(),
+  provider_id   uuid not null references public.providers(id) on delete cascade,
+  meal_slot     text not null check (meal_slot in ('breakfast', 'lunch', 'dinner')),
+  plan_type     text check (plan_type in ('veg', 'nonveg')),
+  label         text not null check (length(trim(label)) > 0),
+  sort_order    integer not null default 0,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists menu_quick_tags_provider_slot_type_idx
+  on public.menu_quick_tags (provider_id, meal_slot, coalesce(plan_type, 'any'), sort_order);
+
+create unique index if not exists menu_quick_tags_provider_slot_type_label_key
+  on public.menu_quick_tags (provider_id, meal_slot, coalesce(plan_type, 'any'), lower(trim(label)));
+
+alter table public.menu_quick_tags enable row level security;
+
+drop policy if exists "menu_quick_tags: provider owns" on public.menu_quick_tags;
+create policy "menu_quick_tags: provider owns"
+  on public.menu_quick_tags
+  for all
+  using (provider_id = auth.uid())
+  with check (provider_id = auth.uid());
+
 -- ---------------------------------------------------------------------------
 -- 5) Helper functions updated for subscription model
 -- ---------------------------------------------------------------------------

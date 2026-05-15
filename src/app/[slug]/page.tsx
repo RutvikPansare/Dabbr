@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MessageCircle, Phone, Leaf, Drumstick, IndianRupee } from 'lucide-react'
 import MenuSection from './MenuSection'
+import { isProviderHoliday } from '@/lib/holidays'
 
 const SLOT_ORDER = ['breakfast', 'lunch', 'dinner'] as const
 const SLOT_EMOJI: Record<string, string> = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
@@ -23,29 +24,41 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
 
   const { data: p } = await db
     .from('providers')
-    .select('id, name, tagline, logo_url, accent_color, phone, support_whatsapp, business_description')
+    .select('id, name, tagline, logo_url, accent_color, phone, support_whatsapp, business_description, off_days')
     .eq('slug', slug)
     .single()
   if (!p) notFound()
 
   const weekDates = getWeekDates(7)
 
-  // Fetch active meal plans
-  const { data: mealPlans } = await db
-    .from('meal_plans')
-    .select('id, name, meal_slots, plan_type, frequency, monthly_price, description')
-    .eq('provider_id', p.id)
-    .eq('status', 'active')
-    .order('monthly_price')
+  // Fetch active meal plans, menu, and holidays in parallel
+  const [{ data: mealPlans }, { data: menuRows }, { data: holidayRows }] = await Promise.all([
+    db
+      .from('meal_plans')
+      .select('id, name, meal_slots, plan_type, frequency, monthly_price, description')
+      .eq('provider_id', p.id)
+      .eq('status', 'active')
+      .order('monthly_price'),
+    db
+      .from('daily_menus')
+      .select('menu_date, meal_slot, dish_name, plan_type, notes')
+      .eq('provider_id', p.id)
+      .gte('menu_date', weekDates[0])
+      .lte('menu_date', weekDates[weekDates.length - 1])
+      .order('menu_date')
+      .order('meal_slot'),
+    db
+      .from('provider_holidays')
+      .select('date, label')
+      .eq('provider_id', p.id)
+      .gte('date', weekDates[0])
+      .lte('date', weekDates[weekDates.length - 1]),
+  ])
 
-  const { data: menuRows } = await db
-    .from('daily_menus')
-    .select('menu_date, meal_slot, dish_name, plan_type, notes')
-    .eq('provider_id', p.id)
-    .gte('menu_date', weekDates[0])
-    .lte('menu_date', weekDates[weekDates.length - 1])
-    .order('menu_date')
-    .order('meal_slot')
+  // Holiday lookup
+  const offDays: number[] = p.off_days ?? []
+  const holidayMap: Record<string, string | null> = {}
+  for (const h of (holidayRows ?? [])) holidayMap[h.date] = h.label ?? null
 
   // Group by date → slot → dishes
   const menuMap: Record<string, Record<string, { dish_name: string; plan_type: string | null }[]>> = {}
@@ -64,11 +77,14 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
       .filter(slot => (dayMap[slot]?.length ?? 0) > 0)
       .map(slot => ({ slot, dishes: dayMap[slot] }))
     const d = new Date(date + 'T12:00:00Z')
+    const holiday = isProviderHoliday(date, offDays, Object.keys(holidayMap))
     return {
       date,
       label: i === 0 ? 'Today' : d.toLocaleDateString('en-IN', { weekday: 'short' }),
       dayNum: String(d.getUTCDate()),
       slots: slotsWithDishes,
+      isHoliday: holiday,
+      holidayLabel: holiday ? (holidayMap[date] ?? null) : null,
     }
   })
 
