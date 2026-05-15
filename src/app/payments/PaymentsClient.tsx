@@ -63,16 +63,36 @@ interface Props {
 
 // ── Message builders ───────────────────────────────────────────────────────
 
-function reminderMessage(customerName: string, balanceDays: number, provider: Provider | null): string {
-  return [
-    `Hi ${customerName},`,
+function upiDeepLink(upiId: string, name: string, amount: number, note: string): string {
+  const params = new URLSearchParams({
+    pa: upiId,
+    pn: name,
+    am: String(amount),
+    cu: 'INR',
+    tn: note,
+  })
+  return `upi://pay?${params.toString()}`
+}
+
+function reminderMessage(customerName: string, balanceDays: number, monthlyPrice: number, provider: Provider | null): string {
+  const providerName = provider?.name ?? 'Your tiffin provider'
+  const lines: string[] = [
+    `Hi ${customerName} 🙏`,
     balanceDays <= 0
-      ? `Your tiffin balance has expired. Please renew to continue service.`
-      : `Your tiffin balance is running low (${balanceDays} day${balanceDays !== 1 ? 's' : ''} remaining).`,
-    `Please renew to continue uninterrupted service.`,
-    provider?.upi_id ? `Pay via UPI: ${provider.upi_id}` : null,
-    `— ${provider?.name ?? 'Your tiffin provider'}`,
-  ].filter(Boolean).join('\n')
+      ? `Your tiffin balance has *expired*. Please renew to continue receiving meals.`
+      : `Your tiffin balance is running low — only *${balanceDays} day${balanceDays !== 1 ? 's' : ''}* remaining.`,
+  ]
+  if (monthlyPrice > 0) {
+    lines.push(`Renewal: *₹${monthlyPrice.toLocaleString('en-IN')}* for 30 days`)
+  }
+  if (provider?.upi_id) {
+    lines.push(`Pay via UPI 👇\n*${provider.upi_id}*`)
+    if (monthlyPrice > 0) {
+      lines.push(upiDeepLink(provider.upi_id, providerName, monthlyPrice, 'Tiffin renewal'))
+    }
+  }
+  lines.push(`— ${providerName}`)
+  return lines.join('\n')
 }
 
 function receiptMessage(customerName: string, amount: number, newBalance: number, provider: Provider | null): string {
@@ -521,7 +541,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                     </span>
                   ) : (
                     <a
-                      href={waLink(c.whatsapp_number, reminderMessage(c.name, c.balance_days, provider))}
+                      href={waLink(c.whatsapp_number, reminderMessage(c.name, c.balance_days, activePlan(c)?.monthly_price ?? c.price_per_month, provider))}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => markSent(c.id)}
@@ -717,7 +737,7 @@ function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRe
           {!bulkMode && (
             <div className="flex items-center gap-2 mt-3">
               <a
-                href={waLink(c.whatsapp_number, reminderMessage(c.name, c.balance_days, provider))}
+                href={waLink(c.whatsapp_number, reminderMessage(c.name, c.balance_days, activePlan(c)?.monthly_price ?? c.price_per_month, provider))}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 flex-1 justify-center rounded-xl bg-green-50 border border-green-200 py-2 text-xs font-bold text-green-700 active:scale-95 transition-all"
