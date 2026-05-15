@@ -6,7 +6,7 @@ import { getTrialStatus } from '@/lib/trial'
 import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
-  Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2,
+  Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import Paywall from '@/components/Paywall'
@@ -320,6 +320,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   const [copied, setCopied] = useState(false)
   const [deliveryView, setDeliveryView] = useState<'list' | 'area'>('list')
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
+  const [showDelivered, setShowDelivered] = useState(false)
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -605,13 +606,20 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   const pendingCount   = deliveryToday.length - deliveredCount - skippedCount
   const allDone        = deliveryToday.length > 0 && pendingCount === 0
 
-  // Sorted list: pending first, skipped, delivered last
-  const statusOrder: Record<DeliveryStatus, number> = { pending: 0, skipped: 1, delivered: 2 }
-  const sortedDeliveryToday = deliveryTrackingEnabled
-    ? [...deliveryToday].sort((a, b) =>
-        statusOrder[deliveryStatuses[a.id] ?? 'pending'] - statusOrder[deliveryStatuses[b.id] ?? 'pending']
-      )
+  // Split into active (pending + skipped) and delivered
+  const activeList = deliveryTrackingEnabled
+    ? deliveryToday
+        .filter(c => deliveryStatuses[c.id] !== 'delivered')
+        .sort((a, b) => (deliveryStatuses[a.id] === 'skipped' ? 1 : 0) - (deliveryStatuses[b.id] === 'skipped' ? 1 : 0))
     : deliveryToday
+  const deliveredList = deliveryTrackingEnabled
+    ? deliveryToday.filter(c => deliveryStatuses[c.id] === 'delivered')
+    : []
+
+  // Auto-expand delivered section when all are done
+  useEffect(() => {
+    if (allDone && deliveredList.length > 0) setShowDelivered(true)
+  }, [allDone, deliveredList.length])
 
   function handleCopyList() {
     const lines = [
@@ -1020,64 +1028,17 @@ export default function DashboardClient({ userId, userEmail }: Props) {
               </div>
 
             ) : deliveryView === 'list' ? (
-              <div className="glass-card overflow-hidden rounded-3xl">
-                {sortedDeliveryToday.map((c, i) =>
-                  deliveryTrackingEnabled ? (
-                    <SwipeableDeliveryRow
-                      key={c.id}
-                      c={c}
-                      index={i}
-                      isLast={i === sortedDeliveryToday.length - 1}
-                      status={deliveryStatuses[c.id] ?? 'pending'}
-                      onMark={(s) => markDelivery(c.id, s)}
-                      bulkMode={bulkMode}
-                      selected={selectedIds.has(c.id)}
-                      onToggleSelect={() => toggleSelect(c.id)}
-                      onOpen={() => setCustomerModal(c)}
-                    />
-                  ) : (
-                    <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => setCustomerModal(c)} />
-                  )
-                )}
-              </div>
-
-            ) : (
               <div className="space-y-3">
-                {sortedAreas.map(([area, members]) => (
-                  <div key={area} className="glass-card overflow-hidden rounded-3xl">
-                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50/80 border-b border-gray-100">
-                      <span className="text-sm">📍</span>
-                      <span className="text-sm font-black text-gray-800">{area}</span>
-                      <span className="rounded-lg bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
-                        {members.length}
-                      </span>
-                      <div className="ml-auto flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleCopyArea(area, members)}
-                          className="flex items-center gap-1 rounded-xl bg-white border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-600 active:scale-95 transition-all"
-                        >
-                          {areaCopied === area ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                          {areaCopied === area ? 'Copied' : 'Copy'}
-                        </button>
-                        {riders.length > 0 && (
-                          <button
-                            onClick={() => setRiderModal({ area, members })}
-                            className="flex items-center gap-1 rounded-xl bg-orange-500 px-2.5 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all shadow-sm"
-                          >
-                            <Send className="w-3 h-3" />
-                            Send
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {members.map((c, i) =>
+                {/* Active (pending + skipped) */}
+                {activeList.length > 0 ? (
+                  <div className="glass-card overflow-hidden rounded-3xl">
+                    {activeList.map((c, i) =>
                       deliveryTrackingEnabled ? (
                         <SwipeableDeliveryRow
                           key={c.id}
                           c={c}
                           index={i}
-                          isLast={i === members.length - 1}
-                          hideArea
+                          isLast={i === activeList.length - 1}
                           status={deliveryStatuses[c.id] ?? 'pending'}
                           onMark={(s) => markDelivery(c.id, s)}
                           bulkMode={bulkMode}
@@ -1086,11 +1047,107 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                           onOpen={() => setCustomerModal(c)}
                         />
                       ) : (
-                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === members.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
+                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1} onOpen={() => setCustomerModal(c)} />
                       )
                     )}
                   </div>
-                ))}
+                ) : deliveryTrackingEnabled ? (
+                  <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-10">
+                    <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-500">
+                      <PartyPopper className="w-7 h-7" />
+                    </div>
+                    <p className="text-sm font-black text-green-700">All deliveries done!</p>
+                    <p className="text-xs text-gray-400 mt-1">Everyone&apos;s been taken care of today 🎉</p>
+                  </div>
+                ) : null}
+
+                {/* Delivered section */}
+                {deliveredList.length > 0 && (
+                  <div className="glass-card overflow-hidden rounded-3xl">
+                    <button
+                      onClick={() => setShowDelivered(v => !v)}
+                      className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-b border-green-100/80 transition-colors active:bg-green-100/60"
+                    >
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-green-500 shrink-0">
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <span className="text-sm font-black text-green-800">Delivered</span>
+                      <span className="rounded-lg bg-green-100 border border-green-200 px-2 py-0.5 text-xs font-bold text-green-700">{deliveredList.length}</span>
+                      <ChevronDown className={`w-4 h-4 text-green-500 ml-auto transition-transform duration-200 ${showDelivered ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showDelivered && deliveredList.map((c, i) => (
+                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveredList.length - 1} onOpen={() => setCustomerModal(c)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            ) : (
+              <div className="space-y-3">
+                {sortedAreas.map(([area, members]) => {
+                  const areaActive = deliveryTrackingEnabled
+                    ? members.filter(c => deliveryStatuses[c.id] !== 'delivered')
+                    : members
+                  const areaDelivered = deliveryTrackingEnabled
+                    ? members.filter(c => deliveryStatuses[c.id] === 'delivered')
+                    : []
+                  return (
+                    <div key={area} className="glass-card overflow-hidden rounded-3xl">
+                      <div className="flex items-center gap-2 px-4 py-3 bg-gray-50/80 border-b border-gray-100">
+                        <span className="text-sm">📍</span>
+                        <span className="text-sm font-black text-gray-800">{area}</span>
+                        <span className="rounded-lg bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
+                          {areaActive.length}
+                          {areaDelivered.length > 0 && <span className="text-green-600"> +{areaDelivered.length}✓</span>}
+                        </span>
+                        <div className="ml-auto flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleCopyArea(area, members)}
+                            className="flex items-center gap-1 rounded-xl bg-white border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-600 active:scale-95 transition-all"
+                          >
+                            {areaCopied === area ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                            {areaCopied === area ? 'Copied' : 'Copy'}
+                          </button>
+                          {riders.length > 0 && (
+                            <button
+                              onClick={() => setRiderModal({ area, members })}
+                              className="flex items-center gap-1 rounded-xl bg-orange-500 px-2.5 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all shadow-sm"
+                            >
+                              <Send className="w-3 h-3" />
+                              Send
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {areaActive.map((c, i) =>
+                        deliveryTrackingEnabled ? (
+                          <SwipeableDeliveryRow
+                            key={c.id}
+                            c={c}
+                            index={i}
+                            isLast={i === areaActive.length - 1 && areaDelivered.length === 0}
+                            hideArea
+                            status={deliveryStatuses[c.id] ?? 'pending'}
+                            onMark={(s) => markDelivery(c.id, s)}
+                            bulkMode={bulkMode}
+                            selected={selectedIds.has(c.id)}
+                            onToggleSelect={() => toggleSelect(c.id)}
+                            onOpen={() => setCustomerModal(c)}
+                          />
+                        ) : (
+                          <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
+                        )
+                      )}
+                      {areaDelivered.length > 0 && (
+                        <div className="flex items-center gap-2 px-5 py-2.5 bg-green-50/60 border-t border-green-100/80">
+                          <Check className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                          <span className="text-xs font-bold text-green-700">{areaDelivered.length} delivered</span>
+                          <span className="text-xs text-green-500 truncate">— {areaDelivered.map(c => c.name).join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
