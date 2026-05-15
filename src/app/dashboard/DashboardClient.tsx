@@ -639,12 +639,15 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   }
 
   function areaListText(area: string, members: Customer[]) {
+    const isAll = area === 'All deliveries'
     const lines = [
-      `📍 *${area}* — ${formatTodayShort(today)}`,
+      isAll
+        ? `🍱 *Delivery list* — ${formatTodayShort(today)}`
+        : `📍 *${area}* — ${formatTodayShort(today)}`,
       '',
       ...members.map(
         (c, i) =>
-          `${i + 1}. ${c.name} — ${
+          `${i + 1}. ${c.name}${isAll && c.area ? ` (${c.area})` : ''} — ${
             customerPlan(c)?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
           } — ${formatMealSlots(customerPlan(c)?.meal_slots)}`
       ),
@@ -862,17 +865,28 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                   {deliveryToday.length} customer{deliveryToday.length !== 1 ? 's' : ''} total
                 </p>
               </div>
-              <button
-                onClick={handleCopyList}
-                className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 ${
-                  copied
-                    ? 'bg-green-50 text-green-700 border border-green-200'
-                    : 'btn-secondary'
-                }`}
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied!' : 'Copy list'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyList}
+                  className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 ${
+                    copied
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'btn-secondary'
+                  }`}
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+                {riders.length > 0 && deliveryToday.length > 0 && (
+                  <button
+                    onClick={() => setRiderModal({ area: 'All deliveries', members: deliveryToday })}
+                    className="flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide bg-orange-500 text-white shadow-sm active:scale-95 transition-all duration-300"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Send
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Progress strip (tracking ON) */}
