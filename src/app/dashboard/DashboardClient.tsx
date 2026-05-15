@@ -641,22 +641,27 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       })
   }
 
+  function slotLabel(slots: MealSlot[] | null | undefined): string {
+    const safe = slots?.length ? slots : (['lunch'] as MealSlot[])
+    return safe.map(s => ({ breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }[s])).join(' + ')
+  }
+
   function areaListText(area: string, members: Customer[]) {
     const isAll = area === 'All deliveries'
     const lines = [
       isAll
-        ? `🍱 *Delivery list* — ${formatTodayShort(today)}`
-        : `📍 *${area}* — ${formatTodayShort(today)}`,
+        ? `*Delivery list* — ${formatTodayShort(today)}`
+        : `*${area}* — ${formatTodayShort(today)}`,
       '',
       ...members.flatMap((c, i) => {
         const plan = customerPlan(c)
         const entry = [
           `${i + 1}. *${c.name}*${isAll && c.area ? ` (${c.area})` : ''} — ${
-            plan?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
-          } — ${formatMealSlots(plan?.meal_slots)}`,
+            plan?.plan_type === 'veg' ? 'Veg' : 'Non-veg'
+          } — ${slotLabel(plan?.meal_slots)}`,
         ]
-        if (c.whatsapp_number) entry.push(`   📞 ${c.whatsapp_number}`)
-        if (c.address) entry.push(`   📌 ${c.address}`)
+        if (c.whatsapp_number) entry.push(`   Ph: ${c.whatsapp_number}`)
+        if (c.address) entry.push(`   Addr: ${c.address}`)
         return entry
       }),
       '',
