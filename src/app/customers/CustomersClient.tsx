@@ -9,11 +9,12 @@ import {
   Pause, Play, CreditCard, Leaf, Drumstick, SearchX, Box, Smartphone,
   Edit2, ChevronRight, IndianRupee, AlertTriangle, Clock,
   CheckCircle2, XCircle, Sparkles, Tag, StickyNote, X as XIcon,
-  Link2, Copy, RefreshCw,
+  Link2, Copy, RefreshCw, FileUp,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
 import { formatMealSlots, formatPlanSummary } from '@/lib/meals'
 import { generateCustomerToken } from '@/lib/customer-token'
+import CsvImport from './CsvImport'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -264,6 +265,9 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   const [portalToken, setPortalToken] = useState<string | null>(null)
   const [portalLinkLoading, setPortalLinkLoading] = useState(false)
   const [portalLinkCopied, setPortalLinkCopied] = useState(false)
+
+  // CSV import
+  const [showImport, setShowImport] = useState(false)
 
   // ── Derived ───────────────────────────────────────────────────────────
 
@@ -717,6 +721,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-tight">Customers</h1>
               <p className="text-xs font-semibold text-orange-600/80">{customers.length} total</p>
             </div>
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 rounded-2xl bg-orange-50 border border-orange-100 px-3 py-2 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
+            >
+              <FileUp className="w-3.5 h-3.5" />
+              Import
+            </button>
           </div>
         </header>
 
@@ -870,6 +881,15 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         </button>
 
         <BottomNav />
+
+        {/* CSV Import modal */}
+        {showImport && (
+          <CsvImport
+            providerId={providerId}
+            onClose={() => setShowImport(false)}
+            onImported={() => router.refresh()}
+          />
+        )}
       </div>
     )
   }
