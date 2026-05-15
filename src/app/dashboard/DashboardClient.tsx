@@ -6,7 +6,7 @@ import { getTrialStatus } from '@/lib/trial'
 import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
-  Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck,
+  Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send,
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import Paywall from '@/components/Paywall'
@@ -68,6 +68,12 @@ interface Provider {
   enable_delivery_tracking: boolean
   accent_color: string | null
   logo_url: string | null
+}
+
+interface DeliveryRider {
+  id: string
+  name: string
+  whatsapp_number: string
 }
 
 interface Props {
@@ -321,6 +327,9 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   const [isExpired, setIsExpired] = useState(false)
   const [loading, setLoading] = useState(true)
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(null)
+  const [riders, setRiders] = useState<DeliveryRider[]>([])
+  const [riderModal, setRiderModal] = useState<{ area: string; members: Customer[] } | null>(null)
+  const [areaCopied, setAreaCopied] = useState<string | null>(null)
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>({})
@@ -350,6 +359,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
         trial,
         { data: logsData },
         { data: holidayData },
+        { data: ridersData },
       ] = await Promise.all([
         supabase
           .from('customers')
@@ -368,6 +378,10 @@ export default function DashboardClient({ userId, userEmail }: Props) {
           .eq('provider_id', userId)
           .eq('date', today)
           .maybeSingle(),
+        db.from('delivery_riders')
+          .select('id, name, whatsapp_number')
+          .eq('provider_id', userId)
+          .order('created_at'),
       ])
 
       // Merge meal_plans into subscriptions manually (PostgREST embedded join workaround)
@@ -385,6 +399,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       setProvider(providerData)
       setTrialDaysLeft(trial.trialDaysLeft)
       setIsExpired(trial.isExpired)
+      setRiders(ridersData ?? [])
 
       // Check if today is a provider holiday or off-day
       const offDays: number[] = (providerData as any)?.off_days ?? []
@@ -621,6 +636,43 @@ export default function DashboardClient({ userId, userEmail }: Props) {
         setCopied(true)
         setTimeout(() => setCopied(false), 2500)
       })
+  }
+
+  function areaListText(area: string, members: Customer[]) {
+    const lines = [
+      `📍 *${area}* — ${formatTodayShort(today)}`,
+      '',
+      ...members.map(
+        (c, i) =>
+          `${i + 1}. ${c.name} — ${
+            customerPlan(c)?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
+          } — ${formatMealSlots(customerPlan(c)?.meal_slots)}`
+      ),
+      '',
+      `Total: ${members.length}`,
+    ]
+    return lines.join('\n')
+  }
+
+  function handleCopyArea(area: string, members: Customer[]) {
+    const text = areaListText(area, members)
+    navigator.clipboard.writeText(text).catch(() => {
+      const el = document.createElement('textarea')
+      el.value = text
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    })
+    setAreaCopied(area)
+    setTimeout(() => setAreaCopied(null), 2500)
+  }
+
+  function sendToRider(rider: DeliveryRider, area: string, members: Customer[]) {
+    const text = areaListText(area, members)
+    const url = `https://wa.me/91${rider.whatsapp_number}?text=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
+    setRiderModal(null)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -951,12 +1003,30 @@ export default function DashboardClient({ userId, userEmail }: Props) {
               <div className="space-y-3">
                 {sortedAreas.map(([area, members]) => (
                   <div key={area} className="glass-card overflow-hidden rounded-3xl">
-                    <div className="flex items-center gap-2 px-5 py-3 bg-gray-50/80 border-b border-gray-100">
+                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50/80 border-b border-gray-100">
                       <span className="text-sm">📍</span>
                       <span className="text-sm font-black text-gray-800">{area}</span>
-                      <span className="ml-auto rounded-lg bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
+                      <span className="rounded-lg bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
                         {members.length}
                       </span>
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleCopyArea(area, members)}
+                          className="flex items-center gap-1 rounded-xl bg-white border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-600 active:scale-95 transition-all"
+                        >
+                          {areaCopied === area ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                          {areaCopied === area ? 'Copied' : 'Copy'}
+                        </button>
+                        {riders.length > 0 && (
+                          <button
+                            onClick={() => setRiderModal({ area, members })}
+                            className="flex items-center gap-1 rounded-xl bg-orange-500 px-2.5 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all shadow-sm"
+                          >
+                            <Send className="w-3 h-3" />
+                            Send
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {members.map((c, i) =>
                       deliveryTrackingEnabled ? (
@@ -1025,6 +1095,57 @@ export default function DashboardClient({ userId, userEmail }: Props) {
               >
                 Undo
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rider picker modal ── */}
+      {riderModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={() => setRiderModal(null)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-lg rounded-t-3xl bg-white px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
+                <Send className="w-4 h-4 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-gray-900">Send to rider</p>
+                <p className="text-xs font-semibold text-gray-400">📍 {riderModal.area} · {riderModal.members.length} deliveries</p>
+              </div>
+              <button
+                onClick={() => setRiderModal(null)}
+                className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {riders.map(rider => (
+                <button
+                  key={rider.id}
+                  onClick={() => sendToRider(rider, riderModal.area, riderModal.members)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3.5 text-left active:bg-orange-50 transition-colors"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                    <Bike className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{rider.name}</p>
+                    <p className="text-xs font-medium text-gray-400">{rider.whatsapp_number}</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-green-600">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.089.537 4.054 1.473 5.763L0 24l6.395-1.673C8.09 23.447 10.01 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.857 0-3.599-.5-5.107-1.375l-.366-.217-3.795.995 1.012-3.695-.237-.381C2.451 15.483 2 13.8 2 12 2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </div>

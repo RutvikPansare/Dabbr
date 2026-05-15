@@ -7,7 +7,7 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: provider }, { data: quickTags }, { data: holidays }] = await Promise.all([
+  const [{ data: provider }, { data: quickTags }, { data: holidays }, { data: riders }] = await Promise.all([
     supabase
       .from('providers')
       .select('*')
@@ -26,6 +26,11 @@ export default async function SettingsPage() {
       .eq('provider_id', user.id)
       .gte('date', new Date().toISOString().split('T')[0])
       .order('date'),
+    supabase
+      .from('delivery_riders')
+      .select('id, name, whatsapp_number')
+      .eq('provider_id', user.id)
+      .order('created_at'),
   ])
 
   return (
@@ -34,6 +39,7 @@ export default async function SettingsPage() {
       provider={provider}
       initialQuickTags={quickTags ?? []}
       initialHolidays={holidays ?? []}
+      initialRiders={riders ?? []}
     />
   )
 }

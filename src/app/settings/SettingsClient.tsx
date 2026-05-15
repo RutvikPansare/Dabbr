@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -35,6 +35,12 @@ interface ProviderHoliday {
   label: string | null
 }
 
+interface DeliveryRider {
+  id: string
+  name: string
+  whatsapp_number: string
+}
+
 function darkenForPreview(hex: string, by: number) {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -48,6 +54,7 @@ interface Props {
   provider: Provider | null
   initialQuickTags: MenuQuickTag[]
   initialHolidays: ProviderHoliday[]
+  initialRiders: DeliveryRider[]
 }
 
 const MENU_TAG_TYPES: Array<{ key: MenuQuickTagType; label: string; hint: string }> = [
@@ -60,7 +67,7 @@ function quickTagInputKey(slot: string, type: string) {
   return `${slot}:${type}`
 }
 
-export default function SettingsClient({ providerId, provider, initialQuickTags, initialHolidays }: Props) {
+export default function SettingsClient({ providerId, provider, initialQuickTags, initialHolidays, initialRiders }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,6 +137,13 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [newHolidayLabel, setNewHolidayLabel] = useState('')
   const [holidaySaving, setHolidaySaving] = useState(false)
   const [holidayError, setHolidayError] = useState('')
+
+  // Delivery riders
+  const [riders, setRiders] = useState<DeliveryRider[]>(initialRiders)
+  const [newRiderName, setNewRiderName] = useState('')
+  const [newRiderPhone, setNewRiderPhone] = useState('')
+  const [riderSaving, setRiderSaving] = useState(false)
+  const [riderError, setRiderError] = useState('')
 
   async function handleToggleTracking() {
     const next = !deliveryTracking
@@ -325,6 +339,33 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setHolidayError('')
     await db.from('provider_holidays').delete().eq('id', id)
     setHolidays(prev => prev.filter(h => h.id !== id))
+  }
+
+  async function handleAddRider() {
+    const name = newRiderName.trim()
+    const phone = newRiderPhone.trim().replace(/\D/g, '').replace(/^(91|0)(\d{10})$/, '$2')
+    if (!name || phone.length < 10) {
+      setRiderError('Enter a valid name and 10-digit WhatsApp number.')
+      return
+    }
+    setRiderSaving(true)
+    setRiderError('')
+    const { data, error: addErr } = await db
+      .from('delivery_riders')
+      .insert({ provider_id: providerId, name, whatsapp_number: phone })
+      .select('id, name, whatsapp_number')
+      .single()
+    setRiderSaving(false)
+    if (addErr) { setRiderError(addErr.message); return }
+    if (data) setRiders(prev => [...prev, data])
+    setNewRiderName('')
+    setNewRiderPhone('')
+  }
+
+  async function handleDeleteRider(id: string) {
+    setRiderError('')
+    await db.from('delivery_riders').delete().eq('id', id)
+    setRiders(prev => prev.filter(r => r.id !== id))
   }
 
   async function handleSignOut() {
@@ -863,6 +904,75 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           >
             {brandingSaving ? 'Saving…' : brandingSaved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save Branding'}
           </button>
+        </div>
+
+        {/* Delivery Riders */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+          <h2 className="mb-1 text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+              <Bike className="w-4 h-4 text-orange-500" />
+            </span>
+            Delivery Riders
+          </h2>
+          <p className="mb-5 text-xs font-semibold text-gray-400 leading-relaxed">
+            Add your delivery riders so you can send area-wise lists directly to their WhatsApp from the home page.
+          </p>
+
+          {/* Existing riders */}
+          {riders.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {riders.map(rider => (
+                <div key={rider.id} className="flex items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                    <Bike className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{rider.name}</p>
+                    <p className="text-xs font-medium text-gray-400">{rider.whatsapp_number}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRider(rider.id)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add rider */}
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="Rider name (e.g. Raju)"
+              value={newRiderName}
+              onChange={e => { setNewRiderName(e.target.value); setRiderError('') }}
+              className="input-modern"
+            />
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                placeholder="WhatsApp number"
+                value={newRiderPhone}
+                onChange={e => { setNewRiderPhone(e.target.value); setRiderError('') }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRider() } }}
+                className="input-modern flex-1"
+              />
+              <button
+                type="button"
+                onClick={handleAddRider}
+                disabled={riderSaving || !newRiderName.trim() || !newRiderPhone.trim()}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm disabled:bg-gray-200 transition-colors"
+              >
+                {riderSaving ? <span className="text-xs">…</span> : <Plus className="w-4 h-4" />}
+              </button>
+            </div>
+            {riderError && (
+              <p className="text-xs font-semibold text-red-500">{riderError}</p>
+            )}
+          </div>
         </div>
 
         {/* Danger zone */}
