@@ -34,6 +34,11 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
+  // /app — customer account experience, has its own cookie-based session system
+  if (pathname.startsWith('/app')) {
+    return supabaseResponse
+  }
+
   // /[slug]/c/* are branded customer portal routes — no auth required
   if (/^\/[^/]+\/c\//.test(pathname)) {
     return supabaseResponse
@@ -73,7 +78,9 @@ export const config = {
     '/payments/:path*',
     '/settings/:path*',
     '/login',
-    '/c/:path*',  // customer portal — passes through unauthenticated
-    '/:slug/c/:path*',  // branded customer portal — passes through unauthenticated
+    '/c/:path*',       // customer portal — token-based, no provider auth
+    '/app/:path*',     // customer account — custom session, no provider auth
+    '/app',
+    '/:slug/c/:path*', // branded customer portal — no provider auth
   ],
 }

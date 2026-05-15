@@ -1,5 +1,7 @@
 import { getPortalData } from '@/lib/customer-token'
 import { getThemeVars } from '@/lib/branding'
+import { getCustomerSession } from '@/lib/customer-auth'
+import { linkSubscriptionToAccount } from '@/app/app/actions'
 import CustomerPortalClient from './CustomerPortalClient'
 
 interface Props {
@@ -9,7 +11,10 @@ interface Props {
 export default async function CustomerPortalPage({ params }: Props) {
   const { token } = await params
 
-  const data = await getPortalData(token)
+  const [data, session] = await Promise.all([
+    getPortalData(token),
+    getCustomerSession(),
+  ])
 
   // ── Invalid / revoked token ──────────────────────────────────────────────
   if (!data) {
@@ -27,11 +32,17 @@ export default async function CustomerPortalPage({ params }: Props) {
     )
   }
 
+  // ── Auto-link if customer is signed in ───────────────────────────────────
+  // The magic link IS the auth — holding a valid token is sufficient to link.
+  if (session) {
+    await linkSubscriptionToAccount(token, session.accountId)
+  }
+
   const themeVars = getThemeVars(data.provider.accent_color)
 
   return (
     <div style={themeVars as React.CSSProperties}>
-      <CustomerPortalClient data={data} />
+      <CustomerPortalClient data={data} isLoggedIn={!!session} />
     </div>
   )
 }

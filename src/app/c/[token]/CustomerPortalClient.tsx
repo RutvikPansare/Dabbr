@@ -102,11 +102,18 @@ function DayPill({ day, selected, onClick }: { day: DayMenu; selected: boolean; 
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function CustomerPortalClient({ data }: { data: CustomerPortalData }) {
+export default function CustomerPortalClient({
+  data,
+  isLoggedIn = false,
+}: {
+  data: CustomerPortalData
+  isLoggedIn?: boolean
+}) {
   const { customer, provider, subscription, weekMenu, token } = data
   const [screen, setScreen] = useState<Screen>('home')
   const [selectedDayIdx, setSelectedDayIdx] = useState(0)
   const [isPending, startTransition] = useTransition()
+  const [ctaDismissed, setCtaDismissed] = useState(false)
 
   // Pause form state
   const effectiveStart = getEffectiveChangeDate(provider.cutoff_hour, provider.cutoff_tz)
@@ -414,6 +421,32 @@ export default function CustomerPortalClient({ data }: { data: CustomerPortalDat
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ── Account CTA (non-blocking, dismissible) ── */}
+          {!isLoggedIn && !ctaDismissed && (
+            <div className="rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-orange-50 flex items-center justify-center shrink-0 text-lg">🔐</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-gray-800">Access from any device</p>
+                <p className="text-[11px] text-gray-400 leading-snug mt-0.5">
+                  Create a free account to see all your tiffins in one place.
+                </p>
+                <a
+                  href="/app"
+                  className="inline-block mt-1.5 text-[11px] font-bold text-orange-500 hover:text-orange-600"
+                >
+                  Create account →
+                </a>
+              </div>
+              <button
+                onClick={() => setCtaDismissed(true)}
+                className="shrink-0 text-gray-300 hover:text-gray-500 transition-colors text-lg leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
             </div>
           )}
 
