@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Dabbr — Pricing Model &amp; Unit Economics</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #FDF8F3; color: #1a1208; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { font-size: 15px; line-height: 1.55; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 80px; }
+
+  /* HERO */
+  .hero { position: relative; overflow: hidden; border-radius: 22px; background: linear-gradient(135deg,#160800 0%,#3a1a08 60%,#5c2810 100%); color: #fff; padding: 34px 30px; box-shadow: 0 12px 40px -10px rgba(224,79,24,0.35); }
+  .hero::before { content: ""; position: absolute; top: -30%; right: -10%; width: 480px; height: 480px; border-radius: 50%; background: radial-gradient(circle, rgba(244,98,42,0.45) 0%, transparent 70%); pointer-events: none; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,140,80,0.45); background: rgba(255,123,63,0.12); font-size: 11px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: #ffb791; position: relative; z-index: 1;}
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #ff9b66; box-shadow: 0 0 12px #ff9b66; }
+  .hero h1 { margin: 14px 0 12px; font-size: clamp(26px, 3.6vw, 38px); font-weight: 900; line-height: 1.05; letter-spacing: -0.5px; position: relative; z-index: 1; }
+  .hero h1 .grad { background: linear-gradient(90deg,#FF7B3F,#FFB347); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sub { color: rgba(255,235,220,0.78); font-size: 15px; max-width: 720px; margin: 0; position: relative; z-index: 1; }
+
+  /* SECTIONS */
+  section { margin-top: 38px; }
+  h2 { font-size: 22px; font-weight: 900; letter-spacing: -0.3px; margin: 0 0 6px; color: #1a1208; }
+  h2 .pre { display: inline-block; font-size: 11px; font-weight: 800; color: #E04F18; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .pre { display: inline-block; font-size: 11px; font-weight: 800; color: #E04F18; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .lede { color: #6b5648; font-size: 14px; max-width: 820px; margin: 4px 0 20px; }
+
+  /* TIER CARDS */
+  .tiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 980px) { .tiers { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .tiers { grid-template-columns: 1fr; } }
+  .tier { background: #fff; border: 1px solid #f3e3d3; border-radius: 16px; padding: 20px 18px 18px; display: flex; flex-direction: column; position: relative; transition: transform .12s ease, box-shadow .12s ease; }
+  .tier:hover { transform: translateY(-2px); box-shadow: 0 10px 28px -14px rgba(224,79,24,0.25); }
+  .tier.featured { border: 2px solid #FF7B3F; background: linear-gradient(180deg,#fff7ee 0%,#fff 100%); }
+  .tier .ribbon { position: absolute; top: -10px; right: 14px; background: linear-gradient(90deg,#FF7B3F,#E04F18); color: #fff; font-size: 10px; font-weight: 900; letter-spacing: 1px; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; }
+  .tier .name { font-size: 13px; font-weight: 800; color: #6b5648; letter-spacing: 1.2px; text-transform: uppercase; }
+  .tier .price { font-size: 30px; font-weight: 900; color: #1a1208; margin-top: 6px; letter-spacing: -0.5px; }
+  .tier .price small { font-size: 13px; color: #9b8270; font-weight: 600; }
+  .tier .who { font-size: 12.5px; color: #6b5648; margin-top: 8px; padding-bottom: 10px; border-bottom: 1px dashed #f3e3d3; }
+  .tier ul { list-style: none; padding: 0; margin: 12px 0 0; }
+  .tier ul li { font-size: 13px; color: #2b1f15; padding: 5px 0 5px 18px; position: relative; }
+  .tier ul li::before { content: "✓"; position: absolute; left: 0; top: 5px; color: #15803d; font-weight: 900; }
+  .tier ul li.no::before { content: "—"; color: #c0a99a; }
+  .tier .econ { margin-top: 12px; padding: 10px 12px; background: #fff7ee; border-radius: 8px; font-size: 11.5px; color: #6b5648; line-height: 1.5; }
+  .tier .econ b { color: #1a1208; }
+  .tier .margin { font-size: 12px; margin-top: 8px; font-weight: 700; color: #15803d; }
+  .tier .margin.lo { color: #b88515; }
+
+  /* COMPARISON TABLE */
+  .matrix-wrap { background: #fff; border: 1px solid #f3e3d3; border-radius: 14px; padding: 6px; overflow-x: auto; }
+  table.matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.matrix th, table.matrix td { padding: 11px 12px; text-align: left; border-bottom: 1px solid #f5e7d8; }
+  table.matrix th { font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #6b5648; background: #fdf2e6; }
+  table.matrix td.feat { font-weight: 700; color: #1a1208; }
+  table.matrix td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  table.matrix tr:last-child td { border-bottom: none; }
+  table.matrix tr.total td { background: #fff7ee; font-weight: 900; color: #1a1208; }
+  table.matrix tr.total td.num { color: #E04F18; }
+
+  /* CALCULATOR */
+  .calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 780px) { .calc-grid { grid-template-columns: 1fr; } }
+  .calc-inputs, .calc-output { background: #fff; border: 1px solid #f3e3d3; border-radius: 14px; padding: 20px; }
+  .calc-inputs h3, .calc-output h3 { margin: 0 0 14px; font-size: 14px; font-weight: 900; color: #1a1208; letter-spacing: 0.3px; text-transform: uppercase; }
+  .input-row { margin-bottom: 16px; }
+  .input-row label { display: block; font-size: 12px; color: #6b5648; font-weight: 700; margin-bottom: 4px; }
+  .input-row .val { float: right; font-weight: 900; color: #E04F18; font-variant-numeric: tabular-nums; }
+  .input-row input[type=range] { width: 100%; accent-color: #E04F18; }
+  .input-row select, .input-row input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid #f3e3d3; border-radius: 8px; background: #fff7ee; font-size: 14px; font-weight: 700; color: #1a1208; }
+  .calc-output { background: linear-gradient(180deg,#fff 0%,#fff7ee 100%); }
+  .out-row { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 0; border-bottom: 1px dashed #f5e7d8; }
+  .out-row:last-child { border-bottom: none; }
+  .out-row .k { font-size: 12.5px; color: #6b5648; font-weight: 600; }
+  .out-row .v { font-size: 16px; font-weight: 900; color: #1a1208; font-variant-numeric: tabular-nums; }
+  .out-row.total { padding: 12px 0 4px; margin-top: 6px; border-top: 2px solid #E04F18; }
+  .out-row.total .k { font-size: 13px; color: #1a1208; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+  .out-row.total .v { font-size: 22px; color: #E04F18; }
+  .out-row .v.neg { color: #b91c1c; }
+  .out-row .v.pos { color: #15803d; }
+
+  /* UPI UPSIDE */
+  .upside { background: linear-gradient(135deg,#fff7ee 0%,#ffe9d4 100%); border: 1px solid #f3d8be; border-radius: 14px; padding: 22px; }
+  .upside h3 { margin: 0 0 8px; font-size: 18px; font-weight: 900; color: #1a1208; }
+  .upside .why { color: #6b5648; font-size: 13.5px; margin-bottom: 14px; }
+  .up-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 780px) { .up-grid { grid-template-columns: 1fr; } }
+  .up-stat { background: #fff; border-radius: 10px; padding: 14px; border: 1px solid #f3e3d3; }
+  .up-stat .num { font-size: 22px; font-weight: 900; color: #E04F18; }
+  .up-stat .lbl { font-size: 11px; color: #6b5648; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 4px; }
+
+  /* STRAT */
+  .strats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 780px) { .strats { grid-template-columns: 1fr; } }
+  .strat { background: #fff; border: 1px solid #f3e3d3; border-radius: 12px; padding: 14px 16px; border-left: 4px solid #FF7B3F; }
+  .strat h4 { margin: 0 0 4px; font-size: 13.5px; font-weight: 900; color: #1a1208; }
+  .strat p { margin: 0; font-size: 13px; color: #4a3a2b; }
+
+  /* FOOTNOTES */
+  .footnotes { font-size: 12px; color: #9b8270; margin-top: 14px; line-height: 1.5; }
+  .footnotes a { color: #b03a08; text-decoration: none; border-bottom: 1px dotted #c98f6e; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <span class="badge"><span class="dot"></span>Dabbr Pricing Model · May 2026</span>
+    <h1>Four tiers that <span class="grad">undercut TiffinCRM at the bottom and earn way more at the top</span></h1>
+    <p class="sub">Built on real WhatsApp Business API rates (India, 2026), a typical BSP platform fee, and an explicit margin target. The big upside isn't subscription revenue — it's the UPI Autopay take-rate that compounds with every operator.</p>
+  </div>
+
+  <!-- TIER CARDS -->
+  <section>
+    <span class="pre">Plan structure</span>
+    <h2>The four tiers</h2>
+    <p class="lede">Free for acquisition, ₹149 to beat TiffinCRM head-on, ₹399 where most operators land, ₹999 for serious tiffin businesses with 100+ customers and UPI Autopay enabled.</p>
+    <div class="tiers">
+      <div class="tier">
+        <div class="name">Starter</div>
+        <div class="price">₹0<small>/mo</small></div>
+        <div class="who">Aunties testing the waters. ≤10 customers.</div>
+        <ul>
+          <li>Up to 10 customers</li>
+          <li>Customer + delivery tracking</li>
+          <li>Personal WhatsApp share links</li>
+          <li class="no">No WhatsApp Business API</li>
+          <li class="no">No UPI Autopay</li>
+        </ul>
+        <div class="econ">
+          <b>Your cost:</b> ~₹0 — no BSP yet.<br>
+          <b>Margin:</b> Loss-leader.
+        </div>
+        <div class="margin lo">Acquisition tier</div>
+      </div>
+
+      <div class="tier featured">
+        <span class="ribbon">Most operators</span>
+        <div class="name">Growth</div>
+        <div class="price">₹149<small>/mo</small></div>
+        <div class="who">Small kitchens, 11–50 customers. Beats TiffinCRM by ₹50.</div>
+        <ul>
+          <li>Up to 50 customers</li>
+          <li>WhatsApp Business API templates</li>
+          <li>Daily menu, bill, payment reminders</li>
+          <li>Customer portal (read-only)</li>
+          <li class="no">No UPI Autopay</li>
+        </ul>
+        <div class="econ">
+          <b>Avg cost/operator:</b> ~₹70<br>
+          <small>(₹40 BSP share + ₹30 WhatsApp msgs)</small><br>
+          <b>Net:</b> ₹79/operator
+        </div>
+        <div class="margin">53% gross margin</div>
+      </div>
+
+      <div class="tier">
+        <div class="name">Pro</div>
+        <div class="price">₹399<small>/mo</small></div>
+        <div class="who">Established home cooks, 50–150 customers, multiple meal slots.</div>
+        <ul>
+          <li>Up to 150 customers</li>
+          <li>WhatsApp Flows (in-chat pause/skip)</li>
+          <li>Delivery boy app</li>
+          <li>UPI collection links</li>
+          <li>Vernacular UI (Hindi, Marathi)</li>
+        </ul>
+        <div class="econ">
+          <b>Avg cost/operator:</b> ~₹135<br>
+          <small>(₹30 BSP share + ₹105 WhatsApp msgs)</small><br>
+          <b>Net:</b> ₹264/operator
+        </div>
+        <div class="margin">66% gross margin</div>
+      </div>
+
+      <div class="tier">
+        <div class="name">Business</div>
+        <div class="price">₹999<small>/mo</small></div>
+        <div class="who">Serious tiffin operations: 150+ customers, route teams.</div>
+        <ul>
+          <li>Unlimited customers</li>
+          <li>UPI Autopay (recurring mandate)</li>
+          <li>Route optimisation</li>
+          <li>Multi-kitchen / multi-route</li>
+          <li>Operator branded mini-site</li>
+        </ul>
+        <div class="econ">
+          <b>Avg cost/operator:</b> ~₹320<br>
+          <small>(₹20 BSP share + ₹300 WhatsApp msgs)</small><br>
+          <b>Net:</b> ₹679/operator
+        </div>
+        <div class="margin">68% gross margin</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COST BREAKDOWN -->
+  <section>
+    <span class="pre">Unit economics</span>
+    <h2>What each tier actually costs to serve</h2>
+    <p class="lede">Assumptions: BSP platform fee of ₹2,000/month allocated across active paying operators · ₹0.145 per utility WhatsApp message · 50% of customer-side messages stay in the 24-hour service window (free).</p>
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>Line item</th>
+            <th class="num">Starter (Free)</th>
+            <th class="num">Growth ₹149</th>
+            <th class="num">Pro ₹399</th>
+            <th class="num">Business ₹999</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="feat">Subscription revenue (₹/mo)</td><td class="num">0</td><td class="num">149</td><td class="num">399</td><td class="num">999</td></tr>
+          <tr><td class="feat">Typical customers/operator</td><td class="num">8</td><td class="num">35</td><td class="num">100</td><td class="num">250</td></tr>
+          <tr><td class="feat">Paid utility messages/mo</td><td class="num">0</td><td class="num">~200</td><td class="num">~700</td><td class="num">~2,000</td></tr>
+          <tr><td class="feat">WhatsApp message cost (₹0.145)</td><td class="num">0</td><td class="num">29</td><td class="num">102</td><td class="num">290</td></tr>
+          <tr><td class="feat">BSP platform fee share</td><td class="num">0</td><td class="num">40</td><td class="num">30</td><td class="num">20</td></tr>
+          <tr><td class="feat">Infra (Supabase / hosting)</td><td class="num">~₹1</td><td class="num">~₹3</td><td class="num">~₹8</td><td class="num">~₹20</td></tr>
+          <tr class="total"><td>Gross margin / operator</td><td class="num">–₹1</td><td class="num">₹77</td><td class="num">₹259</td><td class="num">₹669</td></tr>
+          <tr class="total"><td>Gross margin %</td><td class="num">—</td><td class="num">52%</td><td class="num">65%</td><td class="num">67%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="footnotes">
+      Numbers are India 2026 rates. Marketing-category messages (₹0.86+) are excluded — Dabbr should stay strictly in utility &amp; service categories. BSP share assumes ₹2,000 platform fee divided across 50 / 67 / 100 active paying operators on Growth/Pro/Business respectively.
+    </div>
+  </section>
+
+  <!-- CALCULATOR -->
+  <section>
+    <span class="pre">Sensitivity analysis</span>
+    <h2>Play with the assumptions</h2>
+    <p class="lede">Drag the sliders to stress-test how Dabbr's contribution margin per operator changes with customer count, message volume, and your subscription price.</p>
+    <div class="calc-grid">
+      <div class="calc-inputs">
+        <h3>Inputs</h3>
+        <div class="input-row">
+          <label>Subscription price (₹/mo) <span class="val" id="v-price">399</span></label>
+          <input type="range" id="i-price" min="0" max="2000" step="10" value="399">
+        </div>
+        <div class="input-row">
+          <label>Customers per operator <span class="val" id="v-cust">100</span></label>
+          <input type="range" id="i-cust" min="5" max="500" step="5" value="100">
+        </div>
+        <div class="input-row">
+          <label>WhatsApp messages per customer per month <span class="val" id="v-msgs">7</span></label>
+          <input type="range" id="i-msgs" min="1" max="30" step="1" value="7">
+        </div>
+        <div class="input-row">
+          <label>% of messages that stay in free 24h window <span class="val" id="v-free">50</span>%</label>
+          <input type="range" id="i-free" min="0" max="90" step="5" value="50">
+        </div>
+        <div class="input-row">
+          <label>Per-message cost (₹) <span class="val" id="v-cost">0.145</span></label>
+          <input type="range" id="i-cost" min="0.10" max="0.30" step="0.005" value="0.145">
+        </div>
+        <div class="input-row">
+          <label>BSP platform fee share allocated (₹) <span class="val" id="v-bsp">30</span></label>
+          <input type="range" id="i-bsp" min="0" max="200" step="5" value="30">
+        </div>
+      </div>
+      <div class="calc-output">
+        <h3>Per operator, per month</h3>
+        <div class="out-row"><span class="k">Subscription revenue</span><span class="v pos" id="o-rev">₹399</span></div>
+        <div class="out-row"><span class="k">Total messages sent</span><span class="v" id="o-msgs">700</span></div>
+        <div class="out-row"><span class="k">Paid messages (after free window)</span><span class="v" id="o-paid">350</span></div>
+        <div class="out-row"><span class="k">WhatsApp message cost</span><span class="v neg" id="o-wa">−₹51</span></div>
+        <div class="out-row"><span class="k">BSP platform fee allocation</span><span class="v neg" id="o-bsp">−₹30</span></div>
+        <div class="out-row"><span class="k">Infra (Supabase, hosting)</span><span class="v neg" id="o-inf">−₹8</span></div>
+        <div class="out-row total"><span class="k">Gross margin / operator</span><span class="v" id="o-gm">₹310</span></div>
+        <div class="out-row"><span class="k">Gross margin %</span><span class="v" id="o-pct">78%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UPI UPSIDE -->
+  <section>
+    <span class="pre">Real upside</span>
+    <h2>UPI Autopay take-rate — the second revenue line</h2>
+    <p class="lede">Subscription is the floor. The real money is sitting in payment volume: a tiffin operator with 100 customers at ₹3,000/month each does ₹3 lakh of GMV. A 0.5% Dabbr take-rate on auto-collected payments is more revenue than the subscription itself — and it's nearly pure margin because UPI per-transaction costs are minimal (often zero, capped by NPCI rules).</p>
+    <div class="upside">
+      <h3>Example: a Pro-tier operator with 100 customers</h3>
+      <div class="why">Average tiffin subscription in metros: ₹2,500–3,500/month. We'll use ₹3,000.</div>
+      <div class="up-grid">
+        <div class="up-stat">
+          <div class="num">₹3,00,000</div>
+          <div class="lbl">Monthly GMV through operator</div>
+        </div>
+        <div class="up-stat">
+          <div class="num">₹1,500</div>
+          <div class="lbl">Dabbr's 0.5% take-rate</div>
+        </div>
+        <div class="up-stat">
+          <div class="num">3.8×</div>
+          <div class="lbl">Vs ₹399 subscription</div>
+        </div>
+      </div>
+      <p style="margin-top:14px; font-size:13.5px; color:#4a3a2b;">
+        <strong>What this changes:</strong> Subscription becomes the wedge that gets you in the door at ₹149. UPI take-rate is what makes Dabbr a 10× business at scale. Most operators won't notice 0.5% on their collections — they're currently losing 3–7% to bounced payments, manual reminder time, and bad-debt write-offs. You're a net benefit even with the take-rate.
+      </p>
+    </div>
+  </section>
+
+  <!-- STRATEGIC TAKEAWAYS -->
+  <section>
+    <span class="pre">Strategy</span>
+    <h2>Five pricing decisions that follow from this model</h2>
+    <div class="strats">
+      <div class="strat">
+        <h4>1. Don't match TiffinCRM at ₹199 — undercut at ₹149</h4>
+        <p>A 25% discount on the perceived market price gives operators a clean "switch" reason. You still have 50% gross margin at Growth tier.</p>
+      </div>
+      <div class="strat">
+        <h4>2. Design every flow to keep customers in the 24h window</h4>
+        <p>One free reply > 5 paid templates. Train customers to message first ("WhatsApp YES to confirm tomorrow's lunch"). Each percentage point of free-window utilisation is real margin.</p>
+      </div>
+      <div class="strat">
+        <h4>3. Make UPI Autopay the headline feature of Business tier</h4>
+        <p>It's the lock-in. Once an operator switches to UPI Autopay mandates collected via Dabbr, churning means re-collecting consent from every customer. Sticky.</p>
+      </div>
+      <div class="strat">
+        <h4>4. Lead with AiSensy or MSG91, not Gupshup</h4>
+        <p>AiSensy starts ~₹999/mo platform fee. MSG91 passes through at cost. Gupshup is enterprise pricing. Switch later if you outgrow them.</p>
+      </div>
+      <div class="strat">
+        <h4>5. Don't introduce per-customer pricing</h4>
+        <p>Operators can't predict customer count and will fear the bill. Bucket-based tiers are easier to sell. If you must meter, meter on WhatsApp messages, not customers.</p>
+      </div>
+      <div class="strat">
+        <h4>6. Build the BSP relationship before the API</h4>
+        <p>WhatsApp Business API approval can take 2–6 weeks. Apply for the green tick + Meta Business verification now, even if the integration ships in 3 months.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOURCES -->
+  <section>
+    <span class="pre">Sources &amp; assumptions</span>
+    <h2>Where the numbers came from</h2>
+    <div class="footnotes">
+      <strong>WhatsApp pricing (India, 2026):</strong> <a href="https://aisensy.com/pricing">AiSensy</a> · <a href="https://messagebot.in/blog/whatsapp-business-api-pricing-in-india/">MessageBot</a> · <a href="https://2factor.in/v3/lp/whatsapp-business-api-pricing.php">2factor</a> · <a href="https://telecrm.in/blog/whatsapp-business-api-pricing/">TeleCRM</a>.
+      Utility messages: ₹0.13–0.145 per delivered message after July 2025 per-template-message pricing change.<br>
+      <strong>BSP platform fees:</strong> AiSensy ₹999/mo entry, Interakt ₹999/mo, MSG91 platform-fee + pass-through model. Used ₹2,000/mo as conservative midpoint for share allocation.<br>
+      <strong>UPI economics:</strong> NPCI-mandated zero MDR on UPI P2P/P2M for transactions ≤ ₹2,000; merchant fees regulated. Dabbr's 0.5% take-rate would be a Dabbr-charged convenience fee on top of UPI rails, not an MDR.<br>
+      <strong>Competitor anchor:</strong> <a href="https://tiffincrm.com/">TiffinCRM ₹199/mo</a> for ≤30 orders/day · <a href="https://www.dinespot.io/tiffin-software">Dinespot ~$49 CAD/mo</a> (~₹3,000).<br>
+      All margin figures are gross — they exclude customer acquisition, support staff, and product engineering costs.
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Pricing calculator
+  const ids = ["price","cust","msgs","free","cost","bsp"];
+  const inputs = {};
+  const vals = {};
+  ids.forEach(id => {
+    inputs[id] = document.getElementById("i-"+id);
+    vals[id]   = document.getElementById("v-"+id);
+  });
+  const out = {
+    rev: document.getElementById("o-rev"),
+    msgs: document.getElementById("o-msgs"),
+    paid: document.getElementById("o-paid"),
+    wa: document.getElementById("o-wa"),
+    bsp: document.getElementById("o-bsp"),
+    inf: document.getElementById("o-inf"),
+    gm: document.getElementById("o-gm"),
+    pct: document.getElementById("o-pct"),
+  };
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  function recalc(){
+    const price = +inputs.price.value;
+    const cust  = +inputs.cust.value;
+    const msgs  = +inputs.msgs.value;
+    const free  = +inputs.free.value;
+    const cost  = +inputs.cost.value;
+    const bsp   = +inputs.bsp.value;
+    vals.price.textContent = price;
+    vals.cust.textContent  = cust;
+    vals.msgs.textContent  = msgs;
+    vals.free.textContent  = free;
+    vals.cost.textContent  = cost.toFixed(3);
+    vals.bsp.textContent   = bsp;
+    const totalMsgs = cust * msgs;
+    const paidMsgs  = totalMsgs * (1 - free/100);
+    const waCost    = paidMsgs * cost;
+    const infra     = Math.max(1, cust * 0.08);
+    const gm        = price - waCost - bsp - infra;
+    const pct       = price > 0 ? (gm / price * 100) : 0;
+    out.rev.textContent  = fmt(price);
+    out.msgs.textContent = totalMsgs.toLocaleString("en-IN");
+    out.paid.textContent = Math.round(paidMsgs).toLocaleString("en-IN");
+    out.wa.textContent   = "−" + fmt(waCost);
+    out.bsp.textContent  = "−" + fmt(bsp);
+    out.inf.textContent  = "−" + fmt(infra);
+    out.gm.textContent   = fmt(gm);
+    out.gm.className     = "v " + (gm >= 0 ? "pos" : "neg");
+    out.pct.textContent  = pct.toFixed(0) + "%";
+    out.pct.className    = "v " + (pct >= 50 ? "pos" : (pct >= 20 ? "" : "neg"));
+  }
+  ids.forEach(id => inputs[id].addEventListener("input", recalc));
+  recalc();
+</script>
+</body>
+</html>
