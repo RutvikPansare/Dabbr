@@ -973,6 +973,19 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                         All done
                       </button>
                     )}
+                    {bulkMode && (
+                      <button
+                        onClick={() => {
+                          const allIds = new Set(deliveryToday.map(c => c.id))
+                          const allSelected = deliveryToday.every(c => selectedIds.has(c.id))
+                          setSelectedIds(allSelected ? new Set() : allIds)
+                        }}
+                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold bg-white border border-gray-200 text-gray-500 hover:border-gray-300 transition-all active:scale-95"
+                      >
+                        <CheckCheck className="w-3.5 h-3.5" />
+                        {deliveryToday.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
+                      </button>
+                    )}
                     <button
                       onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
                       className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all active:scale-95 ${
