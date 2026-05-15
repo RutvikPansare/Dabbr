@@ -9,7 +9,7 @@ import {
   Pause, Play, CreditCard, Leaf, Drumstick, SearchX, Box, Smartphone,
   Edit2, ChevronRight, IndianRupee, AlertTriangle, Clock,
   CheckCircle2, XCircle, Sparkles, Tag, StickyNote, X as XIcon,
-  Link2, Copy, RefreshCw, FileUp,
+  Link2, Copy, RefreshCw, FileUp, ClipboardList,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
 import { formatMealSlots, formatPlanSummary } from '@/lib/meals'
@@ -733,6 +733,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-tight">Customers</h1>
               <p className="text-xs font-semibold text-orange-600/80">{customers.length} total</p>
             </div>
+            <button
+              onClick={() => router.push('/meal-plans')}
+              className="flex items-center gap-1.5 rounded-2xl bg-gray-100 border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              Plans
+            </button>
             <button
               onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 rounded-2xl bg-orange-50 border border-orange-100 px-3 py-2 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
