@@ -32,7 +32,7 @@ export default async function MenuPage() {
 
   const { today, start, end } = weekBounds()
   const historyStart = addDays(start, -90)
-  const [{ data: menus }, { data: historyMenus }, { data: quickTags }, trial] = await Promise.all([
+  const [{ data: menus }, { data: historyMenus }, { data: quickTags }, { data: provider }, { data: holidays }, trial] = await Promise.all([
     supabase
       .from('daily_menus')
       .select('*')
@@ -56,10 +56,36 @@ export default async function MenuPage() {
       .order('meal_slot')
       .order('plan_type')
       .order('sort_order'),
+    supabase
+      .from('providers')
+      .select('off_days')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('provider_holidays')
+      .select('date, label')
+      .eq('provider_id', user.id)
+      .gte('date', start)
+      .lte('date', end),
     getTrialStatus(supabase, user.id),
   ])
 
   if (trial.isExpired) return <Paywall />
 
-  return <MenuPlannerClient providerId={user.id} initialMenus={menus ?? []} initialHistoryMenus={historyMenus ?? []} initialQuickTags={quickTags ?? []} initialWeekStart={start} initialToday={today} />
+  const offDays: number[] = (provider as any)?.off_days ?? []
+  const holidayMap: Record<string, string | null> = {}
+  for (const h of (holidays ?? [])) holidayMap[(h as any).date] = (h as any).label ?? null
+
+  return (
+    <MenuPlannerClient
+      providerId={user.id}
+      initialMenus={menus ?? []}
+      initialHistoryMenus={historyMenus ?? []}
+      initialQuickTags={quickTags ?? []}
+      initialWeekStart={start}
+      initialToday={today}
+      initialOffDays={offDays}
+      initialHolidayMap={holidayMap}
+    />
+  )
 }

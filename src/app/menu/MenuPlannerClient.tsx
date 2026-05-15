@@ -26,6 +26,7 @@ import BottomNav from '@/components/BottomNav'
 import type { MealSlot, PlanType } from '@/types/database'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS } from '@/lib/meals'
 import { DEFAULT_MENU_QUICK_TAGS, MenuQuickTag, quickTagPlanType } from '@/lib/menu-quick-tags'
+import { isProviderHoliday } from '@/lib/holidays'
 
 interface DailyMenu {
   id: string
@@ -44,6 +45,8 @@ interface Props {
   initialQuickTags: MenuQuickTag[]
   initialWeekStart: string
   initialToday: string
+  initialOffDays?: number[]
+  initialHolidayMap?: Record<string, string | null>
 }
 
 type EntryKey = 'any' | PlanType
@@ -181,7 +184,7 @@ function serializeDayMenu(date: string, menus: DailyMenu[]) {
   return lines.join('\n').trim()
 }
 
-export default function MenuPlannerClient({ providerId, initialMenus, initialHistoryMenus, initialQuickTags, initialWeekStart, initialToday }: Props) {
+export default function MenuPlannerClient({ providerId, initialMenus, initialHistoryMenus, initialQuickTags, initialWeekStart, initialToday, initialOffDays = [], initialHolidayMap = {} }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -215,6 +218,14 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
     d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
     return d.toISOString().split('T')[0]
   }, [initialToday])
+
+  function isDayOff(date: string): boolean {
+    return isProviderHoliday(date, initialOffDays, Object.keys(initialHolidayMap))
+  }
+
+  function holidayLabel(date: string): string | null {
+    return initialHolidayMap[date] ?? null
+  }
 
   function showToast(kind: ToastKind, message: string) {
     setToast({ kind, message })
@@ -801,6 +812,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               const isSelected = date === selectedDate
               const isToday = date === initialToday
               const count = selectedMenusFor(date).length
+              const off = isDayOff(date)
               return (
                 <button
                   key={date}
@@ -810,16 +822,29 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                     setActiveHelp(null)
                   }}
                   className={`min-w-[4.8rem] rounded-2xl border px-3 py-3 text-left transition-all ${
-                    isSelected
-                      ? 'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                      : 'border-gray-100 bg-white text-gray-500 shadow-sm'
+                    off
+                      ? isSelected
+                        ? 'border-gray-300 bg-gray-200 text-gray-500 shadow-sm'
+                        : 'border-gray-100 bg-gray-50 text-gray-400 shadow-sm'
+                      : isSelected
+                        ? 'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                        : 'border-gray-100 bg-white text-gray-500 shadow-sm'
                   }`}
                 >
-                  <span className={`block text-[11px] font-black uppercase tracking-wider ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>{shortDay(date)}</span>
-                  <span className="mt-1 block text-2xl font-black leading-none">{dayNumber(date)}</span>
-                  <span className={`mt-2 flex items-center gap-1 text-[10px] font-black ${isSelected ? 'text-white/85' : 'text-gray-400'}`}>
-                    {isToday && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />}
-                    {count ? `${count} items` : isToday ? 'Today' : 'Plan'}
+                  <span className={`block text-[11px] font-black uppercase tracking-wider ${
+                    off ? 'text-gray-400' : isSelected ? 'text-white/80' : 'text-gray-400'
+                  }`}>{shortDay(date)}</span>
+                  <span className={`mt-1 block text-2xl font-black leading-none ${off ? 'text-gray-400' : ''}`}>{dayNumber(date)}</span>
+                  <span className={`mt-2 flex items-center gap-1 text-[10px] font-black ${
+                    off ? 'text-gray-400' : isSelected ? 'text-white/85' : 'text-gray-400'
+                  }`}>
+                    {off
+                      ? '🏖️ Off'
+                      : <>
+                          {isToday && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />}
+                          {count ? `${count} items` : isToday ? 'Today' : 'Plan'}
+                        </>
+                    }
                   </span>
                 </button>
               )
@@ -952,9 +977,23 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               </p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-xl">
-              {selectedDate === initialToday ? '✨' : '🍱'}
+              {isDayOff(selectedDate) ? '🏖️' : selectedDate === initialToday ? '✨' : '🍱'}
             </div>
           </div>
+
+          {isDayOff(selectedDate) && (
+            <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3 flex items-center gap-2.5">
+              <span className="text-lg shrink-0">🏖️</span>
+              <div>
+                <p className="text-xs font-black text-amber-800">
+                  Off day{holidayLabel(selectedDate) ? ` · ${holidayLabel(selectedDate)}` : ''}
+                </p>
+                <p className="text-[11px] text-amber-600 mt-0.5">
+                  No deliveries scheduled. You can still plan the menu — it won&apos;t be shown to customers.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
