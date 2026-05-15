@@ -716,7 +716,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
 
       {/* ── Header ── */}
       <div
-        className="relative overflow-hidden px-5 pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        className="sticky top-0 z-30 relative overflow-hidden px-5 pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
