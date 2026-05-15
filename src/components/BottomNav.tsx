@@ -1,13 +1,12 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { CalendarDays, CreditCard, Home, Settings, TrendingUp, Users } from 'lucide-react'
+import { CalendarDays, CreditCard, Home, Settings, Users } from 'lucide-react'
 
 const TABS = [
   { href: '/dashboard', icon: Home, label: 'Home' },
   { href: '/customers', icon: Users, label: 'Customers' },
   { href: '/menu', icon: CalendarDays, label: 'Menu' },
-  { href: '/summary', icon: TrendingUp, label: 'Summary' },
   { href: '/payments', icon: CreditCard, label: 'Payments' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ]

@@ -9,6 +9,7 @@ import {
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
+import SummarySection from './SummarySection'
 import Paywall from '@/components/Paywall'
 import { getThemeVars } from '@/lib/branding'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
@@ -1144,6 +1145,9 @@ export default function DashboardClient({ userId, userEmail }: Props) {
             )}
 
           </section>
+
+          {/* ── Summary ── */}
+          <SummarySection userId={userId} deliveryTrackingEnabled={deliveryTrackingEnabled} />
 
         </main>
       )}
