@@ -6,7 +6,7 @@ import { getTrialStatus } from '@/lib/trial'
 import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
-  Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send,
+  Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2,
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import Paywall from '@/components/Paywall'
@@ -319,6 +319,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
 
   const [copied, setCopied] = useState(false)
   const [deliveryView, setDeliveryView] = useState<'list' | 'area'>('list')
+  const [customerModal, setCustomerModal] = useState<Customer | null>(null)
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -1019,10 +1020,10 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                       bulkMode={bulkMode}
                       selected={selectedIds.has(c.id)}
                       onToggleSelect={() => toggleSelect(c.id)}
-                      onOpen={() => router.push(`/customers?open=${c.id}`)}
+                      onOpen={() => setCustomerModal(c)}
                     />
                   ) : (
-                    <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => router.push(`/customers?open=${c.id}`)} />
+                    <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => setCustomerModal(c)} />
                   )
                 )}
               </div>
@@ -1069,10 +1070,10 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                           bulkMode={bulkMode}
                           selected={selectedIds.has(c.id)}
                           onToggleSelect={() => toggleSelect(c.id)}
-                          onOpen={() => router.push(`/customers?open=${c.id}`)}
+                          onOpen={() => setCustomerModal(c)}
                         />
                       ) : (
-                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === members.length - 1} hideArea onOpen={() => router.push(`/customers?open=${c.id}`)} />
+                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === members.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
                       )
                     )}
                   </div>
@@ -1128,6 +1129,131 @@ export default function DashboardClient({ userId, userEmail }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Customer quick-view modal ── */}
+      {customerModal && (() => {
+        const c = customerModal
+        const plan = customerPlan(c)
+        const status = deliveryStatuses[c.id] ?? 'pending'
+        const balanceClass = c.balance_days > 7
+          ? 'bg-green-50 text-green-700 border-green-200'
+          : c.balance_days >= 3
+          ? 'bg-amber-50 text-amber-700 border-amber-200'
+          : 'bg-red-50 text-red-700 border-red-200'
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+            onClick={() => setCustomerModal(null)}
+          >
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <div
+              className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5 shadow-2xl sm:mx-4 overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100">
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-black text-gray-900 truncate">{c.name}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className={`rounded-lg px-2 py-0.5 text-[11px] font-bold border ${
+                      c.status === 'active' ? 'bg-green-50 text-green-700 border-green-200'
+                      : c.status === 'paused' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-gray-100 text-gray-500 border-gray-200'
+                    }`}>
+                      {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+                    </span>
+                    {deliveryTrackingEnabled && (
+                      <span className={`rounded-lg px-2 py-0.5 text-[11px] font-bold border ${
+                        status === 'delivered' ? 'bg-green-50 text-green-700 border-green-200'
+                        : status === 'skipped' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                      }`}>
+                        {status === 'delivered' ? '✓ Delivered' : status === 'skipped' ? '— Skipped' : 'Pending'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setCustomerModal(null); router.push(`/customers?open=${c.id}`) }}
+                  className="flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm active:scale-95 transition-all shrink-0"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => setCustomerModal(null)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 pt-4 space-y-3 max-h-[60vh] overflow-y-auto">
+
+                {/* Plan + balance */}
+                <div className="flex items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                    plan?.plan_type === 'veg' ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'
+                  }`}>
+                    {plan?.plan_type === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">
+                      {plan?.name ?? (plan?.plan_type === 'veg' ? 'Veg' : 'Non-veg')}
+                    </p>
+                    <p className="text-xs font-medium text-gray-400">
+                      {formatMealSlots(plan?.meal_slots ?? c.meal_slots)} · {(plan?.frequency ?? c.frequency) === 'daily' ? 'Daily' : 'Alternate days'}
+                    </p>
+                  </div>
+                  <div className={`rounded-xl border px-3 py-1.5 text-center shrink-0 ${balanceClass}`}>
+                    <p className="text-base font-black leading-none">{c.balance_days}</p>
+                    <p className="text-[10px] font-bold mt-0.5">days left</p>
+                  </div>
+                </div>
+
+                {/* Contact */}
+                <a
+                  href={`https://wa.me/91${c.whatsapp_number.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3 active:bg-green-50 transition-colors"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">WhatsApp</p>
+                    <p className="text-sm font-bold text-gray-900">{c.whatsapp_number}</p>
+                  </div>
+                </a>
+
+                {/* Address */}
+                {(c.address || c.area) && (
+                  <div className="flex items-start gap-3 rounded-2xl bg-gray-50 px-4 py-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 mt-0.5">
+                      <Box className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {c.area && <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{c.area}</p>}
+                      {c.address && <p className="text-sm font-medium text-gray-700 mt-0.5">{c.address}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {c.notes && (
+                  <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3">
+                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-1">Notes</p>
+                    <p className="text-sm font-medium text-gray-700 whitespace-pre-line">{c.notes}</p>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Rider picker modal ── */}
       {riderModal && (
