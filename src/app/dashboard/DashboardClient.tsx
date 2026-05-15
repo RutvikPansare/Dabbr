@@ -645,12 +645,17 @@ export default function DashboardClient({ userId, userEmail }: Props) {
         ? `🍱 *Delivery list* — ${formatTodayShort(today)}`
         : `📍 *${area}* — ${formatTodayShort(today)}`,
       '',
-      ...members.map(
-        (c, i) =>
-          `${i + 1}. ${c.name}${isAll && c.area ? ` (${c.area})` : ''} — ${
-            customerPlan(c)?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
-          } — ${formatMealSlots(customerPlan(c)?.meal_slots)}`
-      ),
+      ...members.flatMap((c, i) => {
+        const plan = customerPlan(c)
+        const entry = [
+          `${i + 1}. *${c.name}*${isAll && c.area ? ` (${c.area})` : ''} — ${
+            plan?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
+          } — ${formatMealSlots(plan?.meal_slots)}`,
+        ]
+        if (c.whatsapp_number) entry.push(`   📞 ${c.whatsapp_number}`)
+        if (c.address) entry.push(`   📌 ${c.address}`)
+        return entry
+      }),
       '',
       `Total: ${members.length}`,
     ]
