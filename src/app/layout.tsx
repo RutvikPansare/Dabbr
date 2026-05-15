@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Outfit } from 'next/font/google'
 import './globals.css'
 import ServiceWorkerRegistration from './ServiceWorkerRegistration'
+import CapacitorInit from './CapacitorInit'
 
 const outfit = Outfit({ subsets: ['latin'] })
 
@@ -44,6 +45,7 @@ export default function RootLayout({
       <body className={outfit.className}>
         {children}
         <ServiceWorkerRegistration />
+        <CapacitorInit />
       </body>
     </html>
   )
