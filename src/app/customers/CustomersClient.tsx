@@ -738,7 +738,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               className="flex items-center gap-1.5 rounded-2xl bg-gray-100 border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
             >
               <ClipboardList className="w-3.5 h-3.5" />
-              Plans
+              Meal Plans
             </button>
             <button
               onClick={() => setShowImport(true)}
