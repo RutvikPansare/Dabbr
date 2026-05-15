@@ -1117,15 +1117,15 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       {/* ── Rider picker modal ── */}
       {riderModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
           onClick={() => setRiderModal(null)}
         >
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-lg rounded-t-3xl bg-white px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl"
+            className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5 shadow-2xl sm:mx-4"
             onClick={e => e.stopPropagation()}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200 sm:hidden" />
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
                 <Send className="w-4 h-4 text-orange-600" />
