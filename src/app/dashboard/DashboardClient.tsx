@@ -915,35 +915,23 @@ export default function DashboardClient({ userId, userEmail }: Props) {
               </div>
             </div>
 
-            {/* Progress strip (tracking ON) */}
-            {deliveryTrackingEnabled && deliveryToday.length > 0 && (
-              <div className={`mb-3 rounded-2xl px-4 py-3 ${allDone ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200/60' : 'bg-white/70 border border-gray-100'}`}>
-                {allDone ? (
-                  <div className="flex items-center gap-2">
-                    <PartyPopper className="w-4 h-4 text-green-500 shrink-0" />
-                    <p className="text-sm font-bold text-green-700">All deliveries done!</p>
-                    {skippedCount > 0 && (
-                      <span className="ml-auto text-xs font-semibold text-green-600">{skippedCount} skipped</span>
-                    )}
+            {/* Progress strip (tracking ON, in-progress only) */}
+            {deliveryTrackingEnabled && deliveryToday.length > 0 && !allDone && (
+              <div className="mb-3 rounded-2xl px-4 py-3 bg-white/70 border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3 text-xs font-bold">
+                    <span className="text-green-600">{deliveredCount} done</span>
+                    {skippedCount > 0 && <span className="text-amber-600">{skippedCount} skipped</span>}
+                    <span className="text-gray-400">{pendingCount} pending</span>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3 text-xs font-bold">
-                        <span className="text-green-600">{deliveredCount} done</span>
-                        {skippedCount > 0 && <span className="text-amber-600">{skippedCount} skipped</span>}
-                        <span className="text-gray-400">{pendingCount} pending</span>
-                      </div>
-                      <span className="text-xs font-black text-gray-700">{deliveredCount} / {deliveryToday.length}</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500"
-                        style={{ width: `${(deliveredCount / deliveryToday.length) * 100}%` }}
-                      />
-                    </div>
-                  </>
-                )}
+                  <span className="text-xs font-black text-gray-700">{deliveredCount} / {deliveryToday.length}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500"
+                    style={{ width: `${(deliveredCount / deliveryToday.length) * 100}%` }}
+                  />
+                </div>
               </div>
             )}
 
