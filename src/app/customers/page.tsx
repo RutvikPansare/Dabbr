@@ -7,7 +7,7 @@ import Paywall from '@/components/Paywall'
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ openAdd?: string }>
+  searchParams: Promise<{ openAdd?: string; open?: string }>
 }) {
   const params = await searchParams
   const supabase = await createClient()
@@ -57,6 +57,7 @@ export default async function CustomersPage({
       initialMealPlans={mealPlans ?? []}
       providerId={user.id}
       initialShowAdd={params.openAdd === 'true'}
+      initialOpenId={params.open ?? null}
     />
   )
 }

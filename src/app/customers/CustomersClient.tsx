@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
@@ -110,6 +110,7 @@ interface Props {
   initialMealPlans: MealPlan[]
   providerId: string
   initialShowAdd?: boolean
+  initialOpenId?: string | null
 }
 
 type Screen = 'list' | 'detail' | 'form' | 'pause' | 'payments'
@@ -213,7 +214,7 @@ function enrichSubscriptions(customer: any, mealPlansList: MealPlan[]): Customer
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, initialShowAdd = false }: Props) {
+export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, initialShowAdd = false, initialOpenId = null }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -268,6 +269,17 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   // CSV import
   const [showImport, setShowImport] = useState(false)
+
+  // ── Auto-open customer from URL param ─────────────────────────────────
+  useEffect(() => {
+    if (!initialOpenId) return
+    const customer = initialCustomers.find(c => c.id === initialOpenId)
+    if (customer) {
+      void openDetail(customer)
+    }
+  // openDetail is stable (no deps change after mount); initialOpenId/initialCustomers are props
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Derived ───────────────────────────────────────────────────────────
 

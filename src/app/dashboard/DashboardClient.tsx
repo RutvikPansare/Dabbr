@@ -143,11 +143,12 @@ function reminderLink(c: Customer): string {
 
 // ── Static DeliveryRow (delivery tracking OFF) ─────────────────────────────
 
-function DeliveryRow({ c, index, isLast, hideArea }: {
+function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
   c: Customer
   index: number
   isLast: boolean
   hideArea?: boolean
+  onOpen?: () => void
 }) {
   const plan = customerPlan(c)
   const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
@@ -155,7 +156,7 @@ function DeliveryRow({ c, index, isLast, hideArea }: {
   const planType = plan?.plan_type ?? c.plan_type
 
   return (
-    <div className={`group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-gray-50/50 ${!isLast ? 'border-b border-gray-100/50' : ''}`}>
+    <div onClick={onOpen} className={`group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-gray-50/50 cursor-pointer ${!isLast ? 'border-b border-gray-100/50' : ''}`}>
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100/80 text-xs font-bold text-gray-500 shadow-sm border border-gray-200/50">
         {index + 1}
       </span>
@@ -181,7 +182,7 @@ function DeliveryRow({ c, index, isLast, hideArea }: {
 
 const SWIPE_THRESHOLD = 72
 
-function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulkMode, selected, onToggleSelect }: {
+function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulkMode, selected, onToggleSelect, onOpen }: {
   c: Customer
   index: number
   isLast: boolean
@@ -191,6 +192,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   bulkMode: boolean
   selected: boolean
   onToggleSelect: () => void
+  onOpen?: () => void
 }) {
   const startX = useRef(0)
   const startY = useRef(0)
@@ -227,6 +229,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         setTracking(false)
         if (deltaX > SWIPE_THRESHOLD) onMark('delivered')
         else if (deltaX < -SWIPE_THRESHOLD) onMark('skipped')
+        else if (Math.abs(deltaX) < 10) onOpen?.()
         setDeltaX(0)
       }}
     >
@@ -249,12 +252,12 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
 
       {/* Row content */}
       <div
-        onClick={bulkMode ? onToggleSelect : undefined}
+        onClick={bulkMode ? onToggleSelect : onOpen}
         className={`flex items-center gap-3 px-5 py-4 transition-colors ${
           isDelivered ? 'bg-green-50/40' :
           isSkipped   ? 'bg-amber-50/30' :
           'hover:bg-gray-50/50'
-        } ${bulkMode ? 'cursor-pointer active:bg-orange-50' : ''}`}
+        } ${bulkMode ? 'cursor-pointer active:bg-orange-50' : 'cursor-pointer'}`}
         style={{
           transform: tracking ? `translateX(${deltaX * 0.45}px)` : 'translateX(0)',
           transition: tracking ? 'none' : 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)',
@@ -1011,9 +1014,10 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                       bulkMode={bulkMode}
                       selected={selectedIds.has(c.id)}
                       onToggleSelect={() => toggleSelect(c.id)}
+                      onOpen={() => router.push(`/customers?open=${c.id}`)}
                     />
                   ) : (
-                    <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} />
+                    <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => router.push(`/customers?open=${c.id}`)} />
                   )
                 )}
               </div>
@@ -1060,9 +1064,10 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                           bulkMode={bulkMode}
                           selected={selectedIds.has(c.id)}
                           onToggleSelect={() => toggleSelect(c.id)}
+                          onOpen={() => router.push(`/customers?open=${c.id}`)}
                         />
                       ) : (
-                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === members.length - 1} hideArea />
+                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === members.length - 1} hideArea onOpen={() => router.push(`/customers?open=${c.id}`)} />
                       )
                     )}
                   </div>
