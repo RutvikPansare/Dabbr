@@ -1144,8 +1144,6 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                                 className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black shadow-sm ${tagToneClasses(tag.label)}`}
                               >
                                 + {tag.label}
-                                {servedInfo && <span className="ml-1 opacity-70">• {servedInfo.label}</span>}
-                                {!servedInfo && <span className="ml-1 opacity-70">• Fresh</span>}
                               </button>
                             )
                           })}
