@@ -529,6 +529,14 @@ export default function DashboardClient({ userId, userEmail }: Props) {
     router.refresh()
   }
 
+  // Auto-expand delivered section when all pending are done
+  // (must be before any early return to satisfy Rules of Hooks)
+  useEffect(() => {
+    const delivered = Object.values(deliveryStatuses).filter(s => s === 'delivered').length
+    const pending   = Object.values(deliveryStatuses).filter(s => s === 'pending').length
+    if (delivered > 0 && pending === 0) setShowDelivered(true)
+  }, [deliveryStatuses])
+
   // ── Loading skeleton ──────────────────────────────────────────────────────
 
   if (loading) {
@@ -616,10 +624,6 @@ export default function DashboardClient({ userId, userEmail }: Props) {
     ? deliveryToday.filter(c => deliveryStatuses[c.id] === 'delivered')
     : []
 
-  // Auto-expand delivered section when all are done
-  useEffect(() => {
-    if (allDone && deliveredList.length > 0) setShowDelivered(true)
-  }, [allDone, deliveredList.length])
 
   function handleCopyList() {
     const lines = [
