@@ -72,7 +72,10 @@ export default function ContactsImport({ onImport, onClose }: Props) {
   }
 
   async function loadNativeContacts() {
-    const { Contacts } = await import('@capacitor-community/contacts')
+    // turbopackIgnore + webpackIgnore: skip static analysis — this package
+    // is only available at runtime inside native Capacitor iOS/Android apps.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { Contacts } = await import(/* turbopackIgnore: true */ /* webpackIgnore: true */ '@capacitor-community/contacts' as any)
 
     // Request permission
     const { contacts: permResult } = await Contacts.requestPermissions()
