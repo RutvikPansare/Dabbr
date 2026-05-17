@@ -509,9 +509,15 @@ function Footer() {
           <span className="text-lg font-black text-white">Dabbr</span>
           <span className="text-orange-200/30 text-sm ml-2">Tiffin service manager for home cooks</span>
         </div>
-        <p className="text-orange-200/30 text-xs">
-          © {new Date().getFullYear()} Dabbr. Made with ❤️ for home cooks in India.
-        </p>
+        <div className="flex items-center gap-4">
+          <a href="/privacy" className="text-orange-200/40 hover:text-orange-200/70 text-xs transition-colors">
+            Privacy Policy
+          </a>
+          <span className="text-orange-200/20 text-xs">·</span>
+          <p className="text-orange-200/30 text-xs">
+            © {new Date().getFullYear()} Dabbr. Made with ❤️ for home cooks in India.
+          </p>
+        </div>
       </div>
     </footer>
   )
