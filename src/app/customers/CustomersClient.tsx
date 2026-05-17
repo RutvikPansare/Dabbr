@@ -7,14 +7,17 @@ import BottomNav from '@/components/BottomNav'
 import {
   ArrowLeft, Search, Plus, UserPlus, UserPen, MapPin, MessageCircle,
   Pause, Play, CreditCard, Leaf, Drumstick, SearchX, Box, Smartphone,
-  Edit2, ChevronRight, IndianRupee, AlertTriangle, Clock,
+  Edit2, ChevronRight, ChevronDown, IndianRupee, AlertTriangle, Clock,
   CheckCircle2, XCircle, Sparkles, Tag, StickyNote, X as XIcon,
-  Link2, Copy, RefreshCw, FileUp, ClipboardList,
+  Link2, Copy, RefreshCw, FileUp, ClipboardList, BookUser, Check, ExternalLink,
+  SlidersHorizontal, HandCoins,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
-import { formatMealSlots, formatPlanSummary } from '@/lib/meals'
+import { formatMealSlots } from '@/lib/meals'
+import { computeMonthlyDue, DUE_COLORS, dueStateLabel, fmtRupees, type BillingType } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
 import CsvImport from './CsvImport'
+import ContactsImport from './ContactsImport'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +41,10 @@ interface Customer {
   price_per_month: number
   status: CustomerStatus
   balance_days: number
+  billing_type: BillingType
+  meal_rate: number | null
+  credit_limit: number | null
+  meals_delivered: number
   pauses: Pause[]
   subscriptions?: Subscription[]
   created_at: string
@@ -79,6 +86,7 @@ interface Payment {
 
 type LedgerEventType =
   | 'payment'
+  | 'monthly_payment'
   | 'pause_start'
   | 'pause_end'
   | 'balance_low'
@@ -103,12 +111,17 @@ interface FormState {
   tags: string[]
   meal_plan_id: string
   balance_days: string
+  billing_type: BillingType
+  meal_rate: string
+  credit_limit: string
 }
 
 interface Props {
   initialCustomers: Customer[]
   initialMealPlans: MealPlan[]
   providerId: string
+  providerDefaultMealRate: number
+  providerDefaultCreditLimit: number
   initialShowAdd?: boolean
   initialOpenId?: string | null
 }
@@ -133,6 +146,9 @@ const EMPTY_FORM: FormState = {
   tags: [],
   meal_plan_id: '',
   balance_days: '',
+  billing_type: 'prepaid',
+  meal_rate: '',
+  credit_limit: '',
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -214,7 +230,7 @@ function enrichSubscriptions(customer: any, mealPlansList: MealPlan[]): Customer
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, initialShowAdd = false, initialOpenId = null }: Props) {
+export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, providerDefaultMealRate, providerDefaultCreditLimit, initialShowAdd = false, initialOpenId = null }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -228,7 +244,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   const [mealPlans, setMealPlans] = useState<MealPlan[]>(initialMealPlans)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'paused'>('all')
-  const [tagFilter, setTagFilter] = useState<string | null>(null)
+
+  // Advanced filter panel
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [filterAreas, setFilterAreas] = useState<string[]>([])
+  const [filterPlanIds, setFilterPlanIds] = useState<string[]>([])
+  const [filterBalances, setFilterBalances] = useState<Array<'critical' | 'low' | 'good'>>([])
+  const [filterTags, setFilterTags] = useState<string[]>([])
 
   // Form
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add')
@@ -261,6 +283,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   // Ledger (auto timeline on detail screen)
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [monthlyTotalPaid, setMonthlyTotalPaid] = useState(0)
 
   // Portal link
   const [portalToken, setPortalToken] = useState<string | null>(null)
@@ -269,6 +292,12 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   // CSV import
   const [showImport, setShowImport] = useState(false)
+
+  // Contacts import
+  const [showContactsImport, setShowContactsImport] = useState(false)
+
+  // Import dropdown
+  const [showImportMenu, setShowImportMenu] = useState(false)
 
   // ── Auto-open customer from URL param ─────────────────────────────────
   useEffect(() => {
@@ -285,6 +314,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   const activeMealPlans = mealPlans.filter(plan => plan.status === 'active')
   const allTags = Array.from(new Set(customers.flatMap(c => c.tags ?? []))).sort()
+  const allAreas = Array.from(new Set(customers.map(c => c.area).filter(Boolean) as string[])).sort()
 
   const filtered = customers.filter((c) => {
     const q = search.toLowerCase()
@@ -293,10 +323,31 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       c.name.toLowerCase().includes(q) ||
       (c.area ?? '').toLowerCase().includes(q) ||
       c.whatsapp_number.includes(q)
-    const matchFilter = filter === 'all' || c.status === filter
-    const matchTag = !tagFilter || (c.tags ?? []).includes(tagFilter)
-    return matchSearch && matchFilter && matchTag
+    const matchStatus = filter === 'all' || c.status === filter
+    const matchArea = filterAreas.length === 0 || filterAreas.includes(c.area ?? '')
+    const matchPlan = filterPlanIds.length === 0 || filterPlanIds.includes(activeSubscription(c)?.meal_plan_id ?? '')
+    const matchBalance = filterBalances.length === 0 || filterBalances.some(b =>
+      b === 'critical' ? c.balance_days < 3 :
+      b === 'low'      ? c.balance_days >= 3 && c.balance_days <= 7 :
+      /* good */         c.balance_days > 7
+    )
+    const matchTags = filterTags.length === 0 || filterTags.every(t => (c.tags ?? []).includes(t))
+    return matchSearch && matchStatus && matchArea && matchPlan && matchBalance && matchTags
   })
+
+  const advancedFilterCount =
+    filterAreas.length + filterPlanIds.length + filterBalances.length + filterTags.length
+
+  function clearAllFilters() {
+    setFilterAreas([])
+    setFilterPlanIds([])
+    setFilterBalances([])
+    setFilterTags([])
+  }
+
+  function toggleItem<T>(list: T[], item: T): T[] {
+    return list.includes(item) ? list.filter(i => i !== item) : [...list, item]
+  }
 
   const counts = {
     all: customers.length,
@@ -324,6 +375,9 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       tags: c.tags ?? [],
       meal_plan_id: activeSubscription(c)?.meal_plan_id ?? '',
       balance_days: String(c.balance_days),
+      billing_type: c.billing_type ?? 'prepaid',
+      meal_rate: c.meal_rate != null ? String(c.meal_rate) : '',
+      credit_limit: c.credit_limit != null ? String(c.credit_limit) : '',
     })
     setFormError('')
     setScreen('form')
@@ -337,13 +391,14 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setTagInput('')
     setLedgerEvents([])
     setLedgerLoading(true)
+    setMonthlyTotalPaid(0)
     setScreen('detail')
 
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 90)
 
-    // Fetch payments + delivery logs in parallel
-    const [{ data: payData }, { data: deliveryData }] = await Promise.all([
+    // Fetch payments + delivery logs + monthly payments in parallel
+    const [{ data: payData }, { data: deliveryData }, { data: monthlyPayData }] = await Promise.all([
       supabase
         .from('payments')
         .select('id, amount, recorded_at, notes')
@@ -355,14 +410,28 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         .eq('customer_id', c.id)
         .gte('date', cutoff.toISOString().split('T')[0])
         .order('date', { ascending: false }),
+      db
+        .from('monthly_payments')
+        .select('id, amount, note, created_at')
+        .eq('customer_id', c.id)
+        .order('created_at', { ascending: false }),
     ])
 
     const events: LedgerEvent[] = []
 
-    // Payment events
+    // Payment events (prepaid)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const p of ((payData ?? []) as any[])) {
       events.push({ id: `pay-${p.id}`, date: p.recorded_at, type: 'payment', amount: p.amount, notes: p.notes })
+    }
+
+    // Monthly settlement payment events + total paid
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const monthlyPayments = (monthlyPayData ?? []) as any[]
+    const totalPaid = monthlyPayments.reduce((sum: number, p: any) => sum + Number(p.amount), 0)
+    setMonthlyTotalPaid(totalPaid)
+    for (const p of monthlyPayments) {
+      events.push({ id: `mp-${p.id}`, date: p.created_at, type: 'monthly_payment', amount: p.amount, notes: p.note })
     }
 
     // Pause events — one entry per boundary (start + end if elapsed)
@@ -526,7 +595,11 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         frequency: selectedPlan.frequency,
         meal_slots: selectedPlan.meal_slots,
         price_per_month: Number(selectedPlan.monthly_price),
-        balance_days: Number(formData.balance_days || selectedPlan.active_days),
+        balance_days: formData.billing_type === 'monthly_settlement' ? 0 : Number(formData.balance_days || selectedPlan.active_days),
+        billing_type: formData.billing_type,
+        meal_rate: formData.meal_rate ? Number(formData.meal_rate) : null,
+        credit_limit: formData.credit_limit ? Number(formData.credit_limit) : null,
+        meals_delivered: 0,
         status: 'active',
       }
       const { data, error } = await db
@@ -581,7 +654,10 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         frequency: selectedPlan.frequency,
         meal_slots: selectedPlan.meal_slots,
         price_per_month: Number(selectedPlan.monthly_price),
-        balance_days: Number(formData.balance_days),
+        balance_days: formData.billing_type === 'monthly_settlement' ? 0 : Number(formData.balance_days),
+        billing_type: formData.billing_type,
+        meal_rate: formData.meal_rate ? Number(formData.meal_rate) : null,
+        credit_limit: formData.credit_limit ? Number(formData.credit_limit) : null,
       }
       const { data, error } = await db
         .from('customers')
@@ -711,6 +787,61 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     void openDetail(updated) // refresh ledger + selected customer
   }
 
+  // ── Contacts import ────────────────────────────────────────────────────
+
+  async function handleContactsImport(entries: { name: string; phone: string }[]) {
+    const defaultPlan = activeMealPlans[0] ?? mealPlans[0]
+    if (!defaultPlan) return
+
+    const startDate = today()
+
+    // Build customer rows for bulk insert
+    const customerRows = entries.map(e => ({
+      provider_id: providerId,
+      name: e.name.trim(),
+      whatsapp_number: e.phone,
+      plan_type: defaultPlan.plan_type,
+      frequency: defaultPlan.frequency,
+      meal_slots: defaultPlan.meal_slots,
+      price_per_month: Number(defaultPlan.monthly_price),
+      balance_days: Number(defaultPlan.active_days),
+      status: 'active' as const,
+      address: null,
+      area: null,
+      notes: null,
+      tags: [] as string[],
+    }))
+
+    const { data: inserted, error } = await db
+      .from('customers')
+      .insert(customerRows)
+      .select('id')
+
+    if (error || !inserted?.length) return
+
+    // Bulk insert subscriptions
+    const subRows = inserted.map((c: { id: string }) => ({
+      provider_id: providerId,
+      customer_id: c.id,
+      meal_plan_id: defaultPlan.id,
+      status: 'active',
+      start_date: startDate,
+    }))
+
+    await db.from('subscriptions').insert(subRows)
+
+    // Refresh local state — re-fetch all customers so new ones appear
+    const { data: fresh } = await db
+      .from('customers')
+      .select('*, pauses(*), subscriptions(*)')
+      .eq('provider_id', providerId)
+      .order('name')
+
+    if (fresh) {
+      setCustomers(fresh.map((c: any) => enrichSubscriptions(c, mealPlans)))
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // SCREEN: LIST
   // ══════════════════════════════════════════════════════════════════════
@@ -735,38 +866,95 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
             <button
               onClick={() => router.push('/meal-plans')}
-              className="flex items-center gap-1.5 rounded-2xl bg-gray-100 border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+              className="flex items-center gap-2 rounded-2xl bg-white border-2 border-gray-200 px-4 py-2.5 text-xs font-bold text-gray-700 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all"
             >
               <ClipboardList className="w-3.5 h-3.5" />
               Meal Plans
             </button>
-            <button
-              onClick={() => setShowImport(true)}
-              className="flex items-center gap-1.5 rounded-2xl bg-orange-50 border border-orange-100 px-3 py-2 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
-            >
-              <FileUp className="w-3.5 h-3.5" />
-              Import
-            </button>
+
+            {/* Import dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowImportMenu(v => !v)}
+                className="flex items-center gap-2 rounded-2xl bg-orange-500 border-2 border-orange-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-orange-600 hover:border-orange-600 active:scale-95 transition-all"
+              >
+                <FileUp className="w-3.5 h-3.5" />
+                Import
+                <ChevronDown className={`w-3 h-3 transition-transform ${showImportMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showImportMenu && (
+                <>
+                  {/* Backdrop */}
+                  <div className="fixed inset-0 z-40" onClick={() => setShowImportMenu(false)} />
+                  {/* Menu */}
+                  <div className="absolute right-0 top-full mt-2 z-50 w-52 rounded-2xl bg-white border border-gray-100 shadow-xl overflow-hidden">
+                    <button
+                      onClick={() => { setShowImportMenu(false); setShowContactsImport(true) }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-orange-50 transition-colors border-b border-gray-50"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-100 text-orange-600 shrink-0">
+                        <BookUser className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">From Contacts</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Pick from your phone</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => { setShowImportMenu(false); setShowImport(true) }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-orange-50 transition-colors"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-600 shrink-0">
+                        <FileUp className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">From CSV</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Upload a spreadsheet</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
         <main className="mx-auto max-w-2xl px-4 pt-24 pb-40 space-y-4">
 
-          {/* Search */}
-          <div className="relative group">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-orange-500">
-              <Search className="w-4 h-4" />
-            </span>
-            <input
-              type="search"
-              placeholder="Search by name or area…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input-modern pl-10"
-            />
+          {/* Search + Filter button */}
+          <div className="flex gap-2">
+            <div className="relative group flex-1">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-orange-500">
+                <Search className="w-4 h-4" />
+              </span>
+              <input
+                type="search"
+                placeholder="Search by name or area…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="input-modern pl-10"
+              />
+            </div>
+            <button
+              onClick={() => setShowFilterPanel(true)}
+              className={`relative flex items-center gap-1.5 rounded-2xl border-2 px-3.5 py-2.5 text-xs font-bold transition-all active:scale-95 ${
+                advancedFilterCount > 0
+                  ? 'bg-orange-500 border-orange-500 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+              {advancedFilterCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-orange-500 text-[10px] font-black">
+                  {advancedFilterCount}
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Filter tabs */}
+          {/* Status tabs */}
           <div className="flex rounded-2xl bg-white/50 p-1.5 shadow-inner border border-gray-200/50 backdrop-blur-sm gap-1">
             {(['all', 'active', 'paused'] as const).map((tab) => (
               <button
@@ -779,33 +967,51 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 }`}
               >
                 {tab}
-                <span
-                  className={`ml-1.5 rounded-md px-1.5 py-0.5 text-[10px] ${
-                    filter === tab ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'
-                  }`}
-                >
+                <span className={`ml-1.5 rounded-md px-1.5 py-0.5 text-[10px] ${
+                  filter === tab ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-600'
+                }`}>
                   {counts[tab]}
                 </span>
               </button>
             ))}
           </div>
 
-          {/* Tag filter chips */}
-          {allTags.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
-              {allTags.map(tag => (
-                <button
-                  key={tag}
-                  onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold border transition-all ${
-                    tagFilter === tag
-                      ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                      : `${tagColor(tag)} border`
-                  }`}
-                >
-                  {tag}
-                </button>
+          {/* Active filter chips strip */}
+          {advancedFilterCount > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar items-center">
+              {filterBalances.map(b => (
+                <span key={b} className="shrink-0 flex items-center gap-1.5 rounded-full bg-orange-100 border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-700">
+                  {{ critical: 'Critical <3d', low: 'Low 3–7d', good: 'Healthy 7d+' }[b]}
+                  <button onClick={() => setFilterBalances(prev => prev.filter(x => x !== b))}><XIcon className="w-3 h-3" /></button>
+                </span>
               ))}
+              {filterAreas.map(a => (
+                <span key={a} className="shrink-0 flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700">
+                  <MapPin className="w-3 h-3" />{a}
+                  <button onClick={() => setFilterAreas(prev => prev.filter(x => x !== a))}><XIcon className="w-3 h-3" /></button>
+                </span>
+              ))}
+              {filterPlanIds.map(id => {
+                const p = mealPlans.find(m => m.id === id)
+                return p ? (
+                  <span key={id} className="shrink-0 flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                    <ClipboardList className="w-3 h-3" />{p.name}
+                    <button onClick={() => setFilterPlanIds(prev => prev.filter(x => x !== id))}><XIcon className="w-3 h-3" /></button>
+                  </span>
+                ) : null
+              })}
+              {filterTags.map(t => (
+                <span key={t} className={`shrink-0 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${tagColor(t)}`}>
+                  {t}
+                  <button onClick={() => setFilterTags(prev => prev.filter(x => x !== t))}><XIcon className="w-3 h-3" /></button>
+                </span>
+              ))}
+              <button
+                onClick={clearAllFilters}
+                className="shrink-0 text-xs font-bold text-gray-400 hover:text-red-500 transition-colors ml-1"
+              >
+                Clear all
+              </button>
             </div>
           )}
 
@@ -852,12 +1058,25 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                             {c.status}
                           </span>
                         </div>
-                        <p className="mt-1.5 flex items-center text-xs font-medium text-gray-500">
-                          {c.area ? <span className="text-gray-600 mr-1.5">{c.area} •</span> : ''}
-                          <span className="flex items-center gap-1">
-                            {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]} {plan?.name ?? PLAN_LABEL[c.plan_type]} • {formatMealSlots(plan?.meal_slots ?? c.meal_slots)}
+                        {c.area && (
+                          <p className="mt-1 flex items-center gap-1 text-xs font-medium text-gray-400">
+                            <MapPin className="w-3 h-3 shrink-0" />{c.area}
+                          </p>
+                        )}
+                        {/* Meal plan chip */}
+                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1.5">
+                          <ClipboardList className="w-3 h-3 text-orange-400 shrink-0" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">Meal Plan</span>
+                          <span className="w-px h-3 bg-orange-200 shrink-0" />
+                          {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]}
+                          <span className="text-xs font-bold text-gray-700 truncate max-w-[100px]">
+                            {plan?.name ?? PLAN_LABEL[c.plan_type]}
                           </span>
-                        </p>
+                          <span className="text-orange-200 text-xs">·</span>
+                          <span className="text-xs font-medium text-gray-500">
+                            {formatMealSlots(plan?.meal_slots ?? c.meal_slots)}
+                          </span>
+                        </div>
                         <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-400 group-hover:text-gray-500">
                           <Smartphone className="w-3 h-3" /> {c.whatsapp_number}
                         </p>
@@ -877,10 +1096,34 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                         )}
                       </div>
                       <div className="shrink-0 text-right flex flex-col items-end gap-2">
-                        <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm ${balancePillClass(c.balance_days)}`}>
-                          {c.balance_days}d left
-                        </span>
-                        <p className="text-xs font-bold text-gray-400 group-hover:text-gray-600">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
+                        {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (() => {
+                          const u = computeMonthlyDue({
+                            mealsDelivered: c.meals_delivered ?? 0,
+                            totalPaid: 0,
+                            mealRate: c.meal_rate,
+                            creditLimit: c.credit_limit,
+                            defaultMealRate: providerDefaultMealRate,
+                            defaultCreditLimit: providerDefaultCreditLimit,
+                          })
+                          const col = DUE_COLORS[u.state]
+                          return (
+                            <>
+                              <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm border ${col.bg} ${col.text}`}>
+                                {fmtRupees(u.outstanding)} due
+                              </span>
+                              <span className={`flex items-center gap-1 text-[10px] font-bold ${col.text}`}>
+                                <HandCoins className="w-3 h-3" /> Monthly
+                              </span>
+                            </>
+                          )
+                        })() : (
+                          <>
+                            <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm ${balancePillClass(c.balance_days)}`}>
+                              {c.balance_days}d left
+                            </span>
+                            <p className="text-xs font-bold text-gray-400 group-hover:text-gray-600">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -908,6 +1151,206 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             onClose={() => setShowImport(false)}
             onImported={() => router.refresh()}
           />
+        )}
+
+        {/* Contacts Import modal */}
+        {showContactsImport && (
+          <ContactsImport
+            providerId={providerId}
+            mealPlanId={activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? ''}
+            onImport={handleContactsImport}
+            onClose={() => setShowContactsImport(false)}
+          />
+        )}
+
+        {/* ── Filter panel ──────────────────────────────────────────────── */}
+        {showFilterPanel && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFilterPanel(false)} />
+            <div
+              className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl sm:mx-4 flex flex-col overflow-hidden"
+              style={{ maxHeight: '85vh' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Handle */}
+              <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-gray-200 sm:hidden shrink-0" />
+
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b border-gray-100 shrink-0">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
+                  <SlidersHorizontal className="w-4 h-4 text-orange-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-black text-gray-900">Filters</p>
+                  {advancedFilterCount > 0 && (
+                    <p className="text-xs font-medium text-orange-500">{advancedFilterCount} active</p>
+                  )}
+                </div>
+                {advancedFilterCount > 0 && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-xs font-bold text-red-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-xl hover:bg-red-50"
+                  >
+                    Clear all
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowFilterPanel(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="px-5 py-4 space-y-6">
+
+                  {/* Balance / Days Left */}
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Days Left</p>
+                    <div className="space-y-1.5">
+                      {([
+                        { key: 'critical', label: 'Critical',  sub: 'Less than 3 days',  dot: 'bg-red-400' },
+                        { key: 'low',      label: 'Low',       sub: '3 – 7 days',        dot: 'bg-amber-400' },
+                        { key: 'good',     label: 'Healthy',   sub: 'More than 7 days',  dot: 'bg-green-400' },
+                      ] as const).map(opt => {
+                        const selected = filterBalances.includes(opt.key)
+                        return (
+                          <button
+                            key={opt.key}
+                            onClick={() => setFilterBalances(prev => toggleItem(prev, opt.key))}
+                            className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all active:scale-[0.98] ${
+                              selected ? 'border-orange-300 bg-orange-50' : 'border-gray-100 bg-white hover:border-orange-200'
+                            }`}
+                          >
+                            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.dot}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-bold ${selected ? 'text-orange-700' : 'text-gray-700'}`}>{opt.label}</p>
+                              <p className="text-[10px] font-medium text-gray-400 mt-0.5">{opt.sub}</p>
+                            </div>
+                            <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all shrink-0 ${
+                              selected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'
+                            }`}>
+                              {selected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Area */}
+                  {allAreas.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Area</p>
+                      <div className="space-y-1.5">
+                        {allAreas.map(area => {
+                          const selected = filterAreas.includes(area)
+                          return (
+                            <button
+                              key={area}
+                              onClick={() => setFilterAreas(prev => toggleItem(prev, area))}
+                              className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all active:scale-[0.98] ${
+                                selected ? 'border-orange-300 bg-orange-50' : 'border-gray-100 bg-white hover:border-orange-200'
+                              }`}
+                            >
+                              <MapPin className={`w-4 h-4 shrink-0 ${selected ? 'text-orange-500' : 'text-gray-400'}`} />
+                              <span className={`flex-1 text-sm font-bold ${selected ? 'text-orange-700' : 'text-gray-700'}`}>{area}</span>
+                              <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all ${
+                                selected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'
+                              }`}>
+                                {selected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Meal Plan */}
+                  {mealPlans.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Meal Plan</p>
+                      <div className="space-y-1.5">
+                        {mealPlans.map(plan => {
+                          const selected = filterPlanIds.includes(plan.id)
+                          return (
+                            <button
+                              key={plan.id}
+                              onClick={() => setFilterPlanIds(prev => toggleItem(prev, plan.id))}
+                              className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all active:scale-[0.98] ${
+                                selected ? 'border-orange-300 bg-orange-50' : 'border-gray-100 bg-white hover:border-orange-200'
+                              }`}
+                            >
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-xl shrink-0 ${
+                                plan.plan_type === 'veg' ? 'bg-emerald-100' : 'bg-orange-100'
+                              }`}>
+                                {PLAN_EMOJI[plan.plan_type]}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold truncate ${selected ? 'text-orange-700' : 'text-gray-800'}`}>{plan.name}</p>
+                                <p className="text-[10px] font-medium text-gray-400 mt-0.5">{formatMealSlots(plan.meal_slots)} · {FREQ_LABEL[plan.frequency]}</p>
+                              </div>
+                              <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all ${
+                                selected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'
+                              }`}>
+                                {selected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {allTags.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Tags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {allTags.map(tag => {
+                          const selected = filterTags.includes(tag)
+                          return (
+                            <button
+                              key={tag}
+                              onClick={() => setFilterTags(prev => toggleItem(prev, tag))}
+                              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold border-2 transition-all active:scale-95 ${
+                                selected
+                                  ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <div className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border-2 transition-all shrink-0 ${
+                                selected ? 'bg-white border-white' : 'border-gray-300'
+                              }`}>
+                                {selected && <Check className="w-2.5 h-2.5 text-orange-500" />}
+                              </div>
+                              {tag}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+                <button
+                  onClick={() => setShowFilterPanel(false)}
+                  className="w-full rounded-2xl bg-orange-500 py-4 text-sm font-bold text-white active:scale-95 transition-all"
+                >
+                  {filtered.length === 0
+                    ? 'No customers match'
+                    : `Show ${filtered.length} customer${filtered.length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     )
@@ -949,31 +1392,161 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
         <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 space-y-4">
 
-          {/* Status + info header card */}
-          <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100">
-            <div className="flex items-center gap-2 mb-3">
+          {/* Status + plan + balance card */}
+          <div className="rounded-3xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+
+            {/* Status row */}
+            <div className="flex items-center gap-2 px-5 pt-5 pb-4">
               <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${statusBadgeClass(c.status)}`}>
                 {c.status}
               </span>
-              <span className="text-xs text-gray-400">
-                {plan ? formatPlanSummary(plan) : `${PLAN_LABEL[c.plan_type]} • ${FREQ_LABEL[c.frequency]} • ${formatMealSlots(c.meal_slots)}`}
-              </span>
+              {c.area && (
+                <span className="flex items-center gap-1 text-xs font-medium text-gray-400">
+                  <MapPin className="w-3 h-3 shrink-0" />{c.area}
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-[#FDF8F3] p-4">
-                <p className="text-xs text-gray-400 mb-0.5">Balance</p>
-                <p className={`text-3xl font-black ${
-                  c.balance_days > 7 ? 'text-green-600' : c.balance_days >= 3 ? 'text-amber-600' : 'text-red-600'
-                }`}>
-                  {c.balance_days}<span className="text-base font-semibold ml-0.5">d</span>
+
+            {/* Meal plan row */}
+            <button
+              type="button"
+              onClick={() => router.push('/meal-plans')}
+              className="w-full flex items-center gap-3 px-5 py-4 border-t border-orange-50 bg-orange-50/60 hover:bg-orange-100/60 active:bg-orange-100 transition-colors text-left group"
+            >
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
+                (plan?.plan_type ?? c.plan_type) === 'veg' ? 'bg-emerald-100' : 'bg-orange-100'
+              }`}>
+                {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-orange-400 flex items-center gap-1">
+                  <ClipboardList className="w-3 h-3" /> Meal Plan
+                </p>
+                <p className="text-sm font-black text-gray-900 mt-0.5">
+                  {plan?.name ?? PLAN_LABEL[c.plan_type]}
+                </p>
+                <p className="text-xs font-medium text-gray-500 mt-0.5">
+                  {formatMealSlots(plan?.meal_slots ?? c.meal_slots)} · {FREQ_LABEL[plan?.frequency ?? c.frequency]} · ₹{plan?.monthly_price ?? c.price_per_month}/mo
                 </p>
               </div>
-              <div className="rounded-2xl bg-[#FDF8F3] p-4">
-                <p className="text-xs text-gray-400 mb-0.5">Monthly</p>
-                <p className="text-3xl font-black text-gray-800">
-                  ₹{plan?.monthly_price ?? c.price_per_month}
-                </p>
+              <div className="flex items-center gap-1 text-xs font-bold text-orange-500 group-hover:text-orange-600 shrink-0">
+                View
+                <ChevronRight className="w-3.5 h-3.5" />
               </div>
+            </button>
+
+            {/* Balance / Monthly grid */}
+            {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (() => {
+              const u = computeMonthlyDue({
+                mealsDelivered: c.meals_delivered ?? 0,
+                totalPaid: monthlyTotalPaid,
+                mealRate: c.meal_rate,
+                creditLimit: c.credit_limit,
+                defaultMealRate: providerDefaultMealRate,
+                defaultCreditLimit: providerDefaultCreditLimit,
+              })
+              const col = DUE_COLORS[u.state]
+              return (
+                <div className={`px-5 py-4 border-t border-gray-50 space-y-3 ${col.bg} border`}>
+                  <div className="flex items-center gap-2">
+                    <HandCoins className={`w-4 h-4 ${col.text}`} />
+                    <span className={`text-xs font-bold uppercase tracking-wider ${col.text}`}>Monthly Settlement</span>
+                    <span className={`ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-bold ${col.pill}`}>{dueStateLabel(u.state)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-white/70 p-4">
+                      <p className="text-xs text-gray-400 mb-0.5">Outstanding</p>
+                      <p className={`text-2xl font-black ${col.text}`}>{fmtRupees(u.outstanding)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white/70 p-4">
+                      <p className="text-xs text-gray-400 mb-0.5">Meals Delivered</p>
+                      <p className="text-2xl font-black text-gray-800">{c.meals_delivered ?? 0}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white/70 p-4">
+                      <p className="text-xs text-gray-400 mb-0.5">Total Billed</p>
+                      <p className="text-xl font-black text-gray-700">{fmtRupees((c.meals_delivered ?? 0) * u.effectiveMealRate)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white/70 p-4">
+                      <p className="text-xs text-gray-400 mb-0.5">Total Paid</p>
+                      <p className="text-xl font-black text-green-600">{fmtRupees(monthlyTotalPaid)}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-medium text-gray-500 mb-1">
+                      <span>{u.percentUsed}% of {fmtRupees(u.effectiveLimit)} limit</span>
+                      <span>@{fmtRupees(u.effectiveMealRate)}/meal</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${col.dot}`}
+                        style={{ width: `${Math.min(100, u.percentUsed)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })() : (
+              <div className="grid grid-cols-2 gap-3 px-5 py-4 border-t border-gray-50">
+                <div className="rounded-2xl bg-[#FDF8F3] p-4">
+                  <p className="text-xs text-gray-400 mb-0.5">Balance</p>
+                  <p className={`text-3xl font-black ${
+                    c.balance_days > 7 ? 'text-green-600' : c.balance_days >= 3 ? 'text-amber-600' : 'text-red-600'
+                  }`}>
+                    {c.balance_days}<span className="text-base font-semibold ml-0.5">d</span>
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-[#FDF8F3] p-4">
+                  <p className="text-xs text-gray-400 mb-0.5">Monthly</p>
+                  <p className="text-3xl font-black text-gray-800">
+                    ₹{plan?.monthly_price ?? c.price_per_month}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Billing type info row */}
+            <div className="flex items-center gap-3 px-5 py-3.5 border-t border-gray-50 bg-gray-50/40">
+              {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (
+                <>
+                  <div className="flex w-8 h-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0">
+                    <HandCoins className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Monthly Settlement</p>
+                    <p className="text-xs font-semibold text-gray-500 mt-0.5">
+                      ₹{c.meal_rate ?? providerDefaultMealRate}/meal
+                      {c.meal_rate == null && <span className="text-gray-400 font-normal"> (default)</span>}
+                      <span className="mx-1.5 text-gray-300">·</span>
+                      ₹{(c.credit_limit ?? providerDefaultCreditLimit).toLocaleString('en-IN')} limit
+                      {c.credit_limit == null && <span className="text-gray-400 font-normal"> (default)</span>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openEdit(c)}
+                    className="shrink-0 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex w-8 h-8 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shrink-0">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Prepaid</p>
+                    <p className="text-xs font-semibold text-gray-500 mt-0.5">
+                      ₹{plan?.monthly_price ?? c.price_per_month}/mo · top up to add days
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openEdit(c)}
+                    className="shrink-0 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1286,6 +1859,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           {/* Icon */}
                           <div className={`flex w-9 h-9 items-center justify-center rounded-2xl shrink-0 mt-0.5 ${
                             event.type === 'payment'            ? 'bg-green-100 text-green-600' :
+                            event.type === 'monthly_payment'    ? 'bg-amber-100 text-amber-600' :
                             event.type === 'pause_start'        ? 'bg-amber-100 text-amber-600' :
                             event.type === 'pause_end'          ? 'bg-blue-100 text-blue-600' :
                             event.type === 'delivery_delivered' ? 'bg-emerald-100 text-emerald-600' :
@@ -1294,6 +1868,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                                                                    'bg-red-100 text-red-600'
                           }`}>
                             {event.type === 'payment'            && <IndianRupee className="w-4 h-4" />}
+                            {event.type === 'monthly_payment'    && <HandCoins className="w-4 h-4" />}
                             {event.type === 'pause_start'        && <Pause className="w-4 h-4" />}
                             {event.type === 'pause_end'          && <Play className="w-4 h-4" />}
                             {event.type === 'balance_low'        && <AlertTriangle className="w-4 h-4" />}
@@ -1306,6 +1881,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-900 leading-snug">
                               {event.type === 'payment'            && <>Payment received {event.amount != null && <span className="text-green-600">₹{event.amount}</span>}</>}
+                              {event.type === 'monthly_payment'    && <>Monthly payment collected {event.amount != null && <span className="text-amber-600">₹{event.amount}</span>}</>}
                               {event.type === 'pause_start'        && 'Deliveries paused'}
                               {event.type === 'pause_end'          && 'Deliveries resumed'}
                               {event.type === 'balance_low'        && 'Balance running low'}
@@ -1484,62 +2060,173 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
 
             {/* Subscription */}
-            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
+            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Subscription</h3>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Meal Plan</h3>
+                  <p className="text-[10px] font-medium text-gray-400 mt-0.5">Tap a plan to select it</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => router.push('/meal-plans')}
-                  className="text-xs font-bold text-orange-500"
+                  className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-3 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
                 >
+                  <ExternalLink className="w-3 h-3" />
                   Manage plans
                 </button>
               </div>
 
-              <Field label="Meal Plan *">
-                <select
-                  required
-                  value={formData.meal_plan_id}
-                  onChange={(e) => {
-                    const plan = mealPlans.find(p => p.id === e.target.value)
-                    setFormData((f) => ({
-                      ...f,
-                      meal_plan_id: e.target.value,
-                      balance_days: f.balance_days || String(plan?.active_days ?? ''),
-                    }))
-                  }}
-                  className={inputClass}
-                >
-                  <option value="">Choose a meal plan…</option>
-                  {mealPlans.map(plan => (
-                    <option key={plan.id} value={plan.id} disabled={plan.status !== 'active'}>
-                      {formatPlanSummary(plan)}{plan.status !== 'active' ? ' (inactive)' : ''}
-                    </option>
-                  ))}
-                </select>
-                {mealPlans.length === 0 && (
-                  <p className="mt-2 text-xs font-medium text-red-500">
-                    Create a meal plan first, then assign it to this customer.
+              {mealPlans.length === 0 ? (
+                <div className="rounded-2xl bg-red-50 border border-red-100 px-4 py-3">
+                  <p className="text-xs font-medium text-red-600">
+                    No meal plans found. Create one first before adding a customer.
                   </p>
-                )}
-              </Field>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {mealPlans.map(plan => {
+                    const isSelected = formData.meal_plan_id === plan.id
+                    const isInactive = plan.status !== 'active'
+                    return (
+                      <div key={plan.id} className="relative">
+                        <button
+                          type="button"
+                          disabled={isInactive}
+                          onClick={() => !isInactive && setFormData(f => ({
+                            ...f,
+                            meal_plan_id: plan.id,
+                            balance_days: f.balance_days || String(plan.active_days ?? ''),
+                          }))}
+                          className={`w-full flex items-center gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition-all active:scale-[0.98] ${
+                            isSelected
+                              ? 'border-orange-400 bg-orange-50 shadow-sm'
+                              : isInactive
+                              ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                              : 'border-gray-100 bg-white hover:border-orange-200 hover:bg-orange-50/40'
+                          }`}
+                        >
+                          {/* Type icon */}
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
+                            plan.plan_type === 'veg' ? 'bg-emerald-100' : 'bg-orange-100'
+                          }`}>
+                            {PLAN_EMOJI[plan.plan_type]}
+                          </div>
+
+                          {/* Plan details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-black text-gray-900">{plan.name}</p>
+                              {isInactive && (
+                                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-medium text-gray-400 mt-0.5">
+                              {formatMealSlots(plan.meal_slots)} · {FREQ_LABEL[plan.frequency]} · ₹{plan.monthly_price}/mo
+                            </p>
+                          </div>
+
+                          {/* Selected indicator */}
+                          <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 shrink-0 transition-all ${
+                            isSelected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                        </button>
+
+                        {/* View plan link — only on selected */}
+                        {isSelected && (
+                          <button
+                            type="button"
+                            onClick={() => router.push('/meal-plans')}
+                            className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
+                          >
+                            View
+                            <ChevronRight className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {!formData.meal_plan_id && (
+                <p className="text-xs font-medium text-amber-600 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  Please select a meal plan to continue
+                </p>
+              )}
             </div>
 
-            {/* Pricing */}
+            {/* Billing Type */}
             <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Balance</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Billing Type</h3>
 
-              <Field label="Balance (days) *">
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 30"
-                  value={formData.balance_days}
-                  onChange={(e) => setFormData((f) => ({ ...f, balance_days: e.target.value }))}
-                  className={inputClass}
-                />
-              </Field>
+              {/* Toggle */}
+              <div className="flex rounded-2xl bg-gray-100 p-1 gap-1">
+                {(['prepaid', 'monthly_settlement'] as const).map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFormData(f => ({ ...f, billing_type: type }))}
+                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all ${
+                      formData.billing_type === type
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {type === 'prepaid' ? (
+                      <><CreditCard className="w-3.5 h-3.5" /> Prepaid</>
+                    ) : (
+                      <><HandCoins className="w-3.5 h-3.5" /> Monthly Settlement</>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {formData.billing_type === 'prepaid' ? (
+                <Field label="Balance (days) *">
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 30"
+                    value={formData.balance_days}
+                    onChange={(e) => setFormData((f) => ({ ...f, balance_days: e.target.value }))}
+                    className={inputClass}
+                  />
+                </Field>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3">
+                    <p className="text-xs font-medium text-amber-700 leading-relaxed">
+                      <strong>Monthly Settlement:</strong> Deliveries are tracked and billed at month-end. Amount due = meals delivered × meal rate.
+                    </p>
+                  </div>
+                  <Field label={`Meal Rate (₹/delivery) — leave blank for default (₹${providerDefaultMealRate})`}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ₹${providerDefaultMealRate}`}
+                      value={formData.meal_rate}
+                      onChange={(e) => setFormData((f) => ({ ...f, meal_rate: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field label={`Credit Limit (₹) — leave blank for default (₹${providerDefaultCreditLimit})`}>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder={`Default: ₹${providerDefaultCreditLimit}`}
+                      value={formData.credit_limit}
+                      onChange={(e) => setFormData((f) => ({ ...f, credit_limit: e.target.value }))}
+                      className={inputClass}
+                    />
+                  </Field>
+                </div>
+              )}
             </div>
 
             {formError && (

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
+  MapPin, ClipboardList, HandCoins,
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
@@ -36,6 +37,8 @@ interface Customer {
   meal_slots: MealSlot[]
   status: 'active' | 'paused' | 'inactive'
   balance_days: number
+  billing_type: 'prepaid' | 'monthly_settlement'
+  meals_delivered: number
   created_at: string
   pauses: Pause[]
   subscriptions?: Subscription[]
@@ -135,6 +138,14 @@ function formatTodayShort(today: string): string {
   })
 }
 
+const PLAN_EMOJI: Record<PlanType, string> = { veg: '🥦', nonveg: '🍗' }
+
+function balancePill(days: number): string {
+  if (days > 7)  return 'bg-green-100 text-green-700 border border-green-200'
+  if (days >= 3) return 'bg-amber-100 text-amber-700 border border-amber-200'
+  return 'bg-red-100 text-red-700 border border-red-200'
+}
+
 function reminderLink(c: Customer): string {
   const msg = encodeURIComponent(
     `Hi ${c.name} 🙏, your tiffin balance is running low — only *${c.balance_days} days* remaining. Please recharge soon to keep your deliveries going. Thank you! 🍱`
@@ -153,27 +164,53 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
 }) {
   const plan = customerPlan(c)
   const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
-  const mealBadge = slots.map(slot => MEAL_SLOT_EMOJI[slot]).join('')
   const planType = plan?.plan_type ?? c.plan_type
+  const isMonthly = (c.billing_type ?? 'prepaid') === 'monthly_settlement'
 
   return (
-    <div onClick={onOpen} className={`group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-gray-50/50 cursor-pointer ${!isLast ? 'border-b border-gray-100/50' : ''}`}>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100/80 text-xs font-bold text-gray-500 shadow-sm border border-gray-200/50">
+    <div onClick={onOpen} className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/50 cursor-pointer ${!isLast ? 'border-b border-gray-100/50' : ''}`}>
+      {/* Index bubble */}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100/80 text-xs font-bold text-gray-500 shadow-sm border border-gray-200/50 mt-0.5">
         {index + 1}
       </span>
+
+      {/* Main info */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
+        <p className="truncate text-sm font-bold text-gray-900 group-hover:text-orange-600 transition-colors leading-snug">
           {c.name}
         </p>
-        {c.notes ? (
-          <p className="text-xs font-medium text-gray-400 mt-0.5 truncate">{c.notes.split('\n')[0]}</p>
-        ) : !hideArea && c.area ? (
-          <p className="text-xs font-medium text-gray-500 mt-0.5">{c.area}</p>
-        ) : null}
+        {!hideArea && c.area && (
+          <p className="flex items-center gap-1 text-xs font-medium text-gray-400 mt-0.5">
+            <MapPin className="w-3 h-3 shrink-0" />{c.area}
+          </p>
+        )}
+        {/* Plan chip */}
+        <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1">
+          <ClipboardList className="w-3 h-3 text-orange-400 shrink-0" />
+          <span className="text-[10px] font-bold text-orange-400">{PLAN_EMOJI[planType]}</span>
+          <span className="text-[11px] font-bold text-gray-700 truncate max-w-[90px]">{plan?.name ?? planType}</span>
+          <span className="text-orange-200 text-xs">·</span>
+          <span className="text-[10px] font-medium text-gray-400">{slots.map(s => MEAL_SLOT_EMOJI[s]).join(' ')}</span>
+        </div>
+        {c.notes && (
+          <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
+        )}
       </div>
-      <span className="shrink-0 text-base" title={formatMealSlots(slots)}>{mealBadge}</span>
-      <div className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-xl shadow-sm ${planType === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'}`}>
-        {planType === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
+
+      {/* Right: balance / billing badge */}
+      <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5">
+        {isMonthly ? (
+          <span className="rounded-xl px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1">
+            <HandCoins className="w-3 h-3" /> Monthly
+          </span>
+        ) : (
+          <span className={`rounded-xl px-2.5 py-1 text-[11px] font-bold ${balancePill(c.balance_days)}`}>
+            {c.balance_days}d left
+          </span>
+        )}
+        <span className={`text-[10px] font-bold ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-500'}`}>
+          {planType === 'veg' ? <Leaf className="w-3 h-3 inline" /> : <Drumstick className="w-3 h-3 inline" />}
+        </span>
       </div>
     </div>
   )
@@ -202,7 +239,6 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
 
   const plan = customerPlan(c)
   const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
-  const mealBadge = slots.map(slot => MEAL_SLOT_EMOJI[slot]).join('')
   const planType = plan?.plan_type ?? c.plan_type
   const isDelivered = status === 'delivered'
   const isSkipped = status === 'skipped'
@@ -283,7 +319,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className={`truncate text-sm font-bold transition-colors ${
+          <p className={`truncate text-sm font-bold transition-colors leading-snug ${
             isDelivered ? 'text-gray-400 line-through' :
             isSkipped   ? 'text-gray-500' :
                           'text-gray-900'
@@ -292,18 +328,44 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           </p>
           {isSkipped ? (
             <p className="text-xs font-semibold text-amber-600 mt-0.5">Skipped today</p>
-          ) : c.notes && !isDelivered ? (
-            <p className="text-xs font-medium text-gray-400 mt-0.5 truncate">{c.notes.split('\n')[0]}</p>
-          ) : !hideArea && c.area ? (
-            <p className={`text-xs font-medium mt-0.5 ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{c.area}</p>
-          ) : null}
+          ) : (
+            <>
+              {!hideArea && c.area && (
+                <p className={`flex items-center gap-1 text-xs font-medium mt-0.5 ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>
+                  <MapPin className="w-3 h-3 shrink-0" />{c.area}
+                </p>
+              )}
+              {/* Plan chip */}
+              <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 border ${
+                isDelivered ? 'bg-gray-50 border-gray-100' : 'bg-orange-50 border-orange-100'
+              }`}>
+                <ClipboardList className={`w-3 h-3 shrink-0 ${isDelivered ? 'text-gray-300' : 'text-orange-400'}`} />
+                <span className={`text-[10px] font-bold ${isDelivered ? 'text-gray-300' : 'text-orange-400'}`}>{PLAN_EMOJI[planType]}</span>
+                <span className={`text-[11px] font-bold truncate max-w-[80px] ${isDelivered ? 'text-gray-300' : 'text-gray-700'}`}>{plan?.name ?? planType}</span>
+                <span className={`text-xs ${isDelivered ? 'text-gray-200' : 'text-orange-200'}`}>·</span>
+                <span className={`text-[10px] font-medium ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join(' ')}</span>
+              </div>
+              {c.notes && !isDelivered && (
+                <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
+              )}
+            </>
+          )}
         </div>
 
-        <span className={`shrink-0 text-base ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>{mealBadge}</span>
-        <div className={`shrink-0 flex items-center justify-center h-9 w-9 rounded-xl ${
-          planType === 'veg' ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-orange-50 border border-orange-100 text-orange-600'
-        } ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
-          {planType === 'veg' ? <Leaf className="w-4 h-4" /> : <Drumstick className="w-4 h-4" />}
+        {/* Right: balance / billing badge + veg icon */}
+        <div className={`shrink-0 flex flex-col items-end gap-1 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
+          {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (
+            <span className="rounded-xl px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1">
+              <HandCoins className="w-3 h-3" /> Monthly
+            </span>
+          ) : (
+            <span className={`rounded-xl px-2.5 py-1 text-[11px] font-bold ${balancePill(c.balance_days)}`}>
+              {c.balance_days}d left
+            </span>
+          )}
+          <span className={`text-[10px] font-bold ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-500'}`}>
+            {planType === 'veg' ? <Leaf className="w-3 h-3 inline" /> : <Drumstick className="w-3 h-3 inline" />}
+          </span>
         </div>
       </div>
     </div>
@@ -435,7 +497,10 @@ export default function DashboardClient({ userId, userEmail }: Props) {
     const prevStatus: DeliveryStatus = deliveryStatusesRef.current[customerId] ?? 'pending'
     if (prevStatus === newStatus) return
 
-    // Balance only changes when delivering or un-delivering
+    const customer = customersRef.current.find(c => c.id === customerId)
+    const isMonthly = (customer?.billing_type ?? 'prepaid') === 'monthly_settlement'
+
+    // Balance/counter only changes when delivering or un-delivering
     let balanceDelta = 0
     if (newStatus === 'delivered' && prevStatus !== 'delivered') balanceDelta = -1
     if (prevStatus === 'delivered' && newStatus !== 'delivered') balanceDelta = +1
@@ -449,16 +514,19 @@ export default function DashboardClient({ userId, userEmail }: Props) {
     })
 
     if (balanceDelta !== 0) {
-      setCustomers(prev => prev.map(c =>
-        c.id === customerId
-          ? { ...c, balance_days: Math.max(0, c.balance_days + balanceDelta) }
-          : c
-      ))
+      setCustomers(prev => prev.map(c => {
+        if (c.id !== customerId) return c
+        if (isMonthly) {
+          // Monthly Settlement: track meals_delivered (increment on deliver, decrement on un-deliver)
+          return { ...c, meals_delivered: Math.max(0, (c.meals_delivered ?? 0) - balanceDelta) }
+        } else {
+          return { ...c, balance_days: Math.max(0, c.balance_days + balanceDelta) }
+        }
+      }))
     }
 
     // Undo snackbar (single actions only)
     if (newStatus !== 'pending') {
-      const customer = customersRef.current.find(c => c.id === customerId)
       setUndoSnackbar({
         id: customerId,
         prevStatus,
@@ -479,9 +547,12 @@ export default function DashboardClient({ userId, userEmail }: Props) {
       )
     }
 
-    if (balanceDelta !== 0) {
-      const customer = customersRef.current.find(c => c.id === customerId)
-      if (customer) {
+    if (balanceDelta !== 0 && customer) {
+      if (isMonthly) {
+        await db.from('customers').update({
+          meals_delivered: Math.max(0, (customer.meals_delivered ?? 0) - balanceDelta),
+        }).eq('id', customerId)
+      } else {
         await db.from('customers').update({
           balance_days: Math.max(0, customer.balance_days + balanceDelta),
         }).eq('id', customerId)

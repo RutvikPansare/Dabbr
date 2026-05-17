@@ -6,10 +6,11 @@ import BottomNav from '@/components/BottomNav'
 import {
   CreditCard, CheckCircle2, MessageCircle, Plus, Send,
   Phone, PartyPopper, ChevronDown, ChevronUp, IndianRupee,
-  Check, Leaf, Drumstick,
+  Check, Leaf, Drumstick, HandCoins,
 } from 'lucide-react'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 import { formatMealSlots } from '@/lib/meals'
+import { computeMonthlyDue, DUE_COLORS, dueStateLabel, fmtRupees, type MonthlyDueSummary } from '@/lib/udhar'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,10 @@ interface Customer {
   plan_type: PlanType
   price_per_month: number
   balance_days: number
+  billing_type: 'prepaid' | 'monthly_settlement'
+  meal_rate: number | null
+  credit_limit: number | null
+  meals_delivered: number
   status: string
   subscriptions?: {
     id: string
@@ -35,6 +40,14 @@ interface Customer {
       status: 'active' | 'inactive'
     } | null
   }[]
+}
+
+interface MonthlyPayment {
+  id: string
+  customer_id: string
+  amount: number
+  note: string | null
+  created_at: string
 }
 
 interface PaymentWithCustomer {
@@ -52,6 +65,8 @@ interface Provider {
   name: string
   upi_id: string | null
   phone: string | null
+  default_meal_rate: number | null
+  default_credit_limit: number | null
 }
 
 interface Props {
@@ -59,6 +74,7 @@ interface Props {
   provider: Provider | null
   initialCustomers: Customer[]
   initialPayments: PaymentWithCustomer[]
+  initialMonthlyPayments: MonthlyPayment[]
 }
 
 // ── Message builders ───────────────────────────────────────────────────────
@@ -127,13 +143,17 @@ const DUE_SOON_THRESHOLD = 5
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function PaymentsClient({ providerId, provider, initialCustomers, initialPayments }: Props) {
+export default function PaymentsClient({ providerId, provider, initialCustomers, initialPayments, initialMonthlyPayments }: Props) {
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
-  const [payments, setPayments] = useState<PaymentWithCustomer[]>(initialPayments)
+  const defaultMealRate   = provider?.default_meal_rate   ?? 120
+  const defaultCreditLimit = provider?.default_credit_limit ?? 3000
+
+  const [customers, setCustomers]               = useState<Customer[]>(initialCustomers)
+  const [payments, setPayments]                 = useState<PaymentWithCustomer[]>(initialPayments)
+  const [monthlyPayments, setMonthlyPayments]   = useState<MonthlyPayment[]>(initialMonthlyPayments)
 
   // Bulk selection
   const [bulkMode, setBulkMode] = useState(false)
@@ -153,28 +173,67 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
 
   // Post-payment receipt CTA
   const [receiptCTA, setReceiptCTA] = useState<{
-    url: string; customerName: string; amount: number; newBalance: number
+    url: string; customerName: string; amount: number; newBalance: number; isMonthly?: boolean
   } | null>(null)
 
   // History toggle
   const [showHistory, setShowHistory] = useState(false)
+  const [showMonthlyHistory, setShowMonthlyHistory] = useState(false)
 
   // ── Derived ────────────────────────────────────────────────────────────
 
-  const overdue = customers
+  // Prepaid customers only
+  const prepaidCustomers = customers.filter(c => (c.billing_type ?? 'prepaid') === 'prepaid')
+
+  const overdue = prepaidCustomers
     .filter(c => c.status === 'active' && c.balance_days <= 0)
     .sort((a, b) => a.balance_days - b.balance_days)
 
-  const dueSoon = customers
+  const dueSoon = prepaidCustomers
     .filter(c => c.status === 'active' && c.balance_days > 0 && c.balance_days <= DUE_SOON_THRESHOLD)
     .sort((a, b) => a.balance_days - b.balance_days)
 
   const urgentCustomers = [...overdue, ...dueSoon]
 
-  const selectedCustomer = customers.find(c => c.id === selCustomerId) ?? null
-  const selectedPrice = selectedCustomer ? (activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month) : 0
-  const previewDays = selectedCustomer && amount
+  // Monthly Settlement customers — compute outstanding per customer
+  const monthlyPaidByCustomer = monthlyPayments.reduce<Record<string, number>>((acc, p) => {
+    acc[p.customer_id] = (acc[p.customer_id] ?? 0) + p.amount
+    return acc
+  }, {})
+
+  const monthlyCustomers = customers
+    .filter(c => (c.billing_type ?? 'prepaid') === 'monthly_settlement' && c.status === 'active')
+    .map(c => ({
+      customer: c,
+      due: computeMonthlyDue({
+        mealsDelivered: c.meals_delivered ?? 0,
+        totalPaid: monthlyPaidByCustomer[c.id] ?? 0,
+        mealRate: c.meal_rate,
+        creditLimit: c.credit_limit,
+        defaultMealRate,
+        defaultCreditLimit,
+      }),
+    }))
+    .sort((a, b) => b.due.outstanding - a.due.outstanding)
+
+  const monthlyCritical = monthlyCustomers.filter(x => x.due.state === 'critical')
+  const monthlyDueSoon  = monthlyCustomers.filter(x => x.due.state === 'due_soon')
+
+  const selectedCustomer   = customers.find(c => c.id === selCustomerId) ?? null
+  const isSelectedMonthly  = (selectedCustomer?.billing_type ?? 'prepaid') === 'monthly_settlement'
+  const selectedPrice      = selectedCustomer ? (activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month) : 0
+  const previewDays        = selectedCustomer && !isSelectedMonthly && amount
     ? daysFromAmount(Number(amount), selectedPrice)
+    : null
+  const selectedDue = selectedCustomer && isSelectedMonthly
+    ? computeMonthlyDue({
+        mealsDelivered: selectedCustomer.meals_delivered ?? 0,
+        totalPaid: monthlyPaidByCustomer[selectedCustomer.id] ?? 0,
+        mealRate: selectedCustomer.meal_rate,
+        creditLimit: selectedCustomer.credit_limit,
+        defaultMealRate,
+        defaultCreditLimit,
+      })
     : null
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -201,8 +260,22 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setSelCustomerId(customerId ?? '')
     if (customerId) {
       const c = customers.find(x => x.id === customerId)
-      if (c) setAmount(String(activePlan(c)?.monthly_price ?? c.price_per_month))
-      else setAmount('')
+      if (c) {
+        if ((c.billing_type ?? 'prepaid') === 'monthly_settlement') {
+          // For monthly settlement, pre-fill with the current outstanding amount
+          const u = computeMonthlyDue({
+            mealsDelivered: c.meals_delivered ?? 0,
+            totalPaid: monthlyPaidByCustomer[c.id] ?? 0,
+            mealRate: c.meal_rate,
+            creditLimit: c.credit_limit,
+            defaultMealRate,
+            defaultCreditLimit,
+          })
+          setAmount(u.outstanding > 0 ? String(Math.round(u.outstanding)) : '')
+        } else {
+          setAmount(String(activePlan(c)?.monthly_price ?? c.price_per_month))
+        }
+      } else setAmount('')
     } else {
       setAmount('')
     }
@@ -228,27 +301,47 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setRecordError('')
 
     const amountNum = Number(amount)
-    const daysAdded = daysFromAmount(amountNum, activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month)
-    const newBalance = Math.round((selectedCustomer.balance_days + daysAdded) * 10) / 10
 
-    const { data: newPayment, error: payErr } = await db
-      .from('payments')
-      .insert({ customer_id: selectedCustomer.id, provider_id: providerId, amount: amountNum, notes: note.trim() || null })
-      .select()
-      .single()
+    if (isSelectedMonthly) {
+      // ── Monthly Settlement payment ─────────────────────────────────────
+      const { data: newPay, error: payErr } = await db
+        .from('monthly_payments')
+        .insert({ customer_id: selectedCustomer.id, provider_id: providerId, amount: amountNum, note: note.trim() || null })
+        .select()
+        .single()
 
-    if (payErr) { setRecordError(`Failed: ${payErr.message}`); setRecording(false); return }
+      if (payErr) { setRecordError(`Failed: ${payErr.message}`); setRecording(false); return }
 
-    await db.from('customers').update({ balance_days: newBalance }).eq('id', selectedCustomer.id)
+      setMonthlyPayments(prev => [{ ...newPay }, ...prev])
 
-    setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, balance_days: newBalance } : c))
-    setPayments(prev => [{
-      ...newPayment,
-      customers: { id: selectedCustomer.id, name: selectedCustomer.name, whatsapp_number: selectedCustomer.whatsapp_number, area: selectedCustomer.area },
-    }, ...prev])
+      const newOutstanding = Math.max(0, (selectedDue?.outstanding ?? 0) - amountNum)
+      const msg = `Hi ${selectedCustomer.name} 🙏\n₹${amountNum} received towards your monthly tab. Amount due: ₹${Math.round(newOutstanding)}.\nThank you! 🍱\n— ${provider?.name ?? 'Your tiffin provider'}`
+      setReceiptCTA({ url: waLink(selectedCustomer.whatsapp_number, msg), customerName: selectedCustomer.name, amount: amountNum, newBalance: newOutstanding, isMonthly: true })
+    } else {
+      // ── Prepaid payment ────────────────────────────────────────────────
+      const daysAdded = daysFromAmount(amountNum, activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month)
+      const newBalance = Math.round((selectedCustomer.balance_days + daysAdded) * 10) / 10
 
-    const msg = receiptMessage(selectedCustomer.name, amountNum, newBalance, provider)
-    setReceiptCTA({ url: waLink(selectedCustomer.whatsapp_number, msg), customerName: selectedCustomer.name, amount: amountNum, newBalance })
+      const { data: newPayment, error: payErr } = await db
+        .from('payments')
+        .insert({ customer_id: selectedCustomer.id, provider_id: providerId, amount: amountNum, notes: note.trim() || null })
+        .select()
+        .single()
+
+      if (payErr) { setRecordError(`Failed: ${payErr.message}`); setRecording(false); return }
+
+      await db.from('customers').update({ balance_days: newBalance }).eq('id', selectedCustomer.id)
+
+      setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, balance_days: newBalance } : c))
+      setPayments(prev => [{
+        ...newPayment,
+        customers: { id: selectedCustomer.id, name: selectedCustomer.name, whatsapp_number: selectedCustomer.whatsapp_number, area: selectedCustomer.area },
+      }, ...prev])
+
+      const msg = receiptMessage(selectedCustomer.name, amountNum, newBalance, provider)
+      setReceiptCTA({ url: waLink(selectedCustomer.whatsapp_number, msg), customerName: selectedCustomer.name, amount: amountNum, newBalance })
+    }
+
     setShowRecord(false)
     setSelCustomerId(''); setAmount(''); setNote('')
     setRecording(false)
@@ -265,9 +358,9 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Payment Center</h1>
             <p className="text-xs font-medium text-orange-600/80">
-              {urgentCustomers.length === 0
+              {urgentCustomers.length === 0 && monthlyCritical.length === 0 && monthlyDueSoon.length === 0
                 ? 'All customers up to date'
-                : `${urgentCustomers.length} customer${urgentCustomers.length !== 1 ? 's' : ''} need attention`}
+                : `${urgentCustomers.length + monthlyCritical.length + monthlyDueSoon.length} customer${urgentCustomers.length + monthlyCritical.length + monthlyDueSoon.length !== 1 ? 's' : ''} need attention`}
             </p>
           </div>
           {urgentCustomers.length > 0 && (
@@ -319,7 +412,10 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                 <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                 ₹{receiptCTA.amount} recorded for {receiptCTA.customerName}
               </p>
-              <p className="text-xs text-green-600 mt-0.5">New balance: {receiptCTA.newBalance} days</p>
+              {receiptCTA.isMonthly
+                ? <p className="text-xs text-green-600 mt-0.5">Outstanding: ₹{Math.round(receiptCTA.newBalance)}</p>
+                : <p className="text-xs text-green-600 mt-0.5">New balance: {receiptCTA.newBalance} days</p>
+              }
             </div>
             <div className="flex flex-col gap-1.5 shrink-0">
               <a
@@ -336,7 +432,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
         )}
 
         {/* All-clear state */}
-        {urgentCustomers.length === 0 && (
+        {urgentCustomers.length === 0 && monthlyCritical.length === 0 && monthlyDueSoon.length === 0 && (
           <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-16">
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-green-50 text-green-500 shadow-inner border border-green-100/50">
               <PartyPopper className="w-10 h-10" strokeWidth={1.5} />
@@ -431,6 +527,97 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                 />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ── Monthly: Limit Exceeded ── */}
+        {monthlyCritical.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <HandCoins className="w-4 h-4 text-red-500" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-gray-700">Monthly · Limit Exceeded</h2>
+                <span className="rounded-lg px-2 py-0.5 text-[10px] font-bold bg-red-100 text-red-600 border border-red-200">
+                  {monthlyCritical.length}
+                </span>
+              </div>
+            </div>
+            <div className="rounded-[1.5rem] bg-white border border-red-100/60 shadow-sm overflow-hidden divide-y divide-gray-50">
+              {monthlyCritical.map(({ customer: c, due: u }) => (
+                <MonthlyRow
+                  key={c.id}
+                  customer={c}
+                  due={u}
+                  provider={provider}
+                  onRecord={() => openRecord(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Monthly: Due Soon ── */}
+        {monthlyDueSoon.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <HandCoins className="w-4 h-4 text-amber-500" />
+                <h2 className="text-xs font-black uppercase tracking-wider text-gray-700">Monthly · Due Soon</h2>
+                <span className="rounded-lg px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-600 border border-amber-200">
+                  {monthlyDueSoon.length}
+                </span>
+              </div>
+            </div>
+            <div className="rounded-[1.5rem] bg-white border border-amber-100/60 shadow-sm overflow-hidden divide-y divide-gray-50">
+              {monthlyDueSoon.map(({ customer: c, due: u }) => (
+                <MonthlyRow
+                  key={c.id}
+                  customer={c}
+                  due={u}
+                  provider={provider}
+                  onRecord={() => openRecord(c.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Monthly Settlement History (collapsible) ── */}
+        {monthlyPayments.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowMonthlyHistory(v => !v)}
+              className="w-full flex items-center justify-between px-1 py-2"
+            >
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                <HandCoins className="w-3.5 h-3.5" /> Monthly Settlement History
+              </span>
+              {showMonthlyHistory
+                ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+            {showMonthlyHistory && (
+              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                {monthlyPayments.slice(0, 25).map((p, i) => {
+                  const cust = customers.find(c => c.id === p.customer_id)
+                  return (
+                    <div
+                      key={p.id}
+                      className={`flex items-center gap-4 px-5 py-4 ${i !== Math.min(monthlyPayments.length, 25) - 1 ? 'border-b border-gray-50' : ''}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate">{cust?.name ?? '—'}</p>
+                        {p.note && <p className="text-xs text-gray-400 truncate mt-0.5">{p.note}</p>}
+                        <p className="text-xs text-gray-400 mt-0.5">{fmtDate(p.created_at)}</p>
+                      </div>
+                      <p className="text-sm font-black text-green-600 bg-green-50 px-3 py-1.5 rounded-xl border border-green-100 shrink-0">
+                        ₹{p.amount}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -573,7 +760,9 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
           <div className="relative z-10 max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white px-5 pb-10 pt-4 shadow-2xl">
             <div className="mx-auto mb-5 h-1 w-12 rounded-full bg-gray-200" />
             <h2 className="mb-5 text-lg font-black text-gray-900 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-orange-500" /> Record Payment
+              {isSelectedMonthly
+                ? <><HandCoins className="w-5 h-5 text-amber-500" /> Record Monthly Payment</>
+                : <><CreditCard className="w-5 h-5 text-orange-500" /> Record Payment</>}
             </h2>
 
             <form onSubmit={handleRecord} className="space-y-4">
@@ -596,17 +785,23 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   ))}
                 </select>
                 {selectedCustomer && (
-                  <p className="mt-1.5 text-xs text-gray-400">
-                    Current balance:{' '}
-                    <span className={`font-semibold ${
-                      selectedCustomer.balance_days > 7 ? 'text-green-600'
-                        : selectedCustomer.balance_days >= 3 ? 'text-amber-600'
-                          : 'text-red-600'
-                    }`}>
-                      {selectedCustomer.balance_days}d
-                    </span>
-                    {' · '}₹{activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month}/mo
-                  </p>
+                  isSelectedMonthly && selectedDue ? (
+                    <p className={`mt-1.5 text-xs font-semibold ${DUE_COLORS[selectedDue.state].text}`}>
+                      Outstanding: {fmtRupees(selectedDue.outstanding)} · {dueStateLabel(selectedDue.state)}
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-gray-400">
+                      Current balance:{' '}
+                      <span className={`font-semibold ${
+                        selectedCustomer.balance_days > 7 ? 'text-green-600'
+                          : selectedCustomer.balance_days >= 3 ? 'text-amber-600'
+                            : 'text-red-600'
+                      }`}>
+                        {selectedCustomer.balance_days}d
+                      </span>
+                      {' · '}₹{activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month}/mo
+                    </p>
+                  )
                 )}
               </div>
 
@@ -629,6 +824,13 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                     <span className="font-bold text-gray-700">
                       {Math.round((selectedCustomer!.balance_days + previewDays) * 10) / 10}d
                     </span>
+                  </p>
+                )}
+                {isSelectedMonthly && selectedDue && amount && (
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    After payment:{' '}
+                    <span className="font-bold text-green-600">{fmtRupees(Math.max(0, selectedDue.outstanding - Number(amount)))}</span>
+                    {' '}remaining
                   </p>
                 )}
               </div>
@@ -661,6 +863,72 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
       )}
 
       <BottomNav />
+    </div>
+  )
+}
+
+// ── MonthlyRow ─────────────────────────────────────────────────────────────
+
+interface MonthlyRowProps {
+  customer: Customer
+  due: MonthlyDueSummary
+  provider: Provider | null
+  onRecord: () => void
+}
+
+function MonthlyRow({ customer: c, due: u, provider, onRecord }: MonthlyRowProps) {
+  const col = DUE_COLORS[u.state]
+  const plan = activePlan(c)
+  const reminderMsg = `Hi ${c.name} 🙏\nYour monthly tiffin tab has reached *${fmtRupees(u.outstanding)}* (${u.percentUsed}% of your ₹${u.effectiveLimit} limit).\nPlease settle soon to keep your deliveries going! 🍱\n— ${provider?.name ?? 'Your tiffin provider'}`
+
+  return (
+    <div className="px-4 py-4">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-black text-gray-900 truncate">{c.name}</p>
+            <span className={`shrink-0 rounded-xl px-2.5 py-1 text-xs font-black border ${col.bg} ${col.text}`}>
+              {fmtRupees(u.outstanding)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {c.area && (
+              <>
+                <span className="text-xs text-gray-500">{c.area}</span>
+                <span className="text-gray-300 text-xs">·</span>
+              </>
+            )}
+            <span className={`text-xs font-semibold ${col.text}`}>{dueStateLabel(u.state)}</span>
+            <span className="text-gray-300 text-xs">·</span>
+            <span className="text-xs text-gray-400">{c.meals_delivered ?? 0} meals @ {fmtRupees(u.effectiveMealRate)}</span>
+          </div>
+          <div className="mt-2 w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
+            <div className={`h-full rounded-full ${col.dot}`} style={{ width: `${Math.min(100, u.percentUsed)}%` }} />
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <a
+              href={waLink(c.whatsapp_number, reminderMsg)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 flex-1 justify-center rounded-xl bg-green-50 border border-green-200 py-2 text-xs font-bold text-green-700 active:scale-95 transition-all"
+            >
+              <MessageCircle className="w-3.5 h-3.5" /> Remind
+            </a>
+            <button
+              onClick={onRecord}
+              className="flex items-center gap-1.5 flex-1 justify-center rounded-xl bg-amber-50 border border-amber-200 py-2 text-xs font-bold text-amber-700 active:scale-95 transition-all"
+            >
+              <HandCoins className="w-3.5 h-3.5" /> Collect
+            </button>
+            <a
+              href={`tel:${c.whatsapp_number}`}
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 active:scale-95 transition-all shrink-0"
+            >
+              <Phone className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

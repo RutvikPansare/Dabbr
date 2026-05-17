@@ -17,11 +17,12 @@ export default async function PaymentsPage() {
     { data: mealPlans },
     { data: payments },
     { data: provider },
+    { data: monthlyPayments },
     trial,
   ] = await Promise.all([
-    supabase
+    db
       .from('customers')
-      .select('id, name, whatsapp_number, area, plan_type, price_per_month, balance_days, status, subscriptions(*)')
+      .select('id, name, whatsapp_number, area, plan_type, price_per_month, balance_days, billing_type, meal_rate, credit_limit, meals_delivered, status, subscriptions(*)')
       .eq('provider_id', user.id)
       .order('name'),
     db.from('meal_plans').select('*').eq('provider_id', user.id),
@@ -32,6 +33,11 @@ export default async function PaymentsPage() {
       .order('recorded_at', { ascending: false })
       .limit(60),
     supabase.from('providers').select('*').eq('id', user.id).single(),
+    db
+      .from('monthly_payments')
+      .select('id, customer_id, amount, note, created_at')
+      .eq('provider_id', user.id)
+      .order('created_at', { ascending: false }),
     getTrialStatus(supabase, user.id),
   ])
 
@@ -54,6 +60,7 @@ export default async function PaymentsPage() {
       provider={provider}
       initialCustomers={enrichedCustomers}
       initialPayments={payments ?? []}
+      initialMonthlyPayments={monthlyPayments ?? []}
     />
   )
 }

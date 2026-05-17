@@ -2,9 +2,10 @@
  * OTP generation, hashing, and dispatch for customer phone auth.
  *
  * SMS provider is configured via SMS_PROVIDER env var:
- *   console (default/dev) — logs OTP to server console
- *   msg91               — MSG91 (popular in India)
- *   twilio              — Twilio
+ *   console    (default/dev) — logs OTP to server console
+ *   twofactor  — 2Factor.in  (recommended for India, cheapest)
+ *   msg91      — MSG91
+ *   twilio     — Twilio
  */
 
 import { createAdminClient } from './supabase/admin'
@@ -118,6 +119,19 @@ async function dispatchSms(phone: string, otp: string) {
 
   if (provider === 'console' || process.env.NODE_ENV !== 'production') {
     console.log(`\n🔐 [OTP] ${phone} → ${otp}\n`)
+    return
+  }
+
+  if (provider === 'twofactor') {
+    // 2Factor.in — simple GET API, no DLT template required for transactional OTPs
+    // Phone: 10-digit Indian number (strip country code)
+    const apiKey = process.env.TWOFACTOR_API_KEY!
+    const digits = phone.replace(/\D/g, '').slice(-10)
+    const templateName = process.env.TWOFACTOR_TEMPLATE_NAME ?? 'AUTOGEN' // AUTOGEN = 2Factor default OTP template
+    await fetch(
+      `https://2factor.in/API/V1/${apiKey}/SMS/${digits}/${otp}/${templateName}`,
+      { method: 'GET' },
+    )
     return
   }
 

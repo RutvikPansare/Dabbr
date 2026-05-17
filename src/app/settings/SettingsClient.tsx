@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -14,6 +14,8 @@ import {
   quickTagPlanType,
 } from '@/lib/menu-quick-tags'
 import { DAY_NAMES } from '@/lib/holidays'
+import CalendarPicker from './CalendarPicker'
+import HolidayCalendar from './HolidayCalendar'
 
 interface Provider {
   id: string
@@ -27,6 +29,8 @@ interface Provider {
   tagline: string | null
   support_whatsapp: string | null
   off_days: number[]
+  default_credit_limit: number
+  default_meal_rate: number
 }
 
 interface ProviderHoliday {
@@ -66,6 +70,41 @@ const MENU_TAG_TYPES: Array<{ key: MenuQuickTagType; label: string; hint: string
 function quickTagInputKey(slot: string, type: string) {
   return `${slot}:${type}`
 }
+
+// ── Holiday range grouping ─────────────────────────────────────────────────────
+
+interface HolidayGroup {
+  ids: string[]
+  dates: string[]       // sorted YYYY-MM-DD
+  label: string | null  // label of first in group
+  isRange: boolean
+}
+
+function groupHolidays(holidays: ProviderHoliday[]): HolidayGroup[] {
+  const groups: HolidayGroup[] = []
+  let i = 0
+  while (i < holidays.length) {
+    let j = i + 1
+    while (j < holidays.length) {
+      const prev = new Date(holidays[j - 1].date + 'T12:00:00Z')
+      prev.setUTCDate(prev.getUTCDate() + 1)
+      const nextDay = prev.toISOString().split('T')[0]
+      if (nextDay === holidays[j].date) j++
+      else break
+    }
+    const slice = holidays.slice(i, j)
+    groups.push({
+      ids: slice.map(h => h.id),
+      dates: slice.map(h => h.date),
+      label: slice[0].label,
+      isRange: slice.length > 1,
+    })
+    i = j
+  }
+  return groups
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function SettingsClient({ providerId, provider, initialQuickTags, initialHolidays, initialRiders }: Props) {
   const router = useRouter()
@@ -111,6 +150,18 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     seedDefaultQuickTags()
   }, [db, providerId, menuQuickTags.length])
 
+  // Collapsed meal slot sections — all start collapsed to save space
+  const [collapsedSlots, setCollapsedSlots] = useState<Set<string>>(
+    () => new Set(MEAL_SLOTS)
+  )
+  function toggleSlot(slot: string) {
+    setCollapsedSlots(prev => {
+      const next = new Set(prev)
+      next.has(slot) ? next.delete(slot) : next.add(slot)
+      return next
+    })
+  }
+
   // Branding state
   const [slug, setSlug] = useState(provider?.slug ?? '')
   const [slugError, setSlugError] = useState('')
@@ -133,10 +184,20 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [offDays, setOffDays] = useState<number[]>(provider?.off_days ?? [])
   const [offDaySaving, setOffDaySaving] = useState(false)
   const [holidays, setHolidays] = useState<ProviderHoliday[]>(initialHolidays)
-  const [newHolidayDate, setNewHolidayDate] = useState('')
-  const [newHolidayLabel, setNewHolidayLabel] = useState('')
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd] = useState('')
+  const [holidayLabel, setHolidayLabel] = useState('')
   const [holidaySaving, setHolidaySaving] = useState(false)
   const [holidayError, setHolidayError] = useState('')
+  const [showHolidayPicker, setShowHolidayPicker] = useState(false)
+  const [showHolidayCalendar, setShowHolidayCalendar] = useState(false)
+
+  // Monthly Settlement defaults
+  const [defaultCreditLimit, setDefaultCreditLimit] = useState(provider?.default_credit_limit ?? 3000)
+  const [defaultMealRate,    setDefaultMealRate]    = useState(provider?.default_meal_rate    ?? 120)
+  const [msSaving,           setMsSaving]           = useState(false)
+  const [msSaved,            setMsSaved]            = useState(false)
+  const [msError,            setMsError]            = useState('')
 
   // Delivery riders
   const [riders, setRiders] = useState<DeliveryRider[]>(initialRiders)
@@ -317,28 +378,76 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   }
 
   async function handleAddHoliday() {
-    if (!newHolidayDate) return
+    if (!rangeStart) return
+    // If no end selected, or end same as start → single date
+    const effectiveEnd = (rangeEnd && rangeEnd >= rangeStart) ? rangeEnd : rangeStart
+
     setHolidaySaving(true)
     setHolidayError('')
-    const { data, error: addErr } = await db
-      .from('provider_holidays')
-      .insert({ provider_id: providerId, date: newHolidayDate, label: newHolidayLabel.trim() || null })
-      .select('id, date, label')
-      .single()
-    setHolidaySaving(false)
-    if (addErr) {
-      setHolidayError(addErr.message.includes('unique') ? 'That date is already marked as a holiday.' : addErr.message)
+
+    // Expand to every date in the span, skip already-saved ones
+    const toAdd: string[] = []
+    const cur = new Date(rangeStart + 'T12:00:00Z')
+    const end = new Date(effectiveEnd + 'T12:00:00Z')
+    while (cur <= end) {
+      const d = cur.toISOString().split('T')[0]
+      if (!holidays.some(h => h.date === d)) toAdd.push(d)
+      cur.setUTCDate(cur.getUTCDate() + 1)
+    }
+
+    if (toAdd.length === 0) {
+      setHolidayError('All selected dates are already marked as holidays.')
+      setHolidaySaving(false)
       return
     }
-    if (data) setHolidays(prev => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)))
-    setNewHolidayDate('')
-    setNewHolidayLabel('')
+
+    const payload = toAdd.map(date => ({
+      provider_id: providerId,
+      date,
+      label: holidayLabel.trim() || null,
+    }))
+
+    const { data, error: err } = await db
+      .from('provider_holidays')
+      .insert(payload)
+      .select('id, date, label')
+
+    setHolidaySaving(false)
+    if (err) { setHolidayError(err.message); return }
+    if (data) setHolidays(prev => [...prev, ...data].sort((a, b) => a.date.localeCompare(b.date)))
+    setRangeStart('')
+    setRangeEnd('')
+    setHolidayLabel('')
+    setShowHolidayPicker(false)
   }
 
   async function handleDeleteHoliday(id: string) {
     setHolidayError('')
     await db.from('provider_holidays').delete().eq('id', id)
     setHolidays(prev => prev.filter(h => h.id !== id))
+  }
+
+  async function handleDeleteHolidayGroup(ids: string[]) {
+    setHolidayError('')
+    await db.from('provider_holidays').delete().in('id', ids)
+    setHolidays(prev => prev.filter(h => !ids.includes(h.id)))
+  }
+
+  async function handleSaveMonthlyDefaults() {
+    if (defaultMealRate <= 0 || defaultCreditLimit <= 0) {
+      setMsError('Both values must be greater than zero.')
+      return
+    }
+    setMsSaving(true)
+    setMsError('')
+    const { error: err } = await db.from('providers').update({
+      default_meal_rate:   defaultMealRate,
+      default_credit_limit: defaultCreditLimit,
+    }).eq('id', providerId)
+    setMsSaving(false)
+    if (err) { setMsError(err.message); return }
+    setMsSaved(true)
+    setTimeout(() => setMsSaved(false), 3000)
   }
 
   async function handleAddRider() {
@@ -443,35 +552,35 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                 Included in payment receipts and renewal reminders
               </p>
             </div>
-          </div>
 
-          {/* Preview of UPI message snippet */}
-          {upiId && (
-            <div className="rounded-[1.5rem] bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/50 px-5 py-4 shadow-sm">
-              <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4" /> Message preview (receipt)
+            {/* Preview of UPI message snippet */}
+            {upiId && (
+              <div className="mt-4 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/50 px-4 py-3.5">
+                <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1.5">
+                  <MessageCircle className="w-3.5 h-3.5" /> Message preview (receipt)
+                </p>
+                <pre className="whitespace-pre-wrap text-xs text-green-800/90 font-sans leading-relaxed">
+                  {`Hi [Customer],\nPayment received: ₹2500 ✅\nYour tiffin is active for 30 more days.\nUPI: ${upiId}\nThank you! 🙏\n— ${name || 'Your name'}`}
+                </pre>
+              </div>
+            )}
+
+            {error && (
+              <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                {error}
               </p>
-              <pre className="whitespace-pre-wrap text-xs text-green-800/90 font-sans leading-relaxed">
-                {`Hi [Customer],\nPayment received: ₹2500 ✅\nYour tiffin is active for 30 more days.\nUPI: ${upiId}\nThank you! 🙏\n— ${name || 'Your name'}`}
-              </pre>
-            </div>
-          )}
+            )}
 
-          {error && (
-            <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={saving}
-            className={`w-full rounded-2xl py-4 text-sm font-bold shadow-xl transition-all duration-300 active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 ${
-              saved ? 'bg-green-500 text-white shadow-green-500/20' : 'btn-primary'
-            }`}
-          >
-            {saving ? 'Saving…' : saved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save changes'}
-          </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className={`mt-5 w-full rounded-2xl py-4 text-sm font-bold shadow-xl transition-all duration-300 active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 ${
+                saved ? 'bg-green-500 text-white shadow-green-500/20' : 'btn-primary'
+              }`}
+            >
+              {saving ? 'Saving…' : saved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save changes'}
+            </button>
+          </div>
         </form>
 
         {/* Features — separate from profile form, saves instantly */}
@@ -543,12 +652,22 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
         {/* Holidays & off-days */}
         <div className="glass-card rounded-[2rem] p-6 shadow-sm">
-          <h2 className="mb-1 text-sm font-black text-gray-900 flex items-center gap-2">
-            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
-              <CalendarOff className="w-4 h-4 text-orange-500" />
-            </span>
-            Delivery Days & Holidays
-          </h2>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-black text-gray-900 flex items-center gap-2">
+              <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+                <CalendarOff className="w-4 h-4 text-orange-500" />
+              </span>
+              Delivery Days & Holidays
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowHolidayCalendar(true)}
+              className="flex h-9 items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-3 text-[11px] font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
+            >
+              <CalendarSearch className="w-3.5 h-3.5" />
+              My Calendar
+            </button>
+          </div>
           <p className="mb-5 text-xs font-semibold text-gray-400 leading-relaxed">
             Days marked here won&apos;t show deliveries on the dashboard, and customers will see a &quot;no delivery&quot; notice on their portal.
           </p>
@@ -589,68 +708,144 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2.5">Holiday Dates</p>
 
-            {holidayError && (
-              <p className="mb-3 rounded-2xl bg-red-50 px-4 py-2.5 text-xs font-medium text-red-600">{holidayError}</p>
-            )}
+            {/* Existing holidays — grouped into consecutive ranges */}
+            {holidays.length > 0 && (() => {
+              const groups = groupHolidays(holidays)
+              return (
+                <div className="mb-3 space-y-2">
+                  {groups.map(g => {
+                    const fmt = (s: string) => new Date(s + 'T12:00:00Z')
+                      .toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 
-            {/* Existing holidays */}
-            {holidays.length > 0 && (
-              <div className="mb-3 space-y-2">
-                {holidays.map(h => (
-                  <div key={h.id} className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-100 px-4 py-2.5">
-                    <span className="text-sm shrink-0">🏖️</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black text-gray-800">
-                        {new Date(h.date + 'T12:00:00Z').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                      {h.label && <p className="text-[11px] text-amber-700 font-semibold">{h.label}</p>}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteHoliday(h.id)}
-                      className="shrink-0 flex h-7 w-7 items-center justify-center rounded-xl bg-white border border-amber-200 text-amber-500 hover:text-red-500 hover:border-red-200 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                    const label = g.isRange
+                      ? `${fmt(g.dates[0])} – ${fmt(g.dates[g.dates.length - 1])}`
+                      : new Date(g.dates[0] + 'T12:00:00Z').toLocaleDateString('en-IN', {
+                          weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                        })
 
-            {/* Add new holiday */}
-            <div className="rounded-2xl border border-dashed border-gray-200 p-3 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Date *</p>
-                  <input
-                    type="date"
-                    value={newHolidayDate}
-                    onChange={e => { setNewHolidayDate(e.target.value); setHolidayError('') }}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 bg-white"
-                  />
+                    return (
+                      <div key={g.ids[0]} className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-100 px-4 py-2.5">
+                        <span className="text-sm shrink-0">🏖️</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-gray-800">{label}</p>
+                          {g.isRange && (
+                            <p className="text-[11px] font-bold text-amber-500 mt-0.5">
+                              {g.dates.length} days
+                            </p>
+                          )}
+                          {g.label && <p className="text-[11px] text-amber-700 font-semibold">{g.label}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteHolidayGroup(g.ids)}
+                          className="shrink-0 flex h-7 w-7 items-center justify-center rounded-xl bg-white border border-amber-200 text-amber-500 hover:text-red-500 hover:border-red-200 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Label (optional)</p>
-                  <input
-                    type="text"
-                    placeholder="e.g. Diwali"
-                    value={newHolidayLabel}
-                    onChange={e => setNewHolidayLabel(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 bg-white"
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddHoliday() }}}
-                  />
-                </div>
-              </div>
+              )
+            })()}
+
+            {/* Toggle button */}
+            {!showHolidayPicker ? (
               <button
                 type="button"
-                onClick={handleAddHoliday}
-                disabled={!newHolidayDate || holidaySaving}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-2.5 text-xs font-bold text-white disabled:opacity-40 active:scale-95 transition-all"
+                onClick={() => { setShowHolidayPicker(true); setHolidayError('') }}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-orange-200 bg-orange-50/50 py-3 text-xs font-bold text-orange-500 hover:bg-orange-50 hover:border-orange-300 active:scale-95 transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
-                {holidaySaving ? 'Adding…' : 'Add Holiday'}
+                Add Holiday
               </button>
-            </div>
+            ) : (
+              <div className="rounded-2xl border border-orange-100 bg-orange-50/30 p-3 space-y-3">
+
+                {/* Header row */}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-black text-gray-700">Add Holiday</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowHolidayPicker(false)
+                      setHolidayError('')
+                      setRangeStart('')
+                      setRangeEnd('')
+                      setHolidayLabel('')
+                    }}
+                    className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <p className="text-[11px] font-semibold text-gray-400 -mt-1">
+                  Tap a date for a single holiday, or drag across dates to mark a range.
+                </p>
+
+                {holidayError && (
+                  <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{holidayError}</p>
+                )}
+
+                {/* Unified picker — range mode handles both single and multi-day */}
+                <CalendarPicker
+                  mode="range"
+                  rangeStart={rangeStart}
+                  rangeEnd={rangeEnd}
+                  onRangeChange={(s, e) => { setRangeStart(s); setRangeEnd(e); setHolidayError('') }}
+                  disabledDates={holidays.map(h => h.date)}
+                  offDays={offDays}
+                />
+
+                <input
+                  type="text"
+                  placeholder="Label (optional) — e.g. Diwali"
+                  value={holidayLabel}
+                  onChange={e => setHolidayLabel(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddHoliday() } }}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 bg-white"
+                />
+
+                {/* Day count hint when a range is selected */}
+                {rangeStart && rangeEnd && rangeStart < rangeEnd && (() => {
+                  let count = 0
+                  const cur = new Date(rangeStart + 'T12:00:00Z')
+                  const end = new Date(rangeEnd + 'T12:00:00Z')
+                  while (cur <= end) {
+                    if (!holidays.some(h => h.date === cur.toISOString().split('T')[0])) count++
+                    cur.setUTCDate(cur.getUTCDate() + 1)
+                  }
+                  return count > 0 ? (
+                    <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1.5">
+                      <CalendarRange className="w-3.5 h-3.5 shrink-0" />
+                      {count} day{count !== 1 ? 's' : ''} will be marked as holidays
+                    </p>
+                  ) : (
+                    <p className="text-[11px] font-semibold text-gray-400">All dates in this range are already holidays.</p>
+                  )
+                })()}
+
+                <button
+                  type="button"
+                  onClick={handleAddHoliday}
+                  disabled={!rangeStart || holidaySaving}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-2.5 text-xs font-bold text-white disabled:opacity-40 active:scale-95 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {(() => {
+                    if (holidaySaving) return 'Adding…'
+                    if (!rangeStart) return 'Select a date above'
+                    const fmt = (s: string) => new Date(s + 'T12:00:00Z')
+                      .toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                    if (rangeEnd && rangeEnd > rangeStart)
+                      return `Mark ${fmt(rangeStart)} – ${fmt(rangeEnd)} as Holiday`
+                    return `Mark ${fmt(rangeStart)} as Holiday`
+                  })()}
+                </button>
+
+              </div>
+            )}
           </div>
         </div>
 
@@ -672,81 +867,98 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             </p>
           )}
 
-          <div className="space-y-4">
-            {MEAL_SLOTS.map(slot => (
-              <section key={slot} className="rounded-3xl border border-orange-100 bg-[#FDF8F3] p-4">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-gray-900">
-                  <span className="text-lg">{MEAL_SLOT_EMOJI[slot]}</span>
-                  {MEAL_SLOT_LABEL[slot]}
-                </h3>
+          <div className="space-y-2">
+            {MEAL_SLOTS.map(slot => {
+              const isCollapsed = collapsedSlots.has(slot)
+              const totalTags = MENU_TAG_TYPES.reduce((sum, type) => sum + quickTagsFor(slot, type.key).length, 0)
+              return (
+                <section key={slot} className="rounded-3xl border border-orange-100 bg-[#FDF8F3] overflow-hidden">
 
-                <div className="space-y-3">
-                  {MENU_TAG_TYPES.map(type => {
-                    const key = quickTagInputKey(slot, type.key)
-                    const tags = quickTagsFor(slot, type.key)
-                    return (
-                      <div key={key} className="rounded-2xl bg-white p-3 shadow-sm">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-gray-600">{type.label}</p>
-                            <p className="text-[10px] font-bold text-gray-400">{type.hint}</p>
-                          </div>
-                          <span className="text-[10px] font-black text-orange-500">{tags.length} tags</span>
-                        </div>
+                  {/* Collapsible header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleSlot(slot)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-orange-100/40 transition-colors"
+                  >
+                    <span className="text-lg leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
+                    <span className="flex-1 text-sm font-black text-gray-900">{MEAL_SLOT_LABEL[slot]}</span>
+                    <span className="text-[10px] font-bold text-orange-400 mr-1">{totalTags} tags</span>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-180'}`} />
+                  </button>
 
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          {tags.map(tag => (
-                            <div key={tag.id} className="flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-1">
-                              <input
-                                value={tag.label}
-                                onChange={(event) => {
-                                  const label = event.target.value
-                                  setMenuQuickTags(prev => prev.map(item => item.id === tag.id ? { ...item, label } : item))
-                                }}
-                                onBlur={(event) => updateQuickTag(tag, event.target.value)}
-                                disabled={tagSaving === tag.id}
-                                className="w-24 bg-transparent text-[11px] font-black text-orange-700 outline-none disabled:opacity-60"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => deleteQuickTag(tag.id)}
-                                disabled={tagSaving === tag.id}
-                                className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-orange-400 disabled:opacity-50"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                  {/* Expandable content */}
+                  {!isCollapsed && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-orange-100">
+                      <div className="pt-3 space-y-3">
+                        {MENU_TAG_TYPES.map(type => {
+                          const key = quickTagInputKey(slot, type.key)
+                          const tags = quickTagsFor(slot, type.key)
+                          return (
+                            <div key={key} className="rounded-2xl bg-white p-3 shadow-sm">
+                              <div className="mb-2 flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-wider text-gray-600">{type.label}</p>
+                                  <p className="text-[10px] font-bold text-gray-400">{type.hint}</p>
+                                </div>
+                                <span className="text-[10px] font-black text-orange-500">{tags.length} tags</span>
+                              </div>
+
+                              <div className="mb-2 flex flex-wrap gap-2">
+                                {tags.map(tag => (
+                                  <div key={tag.id} className="flex items-center gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 py-1">
+                                    <input
+                                      value={tag.label}
+                                      onChange={(event) => {
+                                        const label = event.target.value
+                                        setMenuQuickTags(prev => prev.map(item => item.id === tag.id ? { ...item, label } : item))
+                                      }}
+                                      onBlur={(event) => updateQuickTag(tag, event.target.value)}
+                                      disabled={tagSaving === tag.id}
+                                      className="w-24 bg-transparent text-[11px] font-black text-orange-700 outline-none disabled:opacity-60"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteQuickTag(tag.id)}
+                                      disabled={tagSaving === tag.id}
+                                      className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-orange-400 disabled:opacity-50"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="flex gap-2">
+                                <input
+                                  value={tagInputs[key] ?? ''}
+                                  onChange={(event) => setTagInputs(prev => ({ ...prev, [key]: event.target.value }))}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      addQuickTag(slot, type.key)
+                                    }
+                                  }}
+                                  placeholder={`Add ${type.label.toLowerCase()} dish`}
+                                  className="min-w-0 flex-1 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => addQuickTag(slot, type.key)}
+                                  disabled={tagSaving === key || !(tagInputs[key] ?? '').trim()}
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm disabled:bg-gray-200"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="flex gap-2">
-                          <input
-                            value={tagInputs[key] ?? ''}
-                            onChange={(event) => setTagInputs(prev => ({ ...prev, [key]: event.target.value }))}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault()
-                                addQuickTag(slot, type.key)
-                              }
-                            }}
-                            placeholder={`Add ${type.label.toLowerCase()} dish`}
-                            className="min-w-0 flex-1 rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => addQuickTag(slot, type.key)}
-                            disabled={tagSaving === key || !(tagInputs[key] ?? '').trim()}
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm disabled:bg-gray-200"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
-              </section>
-            ))}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
           </div>
         </div>
 
@@ -906,6 +1118,72 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           </button>
         </div>
 
+        {/* Monthly Settlement defaults */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+          <h2 className="mb-1 text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+              <HandCoins className="w-4 h-4 text-orange-500" />
+            </span>
+            Monthly Settlement
+          </h2>
+          <p className="mb-5 text-xs font-semibold text-gray-400 leading-relaxed">
+            Defaults for customers who pay at month-end. You can override these per customer.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
+                Meal Rate (₹ per delivery)
+              </p>
+              <input
+                type="number"
+                min="1"
+                placeholder="e.g. 120"
+                value={defaultMealRate}
+                onChange={e => { setDefaultMealRate(Number(e.target.value)); setMsError('') }}
+                className="input-modern"
+              />
+              <p className="mt-1.5 text-xs font-medium text-gray-400">
+                Charged each time a delivery is marked as Delivered
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
+                Default Credit Limit (₹)
+              </p>
+              <input
+                type="number"
+                min="1"
+                placeholder="e.g. 3000"
+                value={defaultCreditLimit}
+                onChange={e => { setDefaultCreditLimit(Number(e.target.value)); setMsError('') }}
+                className="input-modern"
+              />
+              <p className="mt-1.5 text-xs font-medium text-gray-400">
+                Soft warning threshold — you&apos;ll see alerts when a customer nears this
+              </p>
+            </div>
+          </div>
+
+          {msError && (
+            <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {msError}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSaveMonthlyDefaults}
+            disabled={msSaving}
+            className={`mt-5 w-full rounded-2xl py-4 text-sm font-bold shadow-xl transition-all duration-300 active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2 ${
+              msSaved ? 'bg-green-500 text-white shadow-green-500/20' : 'btn-primary'
+            }`}
+          >
+            {msSaving ? 'Saving…' : msSaved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save Defaults'}
+          </button>
+        </div>
+
         {/* Delivery Riders */}
         <div className="glass-card rounded-[2rem] p-6 shadow-sm">
           <h2 className="mb-1 text-sm font-black text-gray-900 flex items-center gap-2">
@@ -998,6 +1276,15 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       </main>
 
       <BottomNav />
+
+      {/* Holiday calendar overview modal */}
+      {showHolidayCalendar && (
+        <HolidayCalendar
+          offDays={offDays}
+          holidays={holidays}
+          onClose={() => setShowHolidayCalendar(false)}
+        />
+      )}
     </div>
   )
 }

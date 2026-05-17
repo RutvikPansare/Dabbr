@@ -21,7 +21,7 @@ export default async function CustomersPage({
   // Cast to any for meal_plans queries — PostgREST schema cache may lag after migration
   const db = supabase as any
 
-  const [{ data: customers }, { data: mealPlans }, trial] = await Promise.all([
+  const [{ data: customers }, { data: mealPlans }, { data: provider }, trial] = await Promise.all([
     supabase
       .from('customers')
       .select('*, pauses(*), subscriptions(*)')
@@ -33,6 +33,11 @@ export default async function CustomersPage({
       .eq('provider_id', user.id)
       .order('status')
       .order('name'),
+    db
+      .from('providers')
+      .select('default_meal_rate, default_credit_limit')
+      .eq('id', user.id)
+      .single(),
     getTrialStatus(supabase, user.id),
   ])
 
@@ -56,6 +61,8 @@ export default async function CustomersPage({
       initialCustomers={enrichedCustomers}
       initialMealPlans={mealPlans ?? []}
       providerId={user.id}
+      providerDefaultMealRate={provider?.default_meal_rate ?? 120}
+      providerDefaultCreditLimit={provider?.default_credit_limit ?? 3000}
       initialShowAdd={params.openAdd === 'true'}
       initialOpenId={params.open ?? null}
     />
