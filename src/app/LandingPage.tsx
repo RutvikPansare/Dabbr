@@ -514,6 +514,10 @@ function Footer() {
             Privacy Policy
           </a>
           <span className="text-orange-200/20 text-xs">·</span>
+          <a href="/terms" className="text-orange-200/40 hover:text-orange-200/70 text-xs transition-colors">
+            Terms of Service
+          </a>
+          <span className="text-orange-200/20 text-xs">·</span>
           <p className="text-orange-200/30 text-xs">
             © {new Date().getFullYear()} Dabbr. Made with ❤️ for home cooks in India.
           </p>
