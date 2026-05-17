@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getTrialStatus } from '@/lib/trial'
+import { getCachedCustomersData, getCachedProvider, getCachedTrialStatus } from '@/lib/queries'
 import CustomersClient from './CustomersClient'
 import Paywall from '@/components/Paywall'
 
@@ -11,55 +11,21 @@ export default async function CustomersPage({
 }) {
   const params = await searchParams
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Cast to any for meal_plans queries — PostgREST schema cache may lag after migration
-  const db = supabase as any
-
-  const [{ data: customers }, { data: mealPlans }, { data: provider }, trial] = await Promise.all([
-    supabase
-      .from('customers')
-      .select('*, pauses(*), subscriptions(*)')
-      .eq('provider_id', user.id)
-      .order('name'),
-    db
-      .from('meal_plans')
-      .select('*')
-      .eq('provider_id', user.id)
-      .order('status')
-      .order('name'),
-    db
-      .from('providers')
-      .select('default_meal_rate, default_credit_limit')
-      .eq('id', user.id)
-      .single(),
-    getTrialStatus(supabase, user.id),
+  const [{ customers, mealPlans }, provider, trial] = await Promise.all([
+    getCachedCustomersData(user.id),
+    getCachedProvider(user.id),
+    getCachedTrialStatus(user.id),
   ])
-
-  // Merge meal_plans data into each customer's subscriptions manually (PostgREST embedded join workaround)
-  const mealPlansMap: Record<string, any> = {}
-  for (const mp of (mealPlans ?? [])) {
-    mealPlansMap[mp.id] = mp
-  }
-  const enrichedCustomers = (customers ?? []).map((c: any) => ({
-    ...c,
-    subscriptions: (c.subscriptions ?? []).map((sub: any) => ({
-      ...sub,
-      meal_plans: mealPlansMap[sub.meal_plan_id] ?? null,
-    })),
-  }))
 
   if (trial.isExpired) return <Paywall />
 
   return (
     <CustomersClient
-      initialCustomers={enrichedCustomers}
-      initialMealPlans={mealPlans ?? []}
+      initialCustomers={customers}
+      initialMealPlans={mealPlans}
       providerId={user.id}
       providerDefaultMealRate={provider?.default_meal_rate ?? 120}
       providerDefaultCreditLimit={provider?.default_credit_limit ?? 3000}

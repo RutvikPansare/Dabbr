@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getCachedProvider, getCachedSettingsData } from '@/lib/queries'
 import SettingsClient from './SettingsClient'
 
 export default async function SettingsPage() {
@@ -7,39 +8,19 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: provider }, { data: quickTags }, { data: holidays }, { data: riders }] = await Promise.all([
-    supabase
-      .from('providers')
-      .select('*')
-      .eq('id', user.id)
-      .single(),
-    supabase
-      .from('menu_quick_tags')
-      .select('*')
-      .eq('provider_id', user.id)
-      .order('meal_slot')
-      .order('plan_type')
-      .order('sort_order'),
-    supabase
-      .from('provider_holidays')
-      .select('id, date, label')
-      .eq('provider_id', user.id)
-      .gte('date', new Date().toISOString().split('T')[0])
-      .order('date'),
-    supabase
-      .from('delivery_riders')
-      .select('id, name, whatsapp_number')
-      .eq('provider_id', user.id)
-      .order('created_at'),
+  const today = new Date().toISOString().split('T')[0]
+  const [provider, { quickTags, holidays, riders }] = await Promise.all([
+    getCachedProvider(user.id),
+    getCachedSettingsData(user.id, today),
   ])
 
   return (
     <SettingsClient
       providerId={user.id}
       provider={provider}
-      initialQuickTags={quickTags ?? []}
-      initialHolidays={holidays ?? []}
-      initialRiders={riders ?? []}
+      initialQuickTags={quickTags}
+      initialHolidays={holidays}
+      initialRiders={riders}
     />
   )
 }

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getTrialStatus } from '@/lib/trial'
 import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
@@ -80,9 +79,19 @@ interface DeliveryRider {
   whatsapp_number: string
 }
 
+interface InitialData {
+  customers: any[]
+  provider: any
+  riders: any[]
+  trial: { trialDaysLeft: number | null; isExpired: boolean; isSubscribed: boolean }
+  deliveryStatuses: Record<string, string>
+  todayHoliday: { label: string | null } | null
+}
+
 interface Props {
   userId: string
   userEmail: string
+  initialData: InitialData
 }
 
 type DeliveryStatus = 'pending' | 'delivered' | 'skipped'
@@ -374,7 +383,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ userId, userEmail }: Props) {
+export default function DashboardClient({ userId, userEmail, initialData }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -385,22 +394,24 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(false)
 
-  // ── Data state ────────────────────────────────────────────────────────────
-  const [customers, setCustomers] = useState<Customer[]>([])
+  // ── Data state — seeded from server-side cached initialData ───────────────
+  const [customers, setCustomers] = useState<Customer[]>(initialData.customers)
   const customersRef = useRef<Customer[]>([])
   customersRef.current = customers
 
-  const [provider, setProvider] = useState<Provider | null>(null)
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
-  const [isExpired, setIsExpired] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(null)
-  const [riders, setRiders] = useState<DeliveryRider[]>([])
+  const [provider, setProvider] = useState<Provider | null>(initialData.provider)
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(initialData.trial.trialDaysLeft)
+  const [isExpired, setIsExpired] = useState(initialData.trial.isExpired)
+  const [loading, setLoading] = useState(false)
+  const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
+  const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
   const [riderModal, setRiderModal] = useState<{ area: string; members: Customer[] } | null>(null)
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
 
   // ── Delivery tracking state ───────────────────────────────────────────────
-  const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>({})
+  const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(
+    initialData.deliveryStatuses as Record<string, DeliveryStatus>
+  )
   const deliveryStatusesRef = useRef<Record<string, DeliveryStatus>>({})
   deliveryStatusesRef.current = deliveryStatuses
 
@@ -417,66 +428,17 @@ export default function DashboardClient({ userId, userEmail }: Props) {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const GreetingIcon = hour < 12 ? Sunrise : hour < 17 ? Sun : Moon
 
-  // ── Fetch on mount ────────────────────────────────────────────────────────
+  // ── Background refresh of delivery logs only ──────────────────────────────
+  // Heavy data (customers, provider, riders) comes from server-side cache via
+  // initialData — no need to re-fetch on mount. We only refresh delivery_logs
+  // because they change throughout the day as the provider marks deliveries.
   useEffect(() => {
-    async function load() {
-      const [
-        { data: customersData },
-        { data: mealPlansData },
-        { data: providerData },
-        trial,
-        { data: logsData },
-        { data: holidayData },
-        { data: ridersData },
-      ] = await Promise.all([
-        supabase
-          .from('customers')
-          .select('*, pauses(*), subscriptions(*)')
-          .eq('provider_id', userId)
-          .order('name'),
-        db.from('meal_plans').select('*').eq('provider_id', userId),
-        supabase.from('providers').select('*').eq('id', userId).single(),
-        getTrialStatus(supabase, userId),
-        db.from('delivery_logs')
-          .select('customer_id, status')
-          .eq('provider_id', userId)
-          .eq('date', today),
-        db.from('provider_holidays')
-          .select('label')
-          .eq('provider_id', userId)
-          .eq('date', today)
-          .maybeSingle(),
-        db.from('delivery_riders')
-          .select('id, name, whatsapp_number')
-          .eq('provider_id', userId)
-          .order('created_at'),
-      ])
-
-      // Merge meal_plans into subscriptions manually (PostgREST embedded join workaround)
-      const mpMap: Record<string, any> = {}
-      for (const mp of (mealPlansData ?? [])) mpMap[mp.id] = mp
-      const enriched = (customersData ?? []).map((c: any) => ({
-        ...c,
-        subscriptions: (c.subscriptions ?? []).map((s: any) => ({
-          ...s,
-          meal_plans: mpMap[s.meal_plan_id] ?? null,
-        })),
-      }))
-
-      setCustomers(enriched)
-      setProvider(providerData)
-      setTrialDaysLeft(trial.trialDaysLeft)
-      setIsExpired(trial.isExpired)
-      setRiders(ridersData ?? [])
-
-      // Check if today is a provider holiday or off-day
-      const offDays: number[] = (providerData as any)?.off_days ?? []
-      const todayDow = new Date(today + 'T12:00:00Z').getUTCDay()
-      const isOffDay = offDays.includes(todayDow)
-      if (holidayData || isOffDay) {
-        setTodayHoliday({ label: holidayData?.label ?? null })
-      }
-
+    async function refreshLogs() {
+      const { data: logsData } = await db
+        .from('delivery_logs')
+        .select('customer_id, status')
+        .eq('provider_id', userId)
+        .eq('date', today)
       if (logsData) {
         const statusMap: Record<string, DeliveryStatus> = {}
         logsData.forEach((log: { customer_id: string; status: DeliveryStatus }) => {
@@ -484,10 +446,8 @@ export default function DashboardClient({ userId, userEmail }: Props) {
         })
         setDeliveryStatuses(statusMap)
       }
-
-      setLoading(false)
     }
-    load()
+    refreshLogs()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
