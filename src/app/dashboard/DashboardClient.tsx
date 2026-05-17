@@ -1400,25 +1400,28 @@ export default function DashboardClient({ userId, userEmail }: Props) {
         >
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white px-5 pt-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5 shadow-2xl sm:mx-4"
+            className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl sm:mx-4 flex flex-col max-h-[80vh]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200 sm:hidden" />
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
-                <Send className="w-4 h-4 text-orange-600" />
+            <div className="px-5 pt-5 shrink-0">
+              <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200 sm:hidden" />
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
+                  <Send className="w-4 h-4 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-gray-900">Send to rider</p>
+                  <p className="text-xs font-semibold text-gray-400">📍 {riderModal.area} · {riderModal.members.length} deliveries</p>
+                </div>
+                <button
+                  onClick={() => setRiderModal(null)}
+                  className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-black text-gray-900">Send to rider</p>
-                <p className="text-xs font-semibold text-gray-400">📍 {riderModal.area} · {riderModal.members.length} deliveries</p>
-              </div>
-              <button
-                onClick={() => setRiderModal(null)}
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
+            <div className="overflow-y-auto flex-1 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5">
             <div className="space-y-2">
               {riders.map(rider => (
                 <button
@@ -1438,6 +1441,7 @@ export default function DashboardClient({ userId, userEmail }: Props) {
                   </div>
                 </button>
               ))}
+            </div>
             </div>
           </div>
         </div>

@@ -49,12 +49,12 @@ export default function PhoneLoginForm() {
   }
 
   const inputClass =
-    'w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm font-semibold text-gray-900 outline-none placeholder:text-gray-300 focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100 transition-all'
+    'w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3.5 text-sm font-semibold text-gray-900 outline-none placeholder:text-gray-300 focus:border-[#F4622A] focus:bg-white focus:ring-2 focus:ring-orange-100 transition-all'
 
   if (step === 'phone') {
     return (
       <form onSubmit={handleSendOtp} className="space-y-3">
-        <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 overflow-hidden focus-within:border-[#F4622A] focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+        <div className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 overflow-hidden focus-within:border-[#F4622A] focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-100 transition-all">
           <span className="text-sm font-bold text-gray-400 shrink-0 py-3.5">+91</span>
           <div className="w-px h-5 bg-gray-200 shrink-0" />
           <input
@@ -108,7 +108,7 @@ export default function PhoneLoginForm() {
         value={otp}
         onChange={e => { setOtp(e.target.value.replace(/\D/g, '')); setError(null) }}
         placeholder="——————"
-        className="w-full rounded-2xl border border-gray-200 bg-white py-4 text-center text-3xl font-black text-gray-900 tracking-[0.5em] outline-none placeholder:text-gray-200 focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100 transition-all"
+        className="w-full rounded-2xl border border-gray-100 bg-gray-50 py-4 text-center text-3xl font-black text-gray-900 tracking-[0.5em] outline-none placeholder:text-gray-200 focus:border-[#F4622A] focus:bg-white focus:ring-2 focus:ring-orange-100 transition-all"
         autoComplete="one-time-code"
         required
       />
