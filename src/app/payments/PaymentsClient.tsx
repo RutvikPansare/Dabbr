@@ -353,11 +353,11 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
       {/* Header */}
-      <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-5 pb-4 pt-8 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-        <div className="mx-auto max-w-2xl flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Payment Center</h1>
-            <p className="text-xs font-medium text-orange-600/80">
+      <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <div className="mx-auto max-w-2xl flex items-center gap-3">
+          <div className="flex-1">
+            <h1 className="text-xl font-black text-gray-900 tracking-tight">Payment Center</h1>
+            <p className="text-xs font-semibold text-orange-600/80">
               {urgentCustomers.length === 0 && monthlyCritical.length === 0 && monthlyDueSoon.length === 0
                 ? 'All customers up to date'
                 : `${urgentCustomers.length + monthlyCritical.length + monthlyDueSoon.length} customer${urgentCustomers.length + monthlyCritical.length + monthlyDueSoon.length !== 1 ? 's' : ''} need attention`}
@@ -366,7 +366,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
           {urgentCustomers.length > 0 && (
             <button
               onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
-              className={`rounded-2xl px-4 py-2.5 text-xs font-bold transition-all mt-1 ${
+              className={`rounded-2xl px-4 py-2.5 text-xs font-bold transition-all ${
                 bulkMode
                   ? 'bg-orange-500 text-white shadow-md'
                   : 'bg-orange-50 text-orange-600 border border-orange-200'
@@ -378,7 +378,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-[104px] pb-6 space-y-5">
+      <main className="mx-auto max-w-2xl px-4 pt-24 pb-6 space-y-5">
 
         {/* Summary strip */}
         {(overdue.length > 0 || dueSoon.length > 0) && (

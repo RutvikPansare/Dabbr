@@ -9,7 +9,7 @@ export default async function LoginPage({
   const { error } = await searchParams
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#FF7B3F] via-[#F4622A] to-[#D94C14] px-4 overflow-hidden">
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#FF730D] via-[#F4620A] to-[#D44800] px-4 overflow-hidden">
 
       {/* Decorative circles */}
       <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/10" />
@@ -24,7 +24,7 @@ export default async function LoginPage({
         {/* Logo + branding */}
         <div className="text-center flex flex-col items-center gap-4 pt-8">
           <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white shadow-2xl shadow-black/20 border border-white/50">
-            <span className="text-5xl font-black bg-gradient-to-br from-[#FF7B3F] to-[#D94C14] bg-clip-text text-transparent">D</span>
+            <span className="text-5xl font-black bg-gradient-to-br from-[#FF730D] to-[#D44800] bg-clip-text text-transparent">D</span>
           </div>
           <div>
             <h1 className="text-5xl font-black tracking-tight text-white drop-shadow-sm">Dabbr</h1>

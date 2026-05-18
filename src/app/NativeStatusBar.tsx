@@ -12,7 +12,7 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
-const ORANGE = '#F4622A'
+const ORANGE = '#FF730D'
 const WHITE  = '#FFFFFF'
 
 export default function NativeStatusBar() {

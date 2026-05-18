@@ -53,7 +53,7 @@ function Navbar({ isLoggedIn }: { isLoggedIn: boolean }) {
       <div className="mx-auto max-w-6xl px-5 py-4 flex items-center justify-between">
         {/* Logo */}
         <a href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] shadow-md">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-b from-[#FF730D] to-[#E85800] shadow-md">
             <span className="text-base font-black text-white">D</span>
           </div>
           <span className={`text-xl font-black tracking-tight transition-colors ${scrolled ? 'text-gray-900' : 'text-white'}`}>
@@ -503,7 +503,7 @@ function Footer() {
     <footer className="bg-[#160800] border-t border-white/5 py-12 px-5">
       <div className="mx-auto max-w-5xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-b from-[#FF730D] to-[#E85800]">
             <span className="text-sm font-black text-white">D</span>
           </div>
           <span className="text-lg font-black text-white">Dabbr</span>

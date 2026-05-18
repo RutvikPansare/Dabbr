@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, ClipboardList, HandCoins,
+  MapPin, ClipboardList, HandCoins, ChevronRight,
 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
@@ -1012,11 +1012,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
                       className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
                         bulkMode
-                          ? 'bg-gray-900 text-white'
+                          ? 'bg-white border border-gray-200 text-gray-500'
                           : 'bg-white border border-gray-200 text-gray-500'
                       }`}
                     >
-                      <Users className="w-3.5 h-3.5" />
+                      {bulkMode ? <X className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
                       {bulkMode ? 'Cancel' : 'Select'}
                     </button>
                   </div>
@@ -1354,58 +1354,56 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {/* ── Rider picker modal ── */}
       {riderModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-50 flex items-end justify-center"
           onClick={() => setRiderModal(null)}
         >
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          {/* pb-[env(safe-area-inset-bottom)] lifts the sheet above the Android nav bar */}
-          <div className="relative w-full max-w-lg sm:mx-4 pb-[env(safe-area-inset-bottom)] sm:pb-0">
+          {/* iOS-style action sheet */}
           <div
-            className="rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden"
-            style={{ maxHeight: 'min(82vh, 82dvh)' }}
+            className="relative w-full max-w-lg px-3"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-5 pt-5 shrink-0">
-              <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200 sm:hidden" />
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
-                  <Send className="w-4 h-4 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-black text-gray-900">Send to rider</p>
-                  <p className="text-xs font-semibold text-gray-400">📍 {riderModal.area} · {riderModal.members.length} deliveries</p>
-                </div>
-                <button
-                  onClick={() => setRiderModal(null)}
-                  className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+            {/* Header + Rider list card */}
+            <div className="rounded-2xl bg-white shadow-2xl overflow-hidden mb-3">
+              {/* Sheet header */}
+              <div className="px-4 py-3 border-b border-gray-100 text-center">
+                <p className="text-xs font-semibold text-gray-400">📍 {riderModal.area} · {riderModal.members.length} deliveries</p>
+                <p className="text-sm font-black text-gray-900 mt-0.5">Choose a rider to send via WhatsApp</p>
+              </div>
+              {/* Scrollable rider list */}
+              <div
+                className="overflow-y-scroll overscroll-contain divide-y divide-gray-100"
+                style={{ maxHeight: 'min(55vh, 55dvh)' }}
+              >
+                {riders.map(rider => (
+                  <button
+                    key={rider.id}
+                    onClick={() => sendToRider(rider, riderModal.area, riderModal.members)}
+                    className="flex w-full items-center gap-3 px-4 py-4 text-left active:bg-green-50 transition-colors"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current text-green-600">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.089.537 4.054 1.473 5.763L0 24l6.395-1.673C8.09 23.447 10.01 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.857 0-3.599-.5-5.107-1.375l-.366-.217-3.795.995 1.012-3.695-.237-.381C2.451 15.483 2 13.8 2 12 2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-base font-bold text-gray-900">{rider.name}</p>
+                      <p className="text-sm font-medium text-gray-400">{rider.whatsapp_number}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-5 pb-6">
-            <div className="space-y-2">
-              {riders.map(rider => (
-                <button
-                  key={rider.id}
-                  onClick={() => sendToRider(rider, riderModal.area, riderModal.members)}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3.5 text-left active:bg-orange-50 transition-colors"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100">
-                    <Bike className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900">{rider.name}</p>
-                    <p className="text-xs font-medium text-gray-400">{rider.whatsapp_number}</p>
-                  </div>
-                  <div className="flex items-center gap-1 text-green-600">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.089.537 4.054 1.473 5.763L0 24l6.395-1.673C8.09 23.447 10.01 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.857 0-3.599-.5-5.107-1.375l-.366-.217-3.795.995 1.012-3.695-.237-.381C2.451 15.483 2 13.8 2 12 2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                  </div>
-                </button>
-              ))}
-            </div>
-            </div>
-          </div>
+            {/* Cancel pill */}
+            <button
+              onClick={() => setRiderModal(null)}
+              className="w-full rounded-2xl bg-white shadow-lg py-4 text-base font-bold text-gray-900 active:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
