@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-5 py-4">
         <div className="mx-auto max-w-2xl flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/login" className="flex items-center gap-2 group">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18]">
               <span className="text-sm font-black text-white">D</span>
             </div>

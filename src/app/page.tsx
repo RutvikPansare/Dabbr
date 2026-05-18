@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import LandingPage from './LandingPage'
+import CapacitorLandingGuard from './CapacitorLandingGuard'
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -7,5 +8,11 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  return <LandingPage isLoggedIn={!!user} userEmail={user?.email ?? null} />
+  return (
+    <>
+      {/* Redirect native-app users away from the marketing landing page */}
+      <CapacitorLandingGuard />
+      <LandingPage isLoggedIn={!!user} userEmail={user?.email ?? null} />
+    </>
+  )
 }

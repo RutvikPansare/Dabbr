@@ -63,6 +63,17 @@ export async function initCapacitor() {
     }
   })
 
+  // ── Guard against landing on the marketing page in-app ───────────────────
+  // The WebView history can include '/' (the hero/landing page) if the app
+  // navigated through it on startup or via a stale link.  Whenever we pop
+  // back to '/' we immediately redirect to '/login' so users never see the
+  // marketing page inside the native app.
+  window.addEventListener('popstate', () => {
+    if (window.location.pathname === '/') {
+      window.location.replace('/login')
+    }
+  })
+
   // ── Android hardware back button ──────────────────────────────────────────
   App.addListener('backButton', ({ canGoBack }) => {
     if (canGoBack) {
