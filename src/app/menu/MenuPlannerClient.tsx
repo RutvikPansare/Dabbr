@@ -860,62 +860,6 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                 })}
               </div>
 
-              <div className="relative mt-3">
-                <button
-                  onClick={() => {
-                    setActiveHelp(null)
-                    setWeekCopyModalOpen(true)
-                  }}
-                  disabled={weekCopying}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 pr-9 text-xs font-black text-white shadow-lg shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy entire previous week
-                </button>
-                <HelpBubble id="copy-entire-week" text="Copies every saved menu item from the previous week into this week. After confirmation, this week's existing menu is replaced." />
-              </div>
-
-              <button
-                onClick={() => {
-                  setActiveHelp(null)
-                  setGoodWeekPickerOpen(open => !open)
-                }}
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-100 bg-white px-4 py-3 text-xs font-black text-orange-600 shadow-sm"
-              >
-                <Sparkles className="w-4 h-4" />
-                Repeat last good week
-                <ChevronDown className={`w-4 h-4 transition-transform ${goodWeekPickerOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {goodWeekPickerOpen && (
-                <div className="mt-2 rounded-3xl border border-orange-100 bg-white p-3 shadow-sm">
-                  <p className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Reusable weekly patterns</p>
-                  <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
-                    {goodWeekOptions.map(option => (
-                      <button
-                        key={option.start}
-                        onClick={() => copyWeekFrom(option.start, `Reused menu from ${labelDate(option.start)} to ${labelDate(option.end)}.`)}
-                        disabled={weekCopying}
-                        className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-left shadow-sm disabled:opacity-50"
-                      >
-                        <span className="block text-sm font-black text-gray-900">{labelDate(option.start)} to {labelDate(option.end)}</span>
-                        <span className="mt-1 block text-[11px] font-bold text-gray-400">{option.itemCount} saved items</span>
-                        <span className="mt-2 flex gap-1 overflow-hidden">
-                          {option.preview.map(item => (
-                            <span key={item} className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-black text-orange-600">{item}</span>
-                          ))}
-                        </span>
-                      </button>
-                    ))}
-                    {!goodWeekOptions.length && (
-                      <p className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-xs font-bold text-gray-400">
-                        No older planned weeks found yet. Once you save a few weeks, they will show up here.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {!hasCurrentWeek && (
                 <button
                   onClick={() => loadWeek(thisWeekStart, initialToday)}
@@ -1007,14 +951,14 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
           </button>
 
           {actionsOpen && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <div className="relative">
                 <button
                   onClick={() => copyFromDate(addDays(selectedDate, -1), "yesterday's menu")}
                   disabled={workingAction !== null}
-                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 pr-9 text-xs font-black text-orange-600 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-50 px-3 py-2.5 pr-8 text-xs font-black text-orange-600 disabled:opacity-50"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   Copy yesterday's
                 </button>
                 <HelpBubble id="copy-yesterday" text="Copies yesterday's saved breakfast, lunch, and dinner into the selected day. It replaces this day's saved menu." />
@@ -1023,9 +967,9 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                 <button
                   onClick={() => copyFromDate(addDays(selectedDate, -7), "last week's menu")}
                   disabled={workingAction !== null}
-                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 pr-9 text-xs font-black text-orange-600 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-50 px-3 py-2.5 pr-8 text-xs font-black text-orange-600 disabled:opacity-50"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3.5 h-3.5" />
                   Copy last week
                 </button>
                 <HelpBubble id="copy-last-week" text="Copies the same weekday from 7 days earlier. For example, this Monday copies last Monday's menu." />
@@ -1036,25 +980,82 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                     setCopyPickerOpen(open => !open)
                     setActiveHelp(null)
                   }}
-                  className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-3 pr-9 text-xs font-black transition-colors ${
+                  className={`flex w-full items-center justify-center gap-1.5 rounded-2xl border px-3 py-2.5 pr-8 text-xs font-black transition-colors ${
                     copyPickerOpen ? 'border-orange-300 bg-orange-50 text-orange-600' : 'border-gray-200 bg-white text-gray-700'
                   }`}
                 >
-                  <Copy className="w-4 h-4" />
+                  <Copy className="w-3.5 h-3.5" />
                   Choose day
-                  <ChevronDown className={`w-4 h-4 transition-transform ${copyPickerOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${copyPickerOpen ? 'rotate-180' : ''}`} />
                 </button>
                 <HelpBubble id="choose-day" text="Opens a list of previous dates so you can pick exactly which day to copy from." />
               </div>
               <div className="relative">
                 <button
                   onClick={copyCurrentMenu}
-                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gray-50 px-3 py-3 pr-9 text-xs font-black text-gray-700"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-gray-50 px-3 py-2.5 pr-8 text-xs font-black text-gray-700"
                 >
-                  <Clipboard className="w-4 h-4" />
+                  <Clipboard className="w-3.5 h-3.5" />
                   Copy menu
                 </button>
                 <HelpBubble id="copy-menu" text="Copies this selected day's saved menu text to your device clipboard, ready to paste elsewhere." />
+              </div>
+
+              {/* Week-level copy options */}
+              <div className="relative col-span-2">
+                <button
+                  onClick={() => {
+                    setActiveHelp(null)
+                    setWeekCopyModalOpen(true)
+                  }}
+                  disabled={weekCopying}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3 py-2.5 pr-8 text-xs font-black text-white shadow-md shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy entire previous week
+                </button>
+                <HelpBubble id="copy-entire-week" text="Copies every saved menu item from the previous week into this week. After confirmation, this week's existing menu is replaced." />
+              </div>
+              <div className="col-span-2">
+                <button
+                  onClick={() => {
+                    setActiveHelp(null)
+                    setGoodWeekPickerOpen(open => !open)
+                  }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-2.5 text-xs font-black text-orange-600 shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Repeat last good week
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${goodWeekPickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {goodWeekPickerOpen && (
+                  <div className="mt-2 rounded-3xl border border-orange-100 bg-white p-3 shadow-sm">
+                    <p className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Reusable weekly patterns</p>
+                    <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
+                      {goodWeekOptions.map(option => (
+                        <button
+                          key={option.start}
+                          onClick={() => copyWeekFrom(option.start, `Reused menu from ${labelDate(option.start)} to ${labelDate(option.end)}.`)}
+                          disabled={weekCopying}
+                          className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-left shadow-sm disabled:opacity-50"
+                        >
+                          <span className="block text-sm font-black text-gray-900">{labelDate(option.start)} to {labelDate(option.end)}</span>
+                          <span className="mt-1 block text-[11px] font-bold text-gray-400">{option.itemCount} saved items</span>
+                          <span className="mt-2 flex gap-1 overflow-hidden">
+                            {option.preview.map(item => (
+                              <span key={item} className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-black text-orange-600">{item}</span>
+                            ))}
+                          </span>
+                        </button>
+                      ))}
+                      {!goodWeekOptions.length && (
+                        <p className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-xs font-bold text-gray-400">
+                          No older planned weeks found yet. Once you save a few weeks, they will show up here.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
