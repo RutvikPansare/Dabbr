@@ -64,16 +64,34 @@ export default function LoginForm() {
     if (isNative) {
       try {
         const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth')
-        await GoogleAuth.initialize()
+
+        // Sign out first so the account picker always appears (not just the
+        // last-used account with only a Cancel button).
+        try { await GoogleAuth.signOut() } catch (_) {}
+
         const googleUser = await GoogleAuth.signIn()
         const idToken = googleUser.authentication?.idToken
-        if (!idToken) { setGoogleError('No token returned.'); setGoogleLoading(false); return }
-        const { error: sbError } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken })
+
+        if (!idToken) {
+          setGoogleError('No token returned — please try again.')
+          setGoogleLoading(false)
+          return
+        }
+
+        const { error: sbError } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+        })
+
         if (sbError) { setGoogleError(sbError.message); setGoogleLoading(false); return }
         window.location.href = '/dashboard'
       } catch (err: any) {
-        if (!err?.message?.includes('cancel') && !err?.message?.includes('12501')) {
-          setGoogleError(err?.message ?? 'Google sign-in failed.')
+        const msg = err?.message ?? ''
+        // Error code 12501 = user cancelled, 10 = developer error (config),
+        // "canceled" = user dismissed — don't show error for these
+        const userCancelled = msg.includes('12501') || msg.includes('cancel') || msg.includes('Cancel')
+        if (!userCancelled) {
+          setGoogleError(msg || 'Google sign-in failed.')
         }
         setGoogleLoading(false)
       }

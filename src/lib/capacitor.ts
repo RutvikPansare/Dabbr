@@ -20,6 +20,12 @@ export async function initCapacitor() {
   // Hide splash once the app shell is ready
   try { await SplashScreen.hide() } catch (_) {}
 
+  // Pre-initialize Google Auth so the account picker opens instantly on first tap
+  try {
+    const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth')
+    await GoogleAuth.initialize()
+  } catch (_) {}
+
   // ── OAuth deep-link callback ───────────────────────────────────────────────
   // After Google sign-in, the in-app browser redirects to in.dabbr.app://login
   // with ?code=... (PKCE) or #access_token=... (implicit) appended.
