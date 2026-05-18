@@ -1381,7 +1381,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto flex-1 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5">
+            <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5">
             <div className="space-y-2">
               {riders.map(rider => (
                 <button
