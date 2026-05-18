@@ -6,11 +6,9 @@ const config: CapacitorConfig = {
   webDir: 'out', // fallback for local static build; overridden by server.url below
 
   server: {
-    // ─── Point this to your deployed URL once you deploy (e.g. Vercel) ───
-    // url: 'https://your-app.vercel.app',
-    // For local testing on the same WiFi, use your machine's local IP:
-    // url: 'http://192.168.x.x:3000',
-    cleartext: true, // allow HTTP during development
+    // Start at /login — redirects to /dashboard if already signed in,
+    // or shows login screen for new / signed-out users.
+    url: 'https://dabbr.in/login',
     androidScheme: 'https',
   },
 
