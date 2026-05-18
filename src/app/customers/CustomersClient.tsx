@@ -161,9 +161,9 @@ function balancePillClass(days: number) {
 
 function statusBadgeClass(status: CustomerStatus) {
   return {
-    active: 'bg-green-100 text-green-700',
-    paused: 'bg-amber-100 text-amber-700',
-    inactive: 'bg-gray-100 text-gray-500',
+    active:   'bg-green-50 text-green-700 border-green-200',
+    paused:   'bg-amber-50 text-amber-700 border-amber-200',
+    inactive: 'bg-gray-50  text-gray-500  border-gray-200',
   }[status]
 }
 
@@ -1045,57 +1045,67 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   <button
                     key={c.id}
                     onClick={() => openDetail(c)}
-                    className="group relative w-full rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 text-left transition-all duration-300 hover:shadow-md hover:border-orange-200 active:scale-[0.98] overflow-hidden"
+                    className="group relative w-full rounded-2xl bg-white px-4 py-4 shadow-sm border border-gray-100 text-left transition-all duration-200 hover:shadow-md hover:border-orange-200 active:scale-[0.99] overflow-hidden"
                   >
-                    <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 transition-opacity group-hover:opacity-100" />
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-3">
+
+                      {/* ── Left: name + meta ── */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-black text-gray-900 text-base leading-tight group-hover:text-orange-600 transition-colors">
+
+                        {/* Row 1: name + status */}
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-gray-900 text-base leading-tight truncate group-hover:text-orange-600 transition-colors">
                             {c.name}
                           </span>
-                          <span className={`rounded-lg px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusBadgeClass(c.status)}`}>
+                          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${statusBadgeClass(c.status)}`}>
                             {c.status}
                           </span>
                         </div>
+
+                        {/* Row 2: area */}
                         {c.area && (
                           <p className="mt-1 flex items-center gap-1 text-xs font-medium text-gray-400">
                             <MapPin className="w-3 h-3 shrink-0" />{c.area}
                           </p>
                         )}
-                        {/* Meal plan chip */}
-                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1.5">
-                          <ClipboardList className="w-3 h-3 text-orange-400 shrink-0" />
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">Meal Plan</span>
-                          <span className="w-px h-3 bg-orange-200 shrink-0" />
-                          {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]}
-                          <span className="text-xs font-bold text-gray-700 truncate max-w-[100px]">
+
+                        {/* Row 3: plan + slots as uniform chips */}
+                        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-100 px-2.5 py-0.5 text-[11px] font-semibold text-orange-700">
+                            {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]}
                             {plan?.name ?? PLAN_LABEL[c.plan_type]}
                           </span>
-                          <span className="text-orange-200 text-xs">·</span>
-                          <span className="text-xs font-medium text-gray-500">
+                          <span className="rounded-full bg-gray-50 border border-gray-200 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500">
                             {formatMealSlots(plan?.meal_slots ?? c.meal_slots)}
                           </span>
                         </div>
-                        <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-400 group-hover:text-gray-500">
-                          <Smartphone className="w-3 h-3" /> {c.whatsapp_number}
+
+                        {/* Row 4: phone */}
+                        <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-gray-400">
+                          <Smartphone className="w-3 h-3 shrink-0" /> {c.whatsapp_number}
                         </p>
-                        {c.notes && (
-                          <p className="mt-1.5 text-xs text-gray-400 truncate max-w-[200px]">
-                            <StickyNote className="inline w-3 h-3 mr-1 opacity-60" />{c.notes}
-                          </p>
-                        )}
+
+                        {/* Row 5: tags */}
                         {(c.tags ?? []).length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
+                          <div className="mt-1.5 flex flex-wrap gap-1">
                             {c.tags.map(tag => (
-                              <span key={tag} className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${tagColor(tag)}`}>
+                              <span key={tag} className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${tagColor(tag)}`}>
                                 {tag}
                               </span>
                             ))}
                           </div>
                         )}
+
+                        {/* Notes */}
+                        {c.notes && (
+                          <p className="mt-1.5 text-[11px] text-gray-400 truncate max-w-[200px]">
+                            <StickyNote className="inline w-3 h-3 mr-1 opacity-60" />{c.notes}
+                          </p>
+                        )}
                       </div>
-                      <div className="shrink-0 text-right flex flex-col items-end gap-2">
+
+                      {/* ── Right: balance / due ── */}
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
                         {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (() => {
                           const u = computeMonthlyDue({
                             mealsDelivered: c.meals_delivered ?? 0,
@@ -1108,23 +1118,24 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           const col = DUE_COLORS[u.state]
                           return (
                             <>
-                              <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm border ${col.bg} ${col.text}`}>
+                              <span className={`rounded-full px-3 py-1 text-xs font-bold border ${col.bg} ${col.text}`}>
                                 {fmtRupees(u.outstanding)} due
                               </span>
-                              <span className={`flex items-center gap-1 text-[10px] font-bold ${col.text}`}>
+                              <span className={`flex items-center gap-1 text-[11px] font-semibold ${col.text}`}>
                                 <HandCoins className="w-3 h-3" /> Monthly
                               </span>
                             </>
                           )
                         })() : (
                           <>
-                            <span className={`rounded-xl px-3 py-1.5 text-xs font-black shadow-sm ${balancePillClass(c.balance_days)}`}>
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold border ${balancePillClass(c.balance_days)}`}>
                               {c.balance_days}d left
                             </span>
-                            <p className="text-xs font-bold text-gray-400 group-hover:text-gray-600">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
+                            <p className="text-[11px] font-semibold text-gray-400">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
                           </>
                         )}
                       </div>
+
                     </div>
                   </button>
                 )
