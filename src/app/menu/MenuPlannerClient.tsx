@@ -207,6 +207,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   const [weekCopying, setWeekCopying] = useState(false)
   const [goodWeekPickerOpen, setGoodWeekPickerOpen] = useState(false)
   const [stickyExpanded, setStickyExpanded] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const [quickTags, setQuickTags] = useState<MenuQuickTag[]>(initialQuickTags)
   const [customItemInputs, setCustomItemInputs] = useState<Record<string, string>>({})
   const seededTagsRef = useRef(false)
@@ -790,7 +791,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-24 space-y-4">
+      <main className="mx-auto max-w-2xl px-4 pt-20 space-y-3">
         <section className="sticky top-[4.85rem] z-30 -mx-4 border-y border-orange-100/70 bg-[#FDF8F3]/95 px-4 py-3 backdrop-blur-xl">
           {/* Week nav row — always visible */}
           <div className="flex items-center gap-2">
@@ -963,19 +964,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
           </div>
         </section>
 
-        {!!smartSuggestions.length && (
-          <section className="rounded-[1.5rem] border border-orange-100 bg-orange-50/60 p-4">
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-black text-orange-700">
-              <Lightbulb className="w-4 h-4" />
-              Smart nudges
-            </h2>
-            <div className="space-y-1.5">
-              {smartSuggestions.map(suggestion => (
-                <p key={suggestion} className="text-xs font-bold leading-relaxed text-orange-700/80">{suggestion}</p>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Smart nudges — hidden for now */}
 
         <section className="rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="mb-4 flex items-start justify-between gap-3">
@@ -1005,56 +994,70 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <button
-                onClick={() => copyFromDate(addDays(selectedDate, -1), "yesterday's menu")}
-                disabled={workingAction !== null}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 pr-9 text-xs font-black text-orange-600 disabled:opacity-50"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Copy yesterday's
-              </button>
-              <HelpBubble id="copy-yesterday" text="Copies yesterday's saved breakfast, lunch, and dinner into the selected day. It replaces this day's saved menu." />
+          {/* Copy actions — collapsed by default */}
+          <button
+            onClick={() => setActionsOpen(o => !o)}
+            className="flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-bold text-gray-600 active:bg-gray-100 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Copy className="w-3.5 h-3.5" />
+              Copy options
+            </span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {actionsOpen && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => copyFromDate(addDays(selectedDate, -1), "yesterday's menu")}
+                  disabled={workingAction !== null}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 pr-9 text-xs font-black text-orange-600 disabled:opacity-50"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Copy yesterday's
+                </button>
+                <HelpBubble id="copy-yesterday" text="Copies yesterday's saved breakfast, lunch, and dinner into the selected day. It replaces this day's saved menu." />
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => copyFromDate(addDays(selectedDate, -7), "last week's menu")}
+                  disabled={workingAction !== null}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 pr-9 text-xs font-black text-orange-600 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Copy last week
+                </button>
+                <HelpBubble id="copy-last-week" text="Copies the same weekday from 7 days earlier. For example, this Monday copies last Monday's menu." />
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setCopyPickerOpen(open => !open)
+                    setActiveHelp(null)
+                  }}
+                  className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-3 pr-9 text-xs font-black transition-colors ${
+                    copyPickerOpen ? 'border-orange-300 bg-orange-50 text-orange-600' : 'border-gray-200 bg-white text-gray-700'
+                  }`}
+                >
+                  <Copy className="w-4 h-4" />
+                  Choose day
+                  <ChevronDown className={`w-4 h-4 transition-transform ${copyPickerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                <HelpBubble id="choose-day" text="Opens a list of previous dates so you can pick exactly which day to copy from." />
+              </div>
+              <div className="relative">
+                <button
+                  onClick={copyCurrentMenu}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gray-50 px-3 py-3 pr-9 text-xs font-black text-gray-700"
+                >
+                  <Clipboard className="w-4 h-4" />
+                  Copy menu
+                </button>
+                <HelpBubble id="copy-menu" text="Copies this selected day's saved menu text to your device clipboard, ready to paste elsewhere." />
+              </div>
             </div>
-            <div className="relative">
-              <button
-                onClick={() => copyFromDate(addDays(selectedDate, -7), "last week's menu")}
-                disabled={workingAction !== null}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 pr-9 text-xs font-black text-orange-600 disabled:opacity-50"
-              >
-                <Sparkles className="w-4 h-4" />
-                Copy last week
-              </button>
-              <HelpBubble id="copy-last-week" text="Copies the same weekday from 7 days earlier. For example, this Monday copies last Monday's menu." />
-            </div>
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setCopyPickerOpen(open => !open)
-                  setActiveHelp(null)
-                }}
-                className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-3 py-3 pr-9 text-xs font-black transition-colors ${
-                  copyPickerOpen ? 'border-orange-300 bg-orange-50 text-orange-600' : 'border-gray-200 bg-white text-gray-700'
-                }`}
-              >
-                <Copy className="w-4 h-4" />
-                Choose day
-                <ChevronDown className={`w-4 h-4 transition-transform ${copyPickerOpen ? 'rotate-180' : ''}`} />
-              </button>
-              <HelpBubble id="choose-day" text="Opens a list of previous dates so you can pick exactly which day to copy from." />
-            </div>
-            <div className="relative">
-              <button
-                onClick={copyCurrentMenu}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gray-50 px-3 py-3 pr-9 text-xs font-black text-gray-700"
-              >
-                <Clipboard className="w-4 h-4" />
-                Copy menu
-              </button>
-              <HelpBubble id="copy-menu" text="Copies this selected day's saved menu text to your device clipboard, ready to paste elsewhere." />
-            </div>
-          </div>
+          )}
 
           <div className="relative mt-2">
             <button
