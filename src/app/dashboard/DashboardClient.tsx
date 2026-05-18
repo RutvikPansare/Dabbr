@@ -584,7 +584,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="h-9 w-9 rounded-xl bg-white/15 shrink-0" />
           </div>
         </div>
-        <div className="mx-auto max-w-2xl px-4 mt-4">
+        <div className="mx-auto max-w-2xl px-4 mt-24">
           <div className="h-3 w-32 rounded-full bg-gray-200 mb-2 animate-pulse" />
           <div className="grid grid-cols-2 gap-3">
             <div className="h-[72px] rounded-2xl bg-emerald-300/60 animate-pulse" />
@@ -747,7 +747,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Header ── */}
       <div
-        className="sticky top-0 z-30 relative overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        className="fixed inset-x-0 top-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
@@ -785,7 +785,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Packing count cards ── */}
-      <div className="relative z-10 mx-auto max-w-2xl px-4 mt-4">
+      <div className="relative z-10 mx-auto max-w-2xl px-4 mt-24">
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">Today&apos;s packing count</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 shadow-[0_4px_20px_rgba(52,211,153,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
