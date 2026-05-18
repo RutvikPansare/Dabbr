@@ -574,8 +574,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
-        <div className="bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] px-5 pt-5 pb-5">
-          <div className="mx-auto max-w-2xl flex items-center gap-3">
+        <div className="bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] pt-5 pb-5">
+          <div className="mx-auto max-w-2xl px-4 flex items-center gap-3">
             <div className="flex-1 space-y-2">
               <div className="h-2.5 w-28 rounded-full bg-white/20" />
               <div className="h-5 w-44 rounded-full bg-white/30" />
@@ -747,11 +747,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Header ── */}
       <div
-        className="sticky top-0 z-30 relative overflow-hidden px-5 pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        className="sticky top-0 z-30 relative overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-        <div className="relative mx-auto max-w-2xl flex items-center gap-3">
+        <div className="relative mx-auto max-w-2xl px-4 flex items-center gap-3">
           {provider?.logo_url && (
             <img
               src={provider.logo_url}

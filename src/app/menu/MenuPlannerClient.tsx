@@ -888,26 +888,6 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
           </div>
         )}
 
-        <section className="rounded-[1.5rem] border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-black text-gray-900">Served This Week</h2>
-              <p className="text-xs font-semibold text-gray-400">A quick memory of what is already planned</p>
-            </div>
-            <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black text-orange-600">{servedThisWeek.length} dishes</span>
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {servedThisWeek.slice(0, 14).map(item => (
-              <span key={item.label} className="shrink-0 rounded-full bg-[#FDF8F3] px-3 py-1.5 text-[11px] font-black text-gray-600">
-                {item.label}{item.count > 1 ? ` ×${item.count}` : ''}
-              </span>
-            ))}
-            {!servedThisWeek.length && (
-              <span className="text-xs font-semibold text-gray-300">Nothing saved for this week yet.</span>
-            )}
-          </div>
-        </section>
-
         {/* Smart nudges — hidden for now */}
 
         <section className="rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -1102,6 +1082,26 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               </div>
             </div>
           )}
+        </section>
+
+        <section className="rounded-[1.5rem] border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black text-gray-900">Served This Week</h2>
+              <p className="text-xs font-semibold text-gray-400">A quick memory of what is already planned</p>
+            </div>
+            <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black text-orange-600">{servedThisWeek.length} dishes</span>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {servedThisWeek.slice(0, 14).map(item => (
+              <span key={item.label} className="shrink-0 rounded-full bg-[#FDF8F3] px-3 py-1.5 text-[11px] font-black text-gray-600">
+                {item.label}{item.count > 1 ? ` ×${item.count}` : ''}
+              </span>
+            ))}
+            {!servedThisWeek.length && (
+              <span className="text-xs font-semibold text-gray-300">Nothing saved for this week yet.</span>
+            )}
+          </div>
         </section>
 
         <div className="space-y-3">
