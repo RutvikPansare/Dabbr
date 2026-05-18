@@ -1,6 +1,5 @@
-import GoogleSignInButton from '@/components/GoogleSignInButton'
-import PhoneLoginForm from './PhoneLoginForm'
 import Link from 'next/link'
+import LoginTabs from './LoginTabs'
 
 export default async function LoginPage({
   searchParams,
@@ -8,7 +7,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; tab?: string }>
 }) {
   const { error, tab } = await searchParams
-  const showPhone = tab === 'phone'
+  const defaultTab = tab === 'phone' ? 'phone' : 'google'
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#FF7B3F] via-[#F4622A] to-[#D94C14] px-4 overflow-hidden">
@@ -57,36 +56,8 @@ export default async function LoginPage({
             </div>
           )}
 
-          {/* Tab switcher */}
-          <div className="flex rounded-2xl bg-gray-100 p-1 gap-1">
-            <a
-              href="/login"
-              className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-center transition-all ${
-                !showPhone
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Google
-            </a>
-            <a
-              href="/login?tab=phone"
-              className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-center transition-all ${
-                showPhone
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Phone OTP
-            </a>
-          </div>
-
-          {/* Tab content */}
-          {showPhone ? (
-            <PhoneLoginForm />
-          ) : (
-            <GoogleSignInButton />
-          )}
+          {/* Client-aware tab switcher — auto-selects Phone OTP on native */}
+          <LoginTabs defaultTab={defaultTab} />
         </div>
 
         {/* Bottom links */}
