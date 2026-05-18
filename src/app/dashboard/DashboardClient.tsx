@@ -923,28 +923,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   {deliveryToday.length} customer{deliveryToday.length !== 1 ? 's' : ''} total
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              {riders.length > 0 && deliveryToday.length > 0 && (
                 <button
-                  onClick={handleCopyList}
-                  className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide transition-all duration-300 active:scale-95 ${
-                    copied
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'btn-secondary'
-                  }`}
+                  onClick={() => setRiderModal({ area: 'All deliveries', members: deliveryToday })}
+                  className="flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide bg-orange-500 text-white shadow-sm active:scale-95 transition-all duration-300"
                 >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Copied!' : 'Copy'}
+                  <Send className="w-3.5 h-3.5" />
+                  Send
                 </button>
-                {riders.length > 0 && deliveryToday.length > 0 && (
-                  <button
-                    onClick={() => setRiderModal({ area: 'All deliveries', members: deliveryToday })}
-                    className="flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide bg-orange-500 text-white shadow-sm active:scale-95 transition-all duration-300"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    Send
-                  </button>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Progress strip (tracking ON, in-progress only) */}
@@ -969,37 +956,40 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
             {/* View toggle + bulk controls */}
             {deliveryToday.length > 0 && (
-              <div className="mb-3 flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setDeliveryView('list')}
-                  className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${
-                    deliveryView === 'list'
-                      ? 'bg-gray-900 text-white shadow-sm'
-                      : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1" fill="currentColor"/></svg>
-                  List
-                </button>
-                <button
-                  onClick={() => setDeliveryView('area')}
-                  className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${
-                    deliveryView === 'area'
-                      ? 'bg-gray-900 text-white shadow-sm'
-                      : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><path d="M8 1.5C5.51 1.5 3.5 3.51 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6c0-2.49-2.01-4.5-4.5-4.5zm0 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="currentColor"/></svg>
-                  By Area
-                </button>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                {/* Left: view tabs */}
+                <div className="flex items-center gap-1.5 rounded-xl bg-gray-100 p-1">
+                  <button
+                    onClick={() => setDeliveryView('list')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      deliveryView === 'list'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1" fill="currentColor"/></svg>
+                    List
+                  </button>
+                  <button
+                    onClick={() => setDeliveryView('area')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
+                      deliveryView === 'area'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><path d="M8 1.5C5.51 1.5 3.5 3.51 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6c0-2.49-2.01-4.5-4.5-4.5zm0 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="currentColor"/></svg>
+                    By Area
+                  </button>
+                </div>
 
+                {/* Right: actions */}
                 {deliveryTrackingEnabled && (
-                  <>
-                    <div className="flex-1" />
+                  <div className="flex items-center gap-1.5">
                     {!bulkMode && pendingCount > 0 && (
                       <button
                         onClick={() => markAllDelivered(deliveryToday)}
-                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-all active:scale-95"
+                        className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-green-50 border border-green-200 text-green-700 active:scale-95 transition-all"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
                         All done
@@ -1012,7 +1002,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           const allSelected = deliveryToday.every(c => selectedIds.has(c.id))
                           setSelectedIds(allSelected ? new Set() : allIds)
                         }}
-                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold bg-white border border-gray-200 text-gray-500 hover:border-gray-300 transition-all active:scale-95"
+                        className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 text-gray-500 active:scale-95 transition-all"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
                         {deliveryToday.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
@@ -1020,16 +1010,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     )}
                     <button
                       onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
-                      className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all active:scale-95 ${
+                      className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
                         bulkMode
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300'
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-white border border-gray-200 text-gray-500'
                       }`}
                     >
                       <Users className="w-3.5 h-3.5" />
                       {bulkMode ? 'Cancel' : 'Select'}
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             )}
@@ -1191,14 +1181,23 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               <span className="text-xs font-bold text-gray-300">{selectedIds.size} selected</span>
               <div className="flex-1" />
               <button
+                onClick={handleCopyList}
+                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all active:scale-95 ${
+                  copied ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-gray-200'
+                }`}
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+              <button
                 onClick={() => bulkMark('skipped')}
-                className="flex items-center gap-1.5 rounded-xl bg-amber-500/20 px-4 py-2.5 text-xs font-bold text-amber-300 active:scale-95 transition-all"
+                className="flex items-center gap-1.5 rounded-xl bg-amber-500/20 px-3.5 py-2 text-xs font-bold text-amber-300 active:scale-95 transition-all"
               >
                 <X className="w-3.5 h-3.5" /> Skip
               </button>
               <button
                 onClick={() => bulkMark('delivered')}
-                className="flex items-center gap-1.5 rounded-xl bg-green-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-green-900/30 active:scale-95 transition-all"
+                className="flex items-center gap-1.5 rounded-xl bg-green-500 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-green-900/30 active:scale-95 transition-all"
               >
                 <Check className="w-3.5 h-3.5" /> Delivered
               </button>
