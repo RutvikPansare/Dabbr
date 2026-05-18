@@ -3,6 +3,7 @@ import { Outfit } from 'next/font/google'
 import './globals.css'
 import ServiceWorkerRegistration from './ServiceWorkerRegistration'
 import CapacitorInit from './CapacitorInit'
+import NativeStatusBar from './NativeStatusBar'
 
 const outfit = Outfit({ subsets: ['latin'] })
 
@@ -46,6 +47,7 @@ export default function RootLayout({
         {children}
         <ServiceWorkerRegistration />
         <CapacitorInit />
+        <NativeStatusBar />
       </body>
     </html>
   )

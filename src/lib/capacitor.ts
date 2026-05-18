@@ -11,13 +11,13 @@ export async function initCapacitor() {
   const { StatusBar, Style } = await import('@capacitor/status-bar')
   const { SplashScreen } = await import('@capacitor/splash-screen')
 
-  // Style the status bar and push the WebView BELOW it so headers aren't
-  // cut off. overlay:false means the status bar occupies its own space above
-  // the WebView — no padding hacks needed anywhere in the app.
+  // Push the WebView BELOW the status bar so headers aren't cut off.
+  // overlay:false means the status bar occupies its own space — no per-page
+  // padding hacks needed. Colour/style is managed per-route by NativeStatusBar.
   try {
     await StatusBar.setOverlaysWebView({ overlay: false })
     await StatusBar.setStyle({ style: Style.Dark })
-    await StatusBar.setBackgroundColor({ color: '#F4622A' })
+    await StatusBar.setBackgroundColor({ color: '#F4622A' }) // initial colour; NativeStatusBar updates on navigation
   } catch (_) { /* desktop / unsupported */ }
 
   // Hide splash once the app shell is ready
