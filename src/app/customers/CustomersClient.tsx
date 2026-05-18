@@ -851,10 +851,10 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+          <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <div className="flex-1">
-              <h1 className="text-2xl font-black text-gray-900 tracking-tight leading-tight">Customers</h1>
+              <h1 className="text-xl font-black text-gray-900 tracking-tight leading-tight">Customers</h1>
               <p className="text-xs font-semibold text-orange-600/80">{customers.length} total</p>
             </div>
             <button
@@ -1371,8 +1371,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+          <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
               className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
@@ -1930,8 +1930,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+          <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
               className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
@@ -2263,8 +2263,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+          <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
               className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
@@ -2339,8 +2339,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 px-4 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-          <div className="mx-auto flex max-w-2xl items-center gap-3">
+        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+          <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
               className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
