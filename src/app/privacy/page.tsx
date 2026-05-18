@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import BackButton from '@/components/BackButton'
 
 export const metadata = {
   title: 'Privacy Policy — Dabbr',
@@ -124,9 +125,9 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-100">
-          <Link href="/login" className="text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors">
+          <BackButton className="text-sm font-semibold text-orange-500 hover:text-orange-600 transition-colors">
             ← Back to Dabbr
-          </Link>
+          </BackButton>
         </div>
       </main>
     </div>
