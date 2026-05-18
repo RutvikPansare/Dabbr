@@ -854,7 +854,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <div className="flex-1">
-              <h1 className="text-xl font-black text-gray-900 tracking-tight leading-tight">Customers</h1>
+              <h1 className="text-xl font-black text-gray-900 tracking-tight">Customers</h1>
               <p className="text-xs font-semibold text-orange-600/80">{customers.length} total</p>
             </div>
 
