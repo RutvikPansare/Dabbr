@@ -73,7 +73,7 @@ export default function LoginForm() {
         window.location.href = '/dashboard'
       } catch (err: any) {
         if (!err?.message?.includes('cancel') && !err?.message?.includes('12501')) {
-          setGoogleError('Google sign-in failed.')
+          setGoogleError(err?.message ?? 'Google sign-in failed.')
         }
         setGoogleLoading(false)
       }
