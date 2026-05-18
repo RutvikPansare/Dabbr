@@ -857,13 +857,6 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               <h1 className="text-xl font-black text-gray-900 tracking-tight leading-tight">Customers</h1>
               <p className="text-xs font-semibold text-orange-600/80">{customers.length} total</p>
             </div>
-            <button
-              onClick={() => router.push('/meal-plans')}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all shrink-0"
-              title="Meal Plans"
-            >
-              <ClipboardList className="w-4 h-4" />
-            </button>
 
             {/* Import dropdown */}
             <div className="relative">
@@ -946,6 +939,16 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               )}
             </button>
           </div>
+
+          {/* Meal Plans shortcut */}
+          <button
+            onClick={() => router.push('/meal-plans')}
+            className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-2.5 shadow-sm active:scale-[0.98] transition-transform"
+          >
+            <ClipboardList className="w-4 h-4 text-orange-500 shrink-0" />
+            <span className="flex-1 text-left text-xs font-bold text-gray-700">Meal Plans</span>
+            <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+          </button>
 
           {/* Status tabs */}
           <div className="flex rounded-2xl bg-white/50 p-1.5 shadow-inner border border-gray-200/50 backdrop-blur-sm gap-1">
