@@ -206,6 +206,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   const [weekCopyModalOpen, setWeekCopyModalOpen] = useState(false)
   const [weekCopying, setWeekCopying] = useState(false)
   const [goodWeekPickerOpen, setGoodWeekPickerOpen] = useState(false)
+  const [stickyExpanded, setStickyExpanded] = useState(false)
   const [quickTags, setQuickTags] = useState<MenuQuickTag[]>(initialQuickTags)
   const [customItemInputs, setCustomItemInputs] = useState<Record<string, string>>({})
   const seededTagsRef = useRef(false)
@@ -794,127 +795,139 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
 
       <main className="mx-auto max-w-2xl px-4 pt-24 space-y-4">
         <section className="sticky top-[4.85rem] z-30 -mx-4 border-y border-orange-100/70 bg-[#FDF8F3]/95 px-4 py-3 backdrop-blur-xl">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <button onClick={() => changeWeek(-1)} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm border border-orange-100">
-              <ChevronLeft className="w-5 h-5" />
+          {/* Week nav row — always visible */}
+          <div className="flex items-center gap-2">
+            <button onClick={() => changeWeek(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm border border-orange-100">
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="text-center">
-              <p className="text-sm font-black text-gray-900">Weekly menu</p>
-              <p className="text-xs font-semibold text-gray-400">{labelDate(weekStart)} to {labelDate(addDays(weekStart, 6))}</p>
-            </div>
-            <button onClick={() => changeWeek(1)} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm border border-orange-100">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {days.map(date => {
-              const isSelected = date === selectedDate
-              const isToday = date === initialToday
-              const count = selectedMenusFor(date).length
-              const off = isDayOff(date)
-              return (
-                <button
-                  key={date}
-                  onClick={() => {
-                    setSelectedDate(date)
-                    setCopyPickerOpen(false)
-                    setActiveHelp(null)
-                  }}
-                  className={`min-w-[4.8rem] rounded-2xl border px-3 py-3 text-left transition-all ${
-                    off
-                      ? isSelected
-                        ? 'border-gray-300 bg-gray-200 text-gray-500 shadow-sm'
-                        : 'border-gray-100 bg-gray-50 text-gray-400 shadow-sm'
-                      : isSelected
-                        ? 'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                        : 'border-gray-100 bg-white text-gray-500 shadow-sm'
-                  }`}
-                >
-                  <span className={`block text-[11px] font-black uppercase tracking-wider ${
-                    off ? 'text-gray-400' : isSelected ? 'text-white/80' : 'text-gray-400'
-                  }`}>{shortDay(date)}</span>
-                  <span className={`mt-1 block text-2xl font-black leading-none ${off ? 'text-gray-400' : ''}`}>{dayNumber(date)}</span>
-                  <span className={`mt-2 flex items-center gap-1 text-[10px] font-black ${
-                    off ? 'text-gray-400' : isSelected ? 'text-white/85' : 'text-gray-400'
-                  }`}>
-                    {off
-                      ? '🏖️ Off'
-                      : <>
-                          {isToday && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />}
-                          {count ? `${count} items` : isToday ? 'Today' : 'Plan'}
-                        </>
-                    }
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="relative mt-3">
             <button
-              onClick={() => {
-                setActiveHelp(null)
-                setWeekCopyModalOpen(true)
-              }}
-              disabled={weekCopying}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 pr-9 text-xs font-black text-white shadow-lg shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
+              onClick={() => setStickyExpanded(open => !open)}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white border border-orange-100 px-3 py-2 shadow-sm"
             >
-              <Copy className="w-4 h-4" />
-              Copy entire previous week
-            </button>
-            <HelpBubble id="copy-entire-week" text="Copies every saved menu item from the previous week into this week. After confirmation, this week's existing menu is replaced." />
-          </div>
-
-          <button
-            onClick={() => {
-              setActiveHelp(null)
-              setGoodWeekPickerOpen(open => !open)
-            }}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-100 bg-white px-4 py-3 text-xs font-black text-orange-600 shadow-sm"
-          >
-            <Sparkles className="w-4 h-4" />
-            Repeat last good week
-            <ChevronDown className={`w-4 h-4 transition-transform ${goodWeekPickerOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {goodWeekPickerOpen && (
-            <div className="mt-2 rounded-3xl border border-orange-100 bg-white p-3 shadow-sm">
-              <p className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Reusable weekly patterns</p>
-              <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
-                {goodWeekOptions.map(option => (
-                  <button
-                    key={option.start}
-                    onClick={() => copyWeekFrom(option.start, `Reused menu from ${labelDate(option.start)} to ${labelDate(option.end)}.`)}
-                    disabled={weekCopying}
-                    className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-left shadow-sm disabled:opacity-50"
-                  >
-                    <span className="block text-sm font-black text-gray-900">{labelDate(option.start)} to {labelDate(option.end)}</span>
-                    <span className="mt-1 block text-[11px] font-bold text-gray-400">{option.itemCount} saved items</span>
-                    <span className="mt-2 flex gap-1 overflow-hidden">
-                      {option.preview.map(item => (
-                        <span key={item} className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-black text-orange-600">{item}</span>
-                      ))}
-                    </span>
-                  </button>
-                ))}
-                {!goodWeekOptions.length && (
-                  <p className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-xs font-bold text-gray-400">
-                    No older planned weeks found yet. Once you save a few weeks, they will show up here.
-                  </p>
-                )}
+              <div className="text-center">
+                <p className="text-xs font-black text-gray-900 leading-none">Weekly menu</p>
+                <p className="mt-0.5 text-[10px] font-semibold text-gray-400 leading-none">{labelDate(weekStart)} – {labelDate(addDays(weekStart, 6))}</p>
               </div>
-            </div>
-          )}
-
-          {!hasCurrentWeek && (
-            <button
-              onClick={() => loadWeek(thisWeekStart, initialToday)}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 py-2 text-xs font-black text-orange-600"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Jump to current week
+              <ChevronDown className={`w-4 h-4 text-orange-500 transition-transform shrink-0 ${stickyExpanded ? 'rotate-180' : ''}`} />
             </button>
+            <button onClick={() => changeWeek(1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm border border-orange-100">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Collapsible: day pills + copy buttons */}
+          {stickyExpanded && (
+            <>
+              <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {days.map(date => {
+                  const isSelected = date === selectedDate
+                  const isToday = date === initialToday
+                  const count = selectedMenusFor(date).length
+                  const off = isDayOff(date)
+                  return (
+                    <button
+                      key={date}
+                      onClick={() => {
+                        setSelectedDate(date)
+                        setCopyPickerOpen(false)
+                        setActiveHelp(null)
+                      }}
+                      className={`min-w-[4.8rem] rounded-2xl border px-3 py-3 text-left transition-all ${
+                        off
+                          ? isSelected
+                            ? 'border-gray-300 bg-gray-200 text-gray-500 shadow-sm'
+                            : 'border-gray-100 bg-gray-50 text-gray-400 shadow-sm'
+                          : isSelected
+                            ? 'border-orange-500 bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                            : 'border-gray-100 bg-white text-gray-500 shadow-sm'
+                      }`}
+                    >
+                      <span className={`block text-[11px] font-black uppercase tracking-wider ${
+                        off ? 'text-gray-400' : isSelected ? 'text-white/80' : 'text-gray-400'
+                      }`}>{shortDay(date)}</span>
+                      <span className={`mt-1 block text-2xl font-black leading-none ${off ? 'text-gray-400' : ''}`}>{dayNumber(date)}</span>
+                      <span className={`mt-2 flex items-center gap-1 text-[10px] font-black ${
+                        off ? 'text-gray-400' : isSelected ? 'text-white/85' : 'text-gray-400'
+                      }`}>
+                        {off
+                          ? '🏖️ Off'
+                          : <>
+                              {isToday && <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />}
+                              {count ? `${count} items` : isToday ? 'Today' : 'Plan'}
+                            </>
+                        }
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="relative mt-3">
+                <button
+                  onClick={() => {
+                    setActiveHelp(null)
+                    setWeekCopyModalOpen(true)
+                  }}
+                  disabled={weekCopying}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 pr-9 text-xs font-black text-white shadow-lg shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy entire previous week
+                </button>
+                <HelpBubble id="copy-entire-week" text="Copies every saved menu item from the previous week into this week. After confirmation, this week's existing menu is replaced." />
+              </div>
+
+              <button
+                onClick={() => {
+                  setActiveHelp(null)
+                  setGoodWeekPickerOpen(open => !open)
+                }}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-orange-100 bg-white px-4 py-3 text-xs font-black text-orange-600 shadow-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                Repeat last good week
+                <ChevronDown className={`w-4 h-4 transition-transform ${goodWeekPickerOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {goodWeekPickerOpen && (
+                <div className="mt-2 rounded-3xl border border-orange-100 bg-white p-3 shadow-sm">
+                  <p className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Reusable weekly patterns</p>
+                  <div className="grid max-h-56 gap-2 overflow-y-auto pr-1">
+                    {goodWeekOptions.map(option => (
+                      <button
+                        key={option.start}
+                        onClick={() => copyWeekFrom(option.start, `Reused menu from ${labelDate(option.start)} to ${labelDate(option.end)}.`)}
+                        disabled={weekCopying}
+                        className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-left shadow-sm disabled:opacity-50"
+                      >
+                        <span className="block text-sm font-black text-gray-900">{labelDate(option.start)} to {labelDate(option.end)}</span>
+                        <span className="mt-1 block text-[11px] font-bold text-gray-400">{option.itemCount} saved items</span>
+                        <span className="mt-2 flex gap-1 overflow-hidden">
+                          {option.preview.map(item => (
+                            <span key={item} className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-black text-orange-600">{item}</span>
+                          ))}
+                        </span>
+                      </button>
+                    ))}
+                    {!goodWeekOptions.length && (
+                      <p className="rounded-2xl bg-[#FDF8F3] px-3 py-3 text-xs font-bold text-gray-400">
+                        No older planned weeks found yet. Once you save a few weeks, they will show up here.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!hasCurrentWeek && (
+                <button
+                  onClick={() => loadWeek(thisWeekStart, initialToday)}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-50 py-2 text-xs font-black text-orange-600"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Jump to current week
+                </button>
+              )}
+            </>
           )}
         </section>
 
