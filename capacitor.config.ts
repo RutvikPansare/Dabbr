@@ -19,6 +19,14 @@ const config: CapacitorConfig = {
   },
 
   plugins: {
+    GoogleAuth: {
+      // Web client ID — needed so Google returns an idToken Supabase can verify.
+      // The Android client ID is registered via SHA-1 in Google Cloud Console.
+      clientId: '482381661790-e3fgcl44fph6cdidrsq1lq412sf98tt5.apps.googleusercontent.com',
+      scopes: ['profile', 'email'],
+      serverClientId: '482381661790-e3fgcl44fph6cdidrsq1lq412sf98tt5.apps.googleusercontent.com',
+      forceCodeForRefreshToken: true,
+    },
     SplashScreen: {
       launchShowDuration: 1500,
       launchAutoHide: true,

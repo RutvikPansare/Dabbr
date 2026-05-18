@@ -9,12 +9,9 @@ type Tab = 'google' | 'phone'
 export default function LoginTabs({ defaultTab }: { defaultTab: Tab }) {
   const [tab, setTab] = useState<Tab>(defaultTab)
 
-  // On native Android/iOS, default to Phone OTP — Google OAuth requires
-  // a browser window which breaks the native app UX.
-  useEffect(() => {
-    const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
-    if (isNative) setTab('phone')
-  }, [])
+  // No forced tab switch — native Google Sign-In now works without a browser.
+  // Both tabs work on web and native.
+  useEffect(() => {}, [])
 
   return (
     <div className="space-y-5">
