@@ -1,6 +1,7 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { CalendarDays, CreditCard, Home, Settings, Users } from 'lucide-react'
 
 const TABS = [
@@ -13,7 +14,6 @@ const TABS = [
 
 export default function BottomNav() {
   const pathname = usePathname()
-  const router = useRouter()
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom)] pt-2 glass-nav">
@@ -24,9 +24,10 @@ export default function BottomNav() {
             || (tab.href === '/customers' && pathname.startsWith('/meal-plans'))
           const Icon = tab.icon
           return (
-            <button
+            <Link
               key={tab.href}
-              onClick={() => router.push(tab.href)}
+              href={tab.href}
+              prefetch={true}
               className={`group flex flex-1 flex-col items-center gap-1 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all duration-300 active:scale-90 ${
                 active ? 'text-[#F4622A]' : 'text-gray-400 hover:text-gray-700'
               }`}
@@ -35,7 +36,7 @@ export default function BottomNav() {
                 <Icon className={`h-[18px] w-[18px] transition-transform duration-300 ${active ? 'scale-110 text-orange-600' : 'group-hover:scale-110 text-gray-400'}`} strokeWidth={active ? 2.5 : 2} />
               </div>
               <span className={`transition-opacity duration-300 ${active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}>{tab.label}</span>
-            </button>
+            </Link>
           )
         })}
       </div>
