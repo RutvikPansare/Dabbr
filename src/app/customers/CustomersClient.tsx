@@ -859,10 +859,10 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
             <button
               onClick={() => router.push('/meal-plans')}
-              className="flex items-center gap-2 rounded-2xl bg-white border-2 border-gray-200 px-4 py-2.5 text-xs font-bold text-gray-700 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all"
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all shrink-0"
+              title="Meal Plans"
             >
-              <ClipboardList className="w-3.5 h-3.5" />
-              Meal Plans
+              <ClipboardList className="w-4 h-4" />
             </button>
 
             {/* Import dropdown */}

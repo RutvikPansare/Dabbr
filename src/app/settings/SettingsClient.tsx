@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -584,6 +584,22 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             </button>
           </div>
         </form>
+
+        {/* Meal Plans shortcut */}
+        <button
+          type="button"
+          onClick={() => router.push('/meal-plans')}
+          className="glass-card w-full rounded-[2rem] p-5 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-transform"
+        >
+          <span className="flex items-center justify-center p-2.5 bg-orange-50 rounded-xl shrink-0">
+            <ClipboardList className="w-5 h-5 text-orange-500" />
+          </span>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-black text-gray-900">Meal Plans</p>
+            <p className="text-xs font-medium text-gray-400 mt-0.5">Manage plans, pricing and customer subscriptions</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+        </button>
 
         {/* Features — separate from profile form, saves instantly */}
         <div className="glass-card rounded-[2rem] p-6 shadow-sm">
