@@ -1,13 +1,12 @@
 import Link from 'next/link'
-import LoginTabs from './LoginTabs'
+import LoginForm from './LoginTabs'
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; tab?: string }>
+  searchParams: Promise<{ error?: string }>
 }) {
-  const { error, tab } = await searchParams
-  const defaultTab = tab === 'phone' ? 'phone' : 'google'
+  const { error } = await searchParams
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#FF7B3F] via-[#F4622A] to-[#D94C14] px-4 overflow-hidden">
@@ -37,7 +36,6 @@ export default async function LoginPage({
 
         {/* Card */}
         <div className="w-full rounded-[2rem] bg-white/95 backdrop-blur-sm shadow-2xl shadow-black/20 p-6 space-y-5">
-
           <div>
             <h2 className="text-xl font-black text-gray-900 tracking-tight">
               Sign in to your kitchen 🍱
@@ -56,8 +54,7 @@ export default async function LoginPage({
             </div>
           )}
 
-          {/* Client-aware tab switcher — auto-selects Phone OTP on native */}
-          <LoginTabs defaultTab={defaultTab} />
+          <LoginForm />
         </div>
 
         {/* Bottom links */}
