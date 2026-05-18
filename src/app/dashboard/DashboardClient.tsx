@@ -1359,8 +1359,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           onClick={() => setRiderModal(null)}
         >
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          {/* pb-[env(safe-area-inset-bottom)] lifts the sheet above the Android nav bar */}
+          <div className="relative w-full max-w-lg sm:mx-4 pb-[env(safe-area-inset-bottom)] sm:pb-0">
           <div
-            className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl sm:mx-4 flex flex-col max-h-[80vh]"
+            className="rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden"
+            style={{ maxHeight: 'min(82vh, 82dvh)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="px-5 pt-5 shrink-0">
@@ -1381,7 +1384,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-5">
+            <div className="overflow-y-auto overscroll-contain flex-1 min-h-0 px-5 pb-6">
             <div className="space-y-2">
               {riders.map(rider => (
                 <button
@@ -1403,6 +1406,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               ))}
             </div>
             </div>
+          </div>
           </div>
         </div>
       )}
