@@ -1,20 +1,19 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { X, Search, UserCheck, Phone, Users, AlertTriangle, Check, Loader2 } from 'lucide-react'
+import { X, Search, Phone, Users, AlertTriangle, Loader2, ChevronRight } from 'lucide-react'
 
 interface ContactEntry {
   id: string
   name: string
   phone: string          // normalised 10-digit
   phoneRaw: string       // as returned by OS
-  selected: boolean
 }
 
 interface Props {
   providerId: string
   mealPlanId: string     // default plan to assign
-  onImport: (contacts: { name: string; phone: string }[]) => Promise<void>
+  onImport: (contact: { name: string; phone: string }) => void
   onClose: () => void
 }
 
@@ -33,15 +32,13 @@ function isValidIndianMobile(phone: string): boolean {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-type Step = 'loading' | 'error' | 'list' | 'importing' | 'done'
+type Step = 'loading' | 'error' | 'list'
 
 export default function ContactsImport({ onImport, onClose }: Props) {
   const [step, setStep] = useState<Step>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [contacts, setContacts] = useState<ContactEntry[]>([])
   const [search, setSearch] = useState('')
-  const [importing, setImporting] = useState(false)
-  const [importedCount, setImportedCount] = useState(0)
 
   // ── Load contacts on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -51,13 +48,11 @@ export default function ContactsImport({ onImport, onClose }: Props) {
   async function loadContacts() {
     setStep('loading')
     try {
-      // Check if running inside Capacitor (native Android app)
       const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
 
       if (isNative) {
         await loadNativeContacts()
       } else {
-        // Web Contact Picker API (Chrome Android browser)
         if ('contacts' in navigator && 'ContactsManager' in window) {
           await loadWebContacts()
         } else {
@@ -72,11 +67,6 @@ export default function ContactsImport({ onImport, onClose }: Props) {
   }
 
   async function loadNativeContacts() {
-    // Access the Capacitor native plugin bridge directly.
-    // The app loads web content from a remote URL (dabbr.in), so we can't
-    // use the npm package import (webpack alias would replace it with the stub).
-    // Capacitor always injects its bridge into the WebView, so the native
-    // plugin is always available via window.Capacitor.Plugins.Contacts.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ContactsPlugin = (window as any).Capacitor?.Plugins?.Contacts
 
@@ -86,46 +76,37 @@ export default function ContactsImport({ onImport, onClose }: Props) {
       return
     }
 
-    // Request permission
     const { contacts: permResult } = await ContactsPlugin.requestPermissions()
     if (permResult !== 'granted') {
-      setErrorMsg('Contacts permission was denied. Please allow it in your phone\'s Settings → Apps → Dabbr → Permissions.')
+      setErrorMsg("Contacts permission was denied. Please allow it in your phone's Settings → Apps → Dabbr → Permissions.")
       setStep('error')
       return
     }
 
     const { contacts: rawContacts } = await ContactsPlugin.getContacts({
-      projection: {
-        name: true,
-        phones: true,
-      },
+      projection: { name: true, phones: true },
     })
 
-    const entries = buildEntries(
+    setContacts(buildEntries(
       (rawContacts ?? []).map((c: any) => ({
         name: c.name?.display ?? c.name?.given ?? '',
         phones: (c.phones ?? []).map((p: any) => p.number ?? ''),
       }))
-    )
-
-    setContacts(entries)
+    ))
     setStep('list')
   }
 
   async function loadWebContacts() {
-    // Web Contact Picker API — only available on Chrome Android
     const props = ['name', 'tel']
     const opts = { multiple: true }
     const results = await (navigator as any).contacts.select(props, opts)
 
-    const entries = buildEntries(
+    setContacts(buildEntries(
       (results ?? []).map((c: any) => ({
         name: Array.isArray(c.name) ? c.name[0] : (c.name ?? ''),
         phones: Array.isArray(c.tel) ? c.tel : [c.tel ?? ''],
       }))
-    )
-
-    setContacts(entries)
+    ))
     setStep('list')
   }
 
@@ -137,7 +118,6 @@ export default function ContactsImport({ onImport, onClose }: Props) {
       const name = c.name.trim()
       if (!name) continue
 
-      // Pick the first valid Indian mobile number
       let bestPhone = ''
       let bestRaw = ''
       for (const ph of c.phones) {
@@ -153,22 +133,14 @@ export default function ContactsImport({ onImport, onClose }: Props) {
         }
       }
 
-      if (!bestRaw) continue // no phone at all — skip
+      if (!bestRaw) continue
 
-      // Deduplicate by phone
       if (seen.has(bestPhone)) continue
       seen.add(bestPhone)
 
-      entries.push({
-        id: `${name}-${bestPhone}`,
-        name,
-        phone: bestPhone,
-        phoneRaw: bestRaw,
-        selected: false,
-      })
+      entries.push({ id: `${name}-${bestPhone}`, name, phone: bestPhone, phoneRaw: bestRaw })
     }
 
-    // Sort: valid mobile numbers first, then alphabetically
     return entries.sort((a, b) => {
       const aValid = isValidIndianMobile(a.phone)
       const bValid = isValidIndianMobile(b.phone)
@@ -177,7 +149,7 @@ export default function ContactsImport({ onImport, onClose }: Props) {
     })
   }
 
-  // ── Selection ──────────────────────────────────────────────────────────────
+  // ── Filter ─────────────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -185,30 +157,6 @@ export default function ContactsImport({ onImport, onClose }: Props) {
       ? contacts.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q))
       : contacts
   }, [contacts, search])
-
-  const selectedCount = contacts.filter(c => c.selected).length
-  const allFilteredSelected = filtered.length > 0 && filtered.every(c => c.selected)
-
-  function toggleContact(id: string) {
-    setContacts(prev => prev.map(c => c.id === id ? { ...c, selected: !c.selected } : c))
-  }
-
-  function toggleAll() {
-    const ids = new Set(filtered.map(c => c.id))
-    setContacts(prev => prev.map(c => ids.has(c.id) ? { ...c, selected: !allFilteredSelected } : c))
-  }
-
-  // ── Import ─────────────────────────────────────────────────────────────────
-
-  async function handleImport() {
-    const selected = contacts.filter(c => c.selected)
-    if (!selected.length) return
-    setImporting(true)
-    await onImport(selected.map(c => ({ name: c.name, phone: c.phone })))
-    setImportedCount(selected.length)
-    setImporting(false)
-    setStep('done')
-  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -220,7 +168,6 @@ export default function ContactsImport({ onImport, onClose }: Props) {
         style={{ maxHeight: '90vh' }}
         onClick={e => e.stopPropagation()}
       >
-
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b border-gray-100 shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100">
@@ -230,7 +177,7 @@ export default function ContactsImport({ onImport, onClose }: Props) {
             <p className="text-sm font-black text-gray-900">Import from Contacts</p>
             {step === 'list' && (
               <p className="text-xs font-medium text-gray-400">
-                {contacts.length} contacts found · {selectedCount} selected
+                {contacts.length} contacts · tap one to add
               </p>
             )}
           </div>
@@ -263,24 +210,11 @@ export default function ContactsImport({ onImport, onClose }: Props) {
             </div>
           )}
 
-          {/* Done */}
-          {step === 'done' && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-100">
-                <UserCheck className="w-8 h-8 text-green-600" />
-              </div>
-              <p className="text-base font-black text-green-700">{importedCount} customer{importedCount !== 1 ? 's' : ''} imported!</p>
-              <button onClick={onClose} className="mt-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-bold text-white active:scale-95 transition-all">
-                Done
-              </button>
-            </div>
-          )}
-
           {/* Contact list */}
           {step === 'list' && (
             <div>
-              {/* Search + select all */}
-              <div className="px-4 pt-3 pb-2 space-y-2 sticky top-0 bg-white z-10 border-b border-gray-50">
+              {/* Search */}
+              <div className="px-4 pt-3 pb-2 sticky top-0 bg-white z-10 border-b border-gray-50">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -291,17 +225,6 @@ export default function ContactsImport({ onImport, onClose }: Props) {
                     className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-9 pr-4 py-2.5 text-sm font-medium outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                   />
                 </div>
-                {filtered.length > 0 && (
-                  <button
-                    onClick={toggleAll}
-                    className="flex items-center gap-2 text-xs font-bold text-orange-600 active:scale-95 transition-all"
-                  >
-                    <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors ${allFilteredSelected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
-                      {allFilteredSelected && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    {allFilteredSelected ? 'Deselect all' : `Select all (${filtered.length})`}
-                  </button>
-                )}
               </div>
 
               {/* Contacts */}
@@ -316,20 +239,13 @@ export default function ContactsImport({ onImport, onClose }: Props) {
                     return (
                       <button
                         key={c.id}
-                        onClick={() => toggleContact(c.id)}
+                        onClick={() => { onImport({ name: c.name, phone: c.phone }); onClose() }}
                         className={`w-full flex items-center gap-3 px-5 py-3.5 text-left transition-colors active:bg-orange-50 ${
                           i !== filtered.length - 1 ? 'border-b border-gray-50' : ''
-                        } ${c.selected ? 'bg-orange-50/60' : ''}`}
+                        }`}
                       >
-                        {/* Checkbox */}
-                        <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
-                          c.selected ? 'bg-orange-500 border-orange-500' : 'border-gray-300'
-                        }`}>
-                          {c.selected && <Check className="w-3 h-3 text-white" />}
-                        </div>
-
                         {/* Avatar */}
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-sm font-black text-gray-500">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-sm font-black text-orange-500">
                           {c.name.charAt(0).toUpperCase()}
                         </div>
 
@@ -344,6 +260,8 @@ export default function ContactsImport({ onImport, onClose }: Props) {
                             </p>
                           </div>
                         </div>
+
+                        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                       </button>
                     )
                   })}
@@ -352,24 +270,6 @@ export default function ContactsImport({ onImport, onClose }: Props) {
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        {step === 'list' && (
-          <div className="px-5 py-4 border-t border-gray-100 shrink-0">
-            <button
-              onClick={handleImport}
-              disabled={selectedCount === 0 || importing}
-              className="w-full rounded-2xl bg-orange-500 py-4 text-sm font-bold text-white shadow-sm disabled:bg-gray-200 disabled:text-gray-400 active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              {importing
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</>
-                : selectedCount === 0
-                ? 'Select contacts to import'
-                : `Import ${selectedCount} customer${selectedCount !== 1 ? 's' : ''}`
-              }
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

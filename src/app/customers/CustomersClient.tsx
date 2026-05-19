@@ -789,57 +789,20 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   // ── Contacts import ────────────────────────────────────────────────────
 
-  async function handleContactsImport(entries: { name: string; phone: string }[]) {
-    const defaultPlan = activeMealPlans[0] ?? mealPlans[0]
-    if (!defaultPlan) return
-
-    const startDate = today()
-
-    // Build customer rows for bulk insert
-    const customerRows = entries.map(e => ({
-      provider_id: providerId,
-      name: e.name.trim(),
-      whatsapp_number: e.phone,
-      plan_type: defaultPlan.plan_type,
-      frequency: defaultPlan.frequency,
-      meal_slots: defaultPlan.meal_slots,
-      price_per_month: Number(defaultPlan.monthly_price),
-      balance_days: Number(defaultPlan.active_days),
-      status: 'active' as const,
-      address: null,
-      area: null,
-      notes: null,
-      tags: [] as string[],
-    }))
-
-    const { data: inserted, error } = await db
-      .from('customers')
-      .insert(customerRows)
-      .select('id')
-
-    if (error || !inserted?.length) return
-
-    // Bulk insert subscriptions
-    const subRows = inserted.map((c: { id: string }) => ({
-      provider_id: providerId,
-      customer_id: c.id,
-      meal_plan_id: defaultPlan.id,
-      status: 'active',
-      start_date: startDate,
-    }))
-
-    await db.from('subscriptions').insert(subRows)
-
-    // Refresh local state — re-fetch all customers so new ones appear
-    const { data: fresh } = await db
-      .from('customers')
-      .select('*, pauses(*), subscriptions(*)')
-      .eq('provider_id', providerId)
-      .order('name')
-
-    if (fresh) {
-      setCustomers(fresh.map((c: any) => enrichSubscriptions(c, mealPlans)))
-    }
+  function handleContactsImport(contact: { name: string; phone: string }) {
+    // Prefill the add form with the contact's name and phone,
+    // then navigate to the form so the user can fill in the rest
+    // (address, area, meal plan, etc.) before saving.
+    setFormMode('add')
+    setFormData({
+      ...EMPTY_FORM,
+      name: contact.name.trim(),
+      whatsapp_number: contact.phone,
+      meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '',
+    })
+    setFormError('')
+    setShowContactsImport(false)
+    setScreen('form')
   }
 
   // ══════════════════════════════════════════════════════════════════════
