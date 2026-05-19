@@ -100,13 +100,28 @@ Rahul Mehta,9123456789,Bandra,201 Sea View,Non-veg,15,
 Sunita Patel,9988776655,Juhu,A-12 Palm Court,Veg,20,Lunch only
 `
 
-function downloadSample() {
+async function downloadSample() {
   const blob = new Blob([SAMPLE_CSV], { type: 'text/csv' })
+  const file = new File([blob], 'dabbr_customers_sample.csv', { type: 'text/csv' })
+
+  // Use Web Share API on Android WebView — createObjectURL + a.click() is a no-op there
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Dabbr sample customers CSV' })
+      return
+    } catch {
+      // user cancelled — fall through to anchor download
+    }
+  }
+
+  // Desktop / browsers that support anchor downloads
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = 'dabbr_customers_sample.csv'
+  document.body.appendChild(a)
   a.click()
+  document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
 

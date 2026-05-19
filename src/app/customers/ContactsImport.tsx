@@ -72,20 +72,29 @@ export default function ContactsImport({ onImport, onClose }: Props) {
   }
 
   async function loadNativeContacts() {
-    // turbopackIgnore + webpackIgnore: skip static analysis — this package
-    // is only available at runtime inside native Capacitor iOS/Android apps.
+    // Access the Capacitor native plugin bridge directly.
+    // The app loads web content from a remote URL (dabbr.in), so we can't
+    // use the npm package import (webpack alias would replace it with the stub).
+    // Capacitor always injects its bridge into the WebView, so the native
+    // plugin is always available via window.Capacitor.Plugins.Contacts.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { Contacts } = await import(/* turbopackIgnore: true */ /* webpackIgnore: true */ '@capacitor-community/contacts' as any)
+    const ContactsPlugin = (window as any).Capacitor?.Plugins?.Contacts
+
+    if (!ContactsPlugin) {
+      setErrorMsg('Contacts plugin not available. Please make sure you are using the latest Dabbr app.')
+      setStep('error')
+      return
+    }
 
     // Request permission
-    const { contacts: permResult } = await Contacts.requestPermissions()
+    const { contacts: permResult } = await ContactsPlugin.requestPermissions()
     if (permResult !== 'granted') {
       setErrorMsg('Contacts permission was denied. Please allow it in your phone\'s Settings → Apps → Dabbr → Permissions.')
       setStep('error')
       return
     }
 
-    const { contacts: rawContacts } = await Contacts.getContacts({
+    const { contacts: rawContacts } = await ContactsPlugin.getContacts({
       projection: {
         name: true,
         phones: true,
