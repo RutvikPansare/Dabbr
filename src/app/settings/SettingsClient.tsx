@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -1085,6 +1085,14 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                 <p className="flex-1 text-xs font-semibold text-orange-700 truncate">
                   {origin}/{slug.trim().toLowerCase()}
                 </p>
+                <a
+                  href={`https://${origin}/${slug.trim().toLowerCase()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-600 transition-all active:scale-95"
+                >
+                  <ExternalLink className="w-3 h-3" /> Visit
+                </a>
                 <button
                   type="button"
                   onClick={() => {
