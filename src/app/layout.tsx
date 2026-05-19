@@ -4,6 +4,7 @@ import './globals.css'
 import ServiceWorkerRegistration from './ServiceWorkerRegistration'
 import CapacitorInit from './CapacitorInit'
 import NativeStatusBar from './NativeStatusBar'
+import OnboardingGuide from '@/components/OnboardingGuide'
 
 const outfit = Outfit({ subsets: ['latin'] })
 
@@ -48,6 +49,7 @@ export default function RootLayout({
         <ServiceWorkerRegistration />
         <CapacitorInit />
         <NativeStatusBar />
+        <OnboardingGuide />
       </body>
     </html>
   )
