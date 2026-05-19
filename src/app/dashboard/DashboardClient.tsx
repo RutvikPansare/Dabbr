@@ -244,6 +244,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   const startX = useRef(0)
   const startY = useRef(0)
   const [deltaX, setDeltaX] = useState(0)
+  const [deltaY, setDeltaY] = useState(0)
   const [tracking, setTracking] = useState(false)
 
   const plan = customerPlan(c)
@@ -261,11 +262,14 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         startX.current = e.touches[0].clientX
         startY.current = e.touches[0].clientY
         setTracking(true)
+        setDeltaX(0)
+        setDeltaY(0)
       }}
       onTouchMove={(e) => {
         if (!tracking || bulkMode) return
         const dx = e.touches[0].clientX - startX.current
         const dy = e.touches[0].clientY - startY.current
+        setDeltaY(dy)
         if (Math.abs(dx) > Math.abs(dy) + 8) {
           setDeltaX(dx)
         }
@@ -275,8 +279,9 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         setTracking(false)
         if (deltaX > SWIPE_THRESHOLD) onMark('delivered')
         else if (deltaX < -SWIPE_THRESHOLD) onMark('skipped')
-        else if (Math.abs(deltaX) < 10) onOpen?.()
+        else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 12) onOpen?.()
         setDeltaX(0)
+        setDeltaY(0)
       }}
     >
       {/* Green reveal: swipe right = delivered */}
@@ -584,7 +589,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="h-9 w-9 rounded-xl bg-white/15 shrink-0" />
           </div>
         </div>
-        <div className="mx-auto max-w-2xl px-4 mt-24">
+        <div className="mx-auto max-w-2xl px-4 mt-32">
           <div className="h-3 w-32 rounded-full bg-gray-200 mb-2 animate-pulse" />
           <div className="grid grid-cols-2 gap-3">
             <div className="h-[72px] rounded-2xl bg-emerald-300/60 animate-pulse" />
@@ -785,7 +790,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Packing count cards ── */}
-      <div className="relative z-10 mx-auto max-w-2xl px-4 mt-24">
+      <div className="relative z-10 mx-auto max-w-2xl px-4 mt-32">
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">Today&apos;s packing count</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 shadow-[0_4px_20px_rgba(52,211,153,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
