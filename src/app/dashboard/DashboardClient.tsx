@@ -397,20 +397,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [copied, setCopied] = useState(false)
   const [deliveryView, setDeliveryView] = useState<'list' | 'area'>('list')
 
-  // Measure the actual rendered header height so content is never covered,
-  // regardless of Android WebView version or safe-area CSS support.
-  const headerRef = useRef<HTMLDivElement>(null)
-  const [headerHeight, setHeaderHeight] = useState(160) // generous default
-  useEffect(() => {
-    function measure() {
-      if (headerRef.current) {
-        setHeaderHeight(headerRef.current.offsetHeight + 12) // +12px breathing room
-      }
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [trialDaysLeft, provider]) // re-measure if header content changes
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(false)
 
@@ -593,8 +579,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
-        <div className="bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] pt-5 pb-5">
+      <div className="h-screen flex flex-col bg-[#FDF8F3]">
+        <div className="shrink-0 bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] pt-5 pb-5">
           <div className="mx-auto max-w-2xl px-4 flex items-center gap-3">
             <div className="flex-1 space-y-2">
               <div className="h-2.5 w-28 rounded-full bg-white/20" />
@@ -604,13 +590,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="h-9 w-9 rounded-xl bg-white/15 shrink-0" />
           </div>
         </div>
-        <div className="mx-auto max-w-2xl px-4 mt-40">
-          <div className="h-3 w-32 rounded-full bg-gray-200 mb-2 animate-pulse" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="h-[72px] rounded-2xl bg-emerald-300/60 animate-pulse" />
-            <div className="h-[72px] rounded-2xl bg-orange-300/60 animate-pulse" />
-            <div className="h-[72px] rounded-2xl bg-amber-300/60 animate-pulse" />
-            <div className="h-[72px] rounded-2xl bg-indigo-300/60 animate-pulse" />
+        <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]">
+          <div className="mx-auto max-w-2xl px-4 mt-5">
+            <div className="h-3 w-32 rounded-full bg-gray-200 mb-2 animate-pulse" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-[72px] rounded-2xl bg-emerald-300/60 animate-pulse" />
+              <div className="h-[72px] rounded-2xl bg-orange-300/60 animate-pulse" />
+              <div className="h-[72px] rounded-2xl bg-amber-300/60 animate-pulse" />
+              <div className="h-[72px] rounded-2xl bg-indigo-300/60 animate-pulse" />
+            </div>
           </div>
         </div>
         <BottomNav />
@@ -761,14 +749,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const themeVars = getThemeVars(provider?.accent_color)
 
   return (
-    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]" style={themeVars as React.CSSProperties}>
+    <div className="h-screen flex flex-col bg-[#FDF8F3]" style={themeVars as React.CSSProperties}>
 
       {isExpired && <Paywall />}
 
-      {/* ── Header ── */}
+      {/* ── Header — not fixed; flex layout keeps it pinned at top ── */}
       <div
-        ref={headerRef}
-        className="fixed inset-x-0 top-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        className="shrink-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
@@ -805,8 +792,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       </div>
 
+      {/* ── Scrollable content — flex-1 fills remaining height below header ── */}
+      <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]">
+
       {/* ── Packing count cards ── */}
-      <div className="relative z-10 mx-auto max-w-2xl px-4" style={{ marginTop: headerHeight }}>
+      <div className="relative z-10 mx-auto max-w-2xl px-4 mt-5">
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">Today&apos;s packing count</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 shadow-[0_4px_20px_rgba(52,211,153,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
@@ -1439,6 +1429,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           </div>
         </div>
       )}
+
+      </div>{/* end scrollable content */}
 
       <BottomNav />
     </div>
