@@ -920,9 +920,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-xl">
-                {isDayOff(selectedDate) ? '🏖️' : selectedDate === initialToday ? '✨' : '🍱'}
-              </div>
+
               <button
                 onClick={() => navigateDay(1)}
                 className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-orange-500 active:scale-95 transition-all"
