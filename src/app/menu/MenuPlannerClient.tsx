@@ -525,6 +525,20 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
     await loadWeek(nextStart, addDays(nextStart, currentIndex))
   }
 
+  async function navigateDay(delta: -1 | 1) {
+    const next = addDays(selectedDate, delta)
+    const weekEnd = addDays(weekStart, 6)
+    if (next < weekStart) {
+      await changeWeek(-1)
+    } else if (next > weekEnd) {
+      await changeWeek(1)
+    } else {
+      setSelectedDate(next)
+      setCopyPickerOpen(false)
+      setActionsOpen(false)
+    }
+  }
+
   async function saveSection(slot: MealSlot) {
     const section = getSectionDraft(selectedDate, slot)
     const existing = ENTRY_TYPES.map(({ key }) => ({ key, menu: getMenu(selectedDate, slot, entryPlanType(key)) }))
@@ -792,7 +806,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       </header>
 
       <main className="mx-auto max-w-2xl px-4 pt-20 space-y-3">
-        <section className="sticky top-[4.85rem] z-30 -mx-4 border-y border-orange-100/70 bg-[#FDF8F3]/95 px-4 py-3 backdrop-blur-xl">
+        <section className="sticky top-16 z-30 -mx-4 border-y border-orange-100/70 bg-[#FDF8F3] px-4 py-3 backdrop-blur-xl">
           {/* Week nav row — always visible */}
           <div className="flex items-center gap-2">
             <button onClick={() => changeWeek(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm border border-orange-100">
@@ -891,16 +905,30 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
         {/* Smart nudges — hidden for now */}
 
         <section className="rounded-[2rem] border border-gray-100 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
               <p className="text-xs font-black uppercase tracking-wider text-orange-500">{dayName(selectedDate)}</p>
               <h2 className="mt-1 text-2xl font-black tracking-tight text-gray-900">{labelDate(selectedDate)}</h2>
               <p className="mt-1 text-xs font-semibold text-gray-400">
                 {selectedDayMenus.length ? `${selectedDayMenus.length} saved menu items` : 'No saved menu yet'}
               </p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-xl">
-              {isDayOff(selectedDate) ? '🏖️' : selectedDate === initialToday ? '✨' : '🍱'}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => navigateDay(-1)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-orange-500 active:scale-95 transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-xl">
+                {isDayOff(selectedDate) ? '🏖️' : selectedDate === initialToday ? '✨' : '🍱'}
+              </div>
+              <button
+                onClick={() => navigateDay(1)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50 text-orange-500 active:scale-95 transition-all"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
