@@ -213,15 +213,13 @@ export default function ContactsImport({ onImport, onClose }: Props) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl sm:mx-4 flex flex-col"
+        className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl flex flex-col"
         style={{ maxHeight: '90vh' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
-        <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-gray-200 sm:hidden shrink-0" />
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b border-gray-100 shrink-0">
