@@ -1392,7 +1392,27 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <X className="w-4 h-4" />
               </button>
             </div>
+            {/* Empty state */}
+            {riders.length === 0 && (
+              <div className="flex flex-col items-center justify-center px-6 py-10 gap-4 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+                  <Bike className="w-7 h-7 text-gray-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-gray-800">No riders yet</p>
+                  <p className="text-xs font-medium text-gray-400 mt-1">Add a rider in Settings to send delivery lists over WhatsApp.</p>
+                </div>
+                <button
+                  onClick={() => { setRiderModal(null); router.push('/settings') }}
+                  className="flex items-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-sm active:scale-95 transition-all"
+                >
+                  <Bike className="w-4 h-4" /> Add a rider
+                </button>
+              </div>
+            )}
+
             {/* Scrollable rider list */}
+            {riders.length > 0 && (
             <div
               className="overflow-y-auto overscroll-contain divide-y divide-gray-100"
               style={{ maxHeight: 'min(50vh, 400px)' }}
@@ -1417,6 +1437,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 </button>
               ))}
             </div>
+            )}
             {/* Footer cancel */}
             <div className="px-5 py-4 border-t border-gray-100">
               <button
