@@ -1289,7 +1289,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
         {/* App version */}
         <p className="pb-4 text-center text-xs text-gray-400">
-          Dabbr · Week 1 build
+          Dabbr
         </p>
       </main>
 

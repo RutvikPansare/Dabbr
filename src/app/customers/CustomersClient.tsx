@@ -635,6 +635,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         setCustomers((prev) =>
           [...prev, hydrated].sort((a, b) => a.name.localeCompare(b.name))
         )
+        router.refresh() // bust server cache so count stays correct on re-visit
         // If there are more contacts queued from a one-by-one import, open
         // the next form; otherwise go back to the list as normal.
         if (contactImportQueue.length > 0) {
@@ -866,6 +867,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
     if (fresh) {
       setCustomers(fresh.map((c: any) => enrichSubscriptions(c, mealPlans)))
+      router.refresh() // bust server cache so count is correct on re-visit
     }
   }
 
