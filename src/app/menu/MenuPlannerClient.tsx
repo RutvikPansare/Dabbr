@@ -807,7 +807,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       </header>
 
       <main className="mx-auto max-w-2xl px-4 pt-20 space-y-3">
-        <section className="sticky top-16 z-30 -mx-4 border-y border-orange-100/70 bg-[#FDF8F3] px-4 py-3 backdrop-blur-xl">
+        <section className="sticky top-16 z-30 -mx-4 bg-[#FDF8F3] px-4 py-3 backdrop-blur-xl">
           {/* Week nav row — always visible */}
           <div className="flex items-center gap-2">
             <button onClick={() => changeWeek(-1)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-600 shadow-sm border border-orange-100">
