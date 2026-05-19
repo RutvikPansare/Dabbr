@@ -396,6 +396,21 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const [copied, setCopied] = useState(false)
   const [deliveryView, setDeliveryView] = useState<'list' | 'area'>('list')
+
+  // Measure the actual rendered header height so content is never covered,
+  // regardless of Android WebView version or safe-area CSS support.
+  const headerRef = useRef<HTMLDivElement>(null)
+  const [headerHeight, setHeaderHeight] = useState(160) // generous default
+  useEffect(() => {
+    function measure() {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight + 12) // +12px breathing room
+      }
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [trialDaysLeft, provider]) // re-measure if header content changes
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(false)
 
@@ -589,7 +604,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="h-9 w-9 rounded-xl bg-white/15 shrink-0" />
           </div>
         </div>
-        <div className="mx-auto max-w-2xl px-4" style={{ marginTop: 'calc(max(env(safe-area-inset-top), 1.25rem) + 6.5rem)' }}>
+        <div className="mx-auto max-w-2xl px-4 mt-40">
           <div className="h-3 w-32 rounded-full bg-gray-200 mb-2 animate-pulse" />
           <div className="grid grid-cols-2 gap-3">
             <div className="h-[72px] rounded-2xl bg-emerald-300/60 animate-pulse" />
@@ -752,11 +767,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Header ── */}
       <div
-        className="fixed inset-x-0 top-0 z-30 overflow-hidden pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
-        style={{
-          background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
-          paddingTop: 'max(env(safe-area-inset-top), 1.25rem)',
-        }}
+        ref={headerRef}
+        className="fixed inset-x-0 top-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
         <div className="relative mx-auto max-w-2xl px-4 flex items-center gap-3">
@@ -793,8 +806,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Packing count cards ── */}
-      {/* margin = safe-area-inset-top + 1.25rem(pt) + ~6.5rem(content+pb+buffer) */}
-      <div className="relative z-10 mx-auto max-w-2xl px-4" style={{ marginTop: 'calc(max(env(safe-area-inset-top), 1.25rem) + 6.5rem)' }}>
+      <div className="relative z-10 mx-auto max-w-2xl px-4" style={{ marginTop: headerHeight }}>
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">Today&apos;s packing count</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 shadow-[0_4px_20px_rgba(52,211,153,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
