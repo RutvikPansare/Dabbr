@@ -1114,7 +1114,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
         <section className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
           <button
             onClick={() => setServedExpanded(v => !v)}
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 active:bg-gray-50 transition-colors"
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 active:bg-gray-50 transition-colors"
           >
             <div className="flex items-center gap-2.5">
               <span className="text-sm font-black text-gray-900">Served This Week</span>
