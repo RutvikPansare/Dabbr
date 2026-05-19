@@ -295,6 +295,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   // Contacts import
   const [showContactsImport, setShowContactsImport] = useState(false)
+  const [contactImportQueue, setContactImportQueue] = useState<{ name: string; phone: string }[]>([])
 
   // Import dropdown
   const [showImportMenu, setShowImportMenu] = useState(false)
@@ -634,8 +635,14 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         setCustomers((prev) =>
           [...prev, hydrated].sort((a, b) => a.name.localeCompare(b.name))
         )
-        setScreen('list')
-        setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
+        // If there are more contacts queued from a one-by-one import, open
+        // the next form; otherwise go back to the list as normal.
+        if (contactImportQueue.length > 0) {
+          advanceContactImportQueue()
+        } else {
+          setScreen('list')
+          setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
+        }
       }
     } else {
       if (!selectedCustomer) {
@@ -789,20 +796,95 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   // ── Contacts import ────────────────────────────────────────────────────
 
-  function handleContactsImport(contact: { name: string; phone: string }) {
-    // Prefill the add form with the contact's name and phone,
-    // then navigate to the form so the user can fill in the rest
-    // (address, area, meal plan, etc.) before saving.
-    setFormMode('add')
-    setFormData({
-      ...EMPTY_FORM,
-      name: contact.name.trim(),
-      whatsapp_number: contact.phone,
-      meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '',
+  async function handleContactsImport(
+    entries: { name: string; phone: string }[],
+    mode: 'one-by-one' | 'bulk'
+  ) {
+    if (!entries.length) return
+
+    if (mode === 'one-by-one') {
+      // Queue all contacts; open the add form for the first one.
+      // After each save the queue is advanced automatically.
+      const [first, ...rest] = entries
+      setContactImportQueue(rest)
+      setFormMode('add')
+      setFormData({
+        ...EMPTY_FORM,
+        name: first.name.trim(),
+        whatsapp_number: first.phone,
+        meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '',
+      })
+      setFormError('')
+      setScreen('form')
+      return
+    }
+
+    // ── Bulk mode: insert all directly ────────────────────────────────────
+    const defaultPlan = activeMealPlans[0] ?? mealPlans[0]
+    if (!defaultPlan) return
+
+    const startDate = today()
+
+    const customerRows = entries.map(e => ({
+      provider_id: providerId,
+      name: e.name.trim(),
+      whatsapp_number: e.phone,
+      plan_type: defaultPlan.plan_type,
+      frequency: defaultPlan.frequency,
+      meal_slots: defaultPlan.meal_slots,
+      price_per_month: Number(defaultPlan.monthly_price),
+      balance_days: Number(defaultPlan.active_days),
+      status: 'active' as const,
+      address: null,
+      area: null,
+      notes: null,
+      tags: [] as string[],
+    }))
+
+    const { data: inserted, error } = await db
+      .from('customers')
+      .insert(customerRows)
+      .select('id')
+
+    if (error || !inserted?.length) return
+
+    const subRows = inserted.map((c: { id: string }) => ({
+      provider_id: providerId,
+      customer_id: c.id,
+      meal_plan_id: defaultPlan.id,
+      status: 'active',
+      start_date: startDate,
+    }))
+
+    await db.from('subscriptions').insert(subRows)
+
+    const { data: fresh } = await db
+      .from('customers')
+      .select('*, pauses(*), subscriptions(*)')
+      .eq('provider_id', providerId)
+      .order('name')
+
+    if (fresh) {
+      setCustomers(fresh.map((c: any) => enrichSubscriptions(c, mealPlans)))
+    }
+  }
+
+  // Called after a successful add-form save to advance the one-by-one queue
+  function advanceContactImportQueue() {
+    setContactImportQueue(prev => {
+      if (!prev.length) return prev
+      const [next, ...rest] = prev
+      setFormMode('add')
+      setFormData({
+        ...EMPTY_FORM,
+        name: next.name.trim(),
+        whatsapp_number: next.phone,
+        meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '',
+      })
+      setFormError('')
+      setScreen('form')
+      return rest
     })
-    setFormError('')
-    setShowContactsImport(false)
-    setScreen('form')
   }
 
   // ══════════════════════════════════════════════════════════════════════
