@@ -6,7 +6,7 @@ import BottomNav from '@/components/BottomNav'
 import {
   CreditCard, CheckCircle2, MessageCircle, Plus, Send,
   Phone, PartyPopper, ChevronDown, ChevronUp, IndianRupee,
-  Check, Leaf, Drumstick, HandCoins,
+  Check, Leaf, Drumstick, HandCoins, X,
 } from 'lucide-react'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 import { formatMealSlots } from '@/lib/meals'
@@ -752,112 +752,183 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
       )}
 
       {/* ════════════════════════════════════════════════
-          Record Payment Sheet
+          Record Payment Modal
       ════════════════════════════════════════════════ */}
       {showRecord && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowRecord(false)} />
-          <div className="relative z-10 max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white px-5 pb-10 pt-4 shadow-2xl">
-            <div className="mx-auto mb-5 h-1 w-12 rounded-full bg-gray-200" />
-            <h2 className="mb-5 text-lg font-black text-gray-900 flex items-center gap-2">
-              {isSelectedMonthly
-                ? <><HandCoins className="w-5 h-5 text-amber-500" /> Record Monthly Payment</>
-                : <><CreditCard className="w-5 h-5 text-orange-500" /> Record Payment</>}
-            </h2>
-
-            <form onSubmit={handleRecord} className="space-y-4">
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Customer *</p>
-                <select
-                  required
-                  value={selCustomerId}
-                  onChange={(e) => {
-                    setSelCustomerId(e.target.value)
-                    const c = customers.find(x => x.id === e.target.value)
-                    if (c) setAmount(String(activePlan(c)?.monthly_price ?? c.price_per_month))
-                    else setAmount('')
-                  }}
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
-                >
-                  <option value="">Select a customer…</option>
-                  {customers.filter(c => c.status === 'active').map(c => (
-                    <option key={c.id} value={c.id}>{c.name}{c.area ? ` — ${c.area}` : ''}</option>
-                  ))}
-                </select>
-                {selectedCustomer && (
-                  isSelectedMonthly && selectedDue ? (
-                    <p className={`mt-1.5 text-xs font-semibold ${DUE_COLORS[selectedDue.state].text}`}>
-                      Outstanding: {fmtRupees(selectedDue.outstanding)} · {dueStateLabel(selectedDue.state)}
-                    </p>
-                  ) : (
-                    <p className="mt-1.5 text-xs text-gray-400">
-                      Current balance:{' '}
-                      <span className={`font-semibold ${
-                        selectedCustomer.balance_days > 7 ? 'text-green-600'
-                          : selectedCustomer.balance_days >= 3 ? 'text-amber-600'
-                            : 'text-red-600'
-                      }`}>
-                        {selectedCustomer.balance_days}d
-                      </span>
-                      {' · '}₹{activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month}/mo
-                    </p>
-                  )
-                )}
-              </div>
-
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Amount (₹) *</p>
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 2500"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
-                />
-                {previewDays !== null && previewDays > 0 && (
-                  <p className="mt-1.5 text-xs text-gray-400">
-                    Adds{' '}
-                    <span className="font-bold text-green-600">+{previewDays} days</span>
-                    {' '}→ new balance:{' '}
-                    <span className="font-bold text-gray-700">
-                      {Math.round((selectedCustomer!.balance_days + previewDays) * 10) / 10}d
-                    </span>
-                  </p>
-                )}
-                {isSelectedMonthly && selectedDue && amount && (
-                  <p className="mt-1.5 text-xs text-gray-400">
-                    After payment:{' '}
-                    <span className="font-bold text-green-600">{fmtRupees(Math.max(0, selectedDue.outstanding - Number(amount)))}</span>
-                    {' '}remaining
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Note (optional)</p>
-                <input
-                  type="text"
-                  placeholder="e.g. Cash received, UPI ref…"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
-                />
-              </div>
-
-              {recordError && (
-                <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{recordError}</p>
-              )}
-
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowRecord(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+              <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                {isSelectedMonthly
+                  ? <><HandCoins className="w-5 h-5 text-amber-500" /> Record Payment</>
+                  : <><CreditCard className="w-5 h-5 text-orange-500" /> Record Payment</>}
+              </h2>
               <button
-                type="submit"
-                disabled={recording || !selCustomerId || !amount}
-                className="w-full rounded-2xl bg-[#F4622A] py-3.5 text-sm font-bold text-white shadow transition hover:bg-orange-600 active:scale-95 disabled:opacity-60"
+                onClick={() => setShowRecord(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 active:bg-gray-200 transition-colors"
               >
-                {recording ? 'Recording…' : 'Record Payment'}
+                <X className="w-4 h-4" />
               </button>
-            </form>
+            </div>
+
+            {/* Scrollable form body */}
+            <div className="max-h-[75vh] overflow-y-auto px-5 py-4">
+              <form onSubmit={handleRecord} className="space-y-4">
+                {/* Customer picker */}
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Customer *</p>
+                  <select
+                    required
+                    value={selCustomerId}
+                    onChange={(e) => {
+                      setSelCustomerId(e.target.value)
+                      const c = customers.find(x => x.id === e.target.value)
+                      if (c) {
+                        if ((c.billing_type ?? 'prepaid') === 'monthly_settlement') {
+                          const u = computeMonthlyDue({
+                            mealsDelivered: c.meals_delivered ?? 0,
+                            totalPaid: monthlyPaidByCustomer[c.id] ?? 0,
+                            mealRate: c.meal_rate,
+                            creditLimit: c.credit_limit,
+                            defaultMealRate,
+                            defaultCreditLimit,
+                          })
+                          setAmount(u.outstanding > 0 ? String(Math.round(u.outstanding)) : '')
+                        } else {
+                          setAmount(String(activePlan(c)?.monthly_price ?? c.price_per_month))
+                        }
+                      } else setAmount('')
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                  >
+                    <option value="">Select a customer…</option>
+                    {customers.filter(c => c.status === 'active').map(c => (
+                      <option key={c.id} value={c.id}>{c.name}{c.area ? ` — ${c.area}` : ''}</option>
+                    ))}
+                  </select>
+                  {selectedCustomer && (
+                    isSelectedMonthly && selectedDue ? (
+                      <p className={`mt-1.5 text-xs font-semibold ${DUE_COLORS[selectedDue.state].text}`}>
+                        Outstanding: {fmtRupees(selectedDue.outstanding)} · {dueStateLabel(selectedDue.state)}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 text-xs text-gray-400">
+                        Current balance:{' '}
+                        <span className={`font-semibold ${
+                          selectedCustomer.balance_days > 7 ? 'text-green-600'
+                            : selectedCustomer.balance_days >= 3 ? 'text-amber-600'
+                              : 'text-red-600'
+                        }`}>
+                          {selectedCustomer.balance_days}d
+                        </span>
+                        {' · '}₹{activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month}/mo
+                      </p>
+                    )
+                  )}
+                </div>
+
+                {/* Amount field + quick chips */}
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Amount (₹) *</p>
+
+                  {/* Quick-amount chips */}
+                  {(() => {
+                    const planPrice = selectedCustomer
+                      ? (activePlan(selectedCustomer)?.monthly_price ?? selectedCustomer.price_per_month)
+                      : 0
+                    const base = [500, 1000, 2000, 3000]
+                    const chips = planPrice > 0 && !base.includes(planPrice)
+                      ? [...base, planPrice].sort((a, b) => a - b)
+                      : base
+                    return (
+                      <div className="flex gap-1.5 flex-wrap mb-2.5">
+                        {chips.map(v => {
+                          const isActive = amount === String(v)
+                          const isPlan = v === planPrice && planPrice > 0
+                          return (
+                            <button
+                              key={v}
+                              type="button"
+                              onClick={() => setAmount(String(v))}
+                              className={`rounded-xl px-3 py-1.5 text-xs font-black border transition-all active:scale-95 ${
+                                isActive
+                                  ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
+                                  : isPlan
+                                    ? 'bg-orange-50 border-orange-300 text-orange-600'
+                                    : 'bg-gray-50 border-gray-200 text-gray-600'
+                              }`}
+                            >
+                              ₹{v.toLocaleString('en-IN')}
+                              {isPlan && !isActive && <span className="ml-1 opacity-60 text-[10px]">plan</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
+
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    placeholder="or enter custom amount"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                  />
+                  {previewDays !== null && previewDays > 0 && (
+                    <p className="mt-1.5 text-xs text-gray-400">
+                      Adds{' '}
+                      <span className="font-bold text-green-600">+{previewDays} days</span>
+                      {' '}→ new balance:{' '}
+                      <span className="font-bold text-gray-700">
+                        {Math.round((selectedCustomer!.balance_days + previewDays) * 10) / 10}d
+                      </span>
+                    </p>
+                  )}
+                  {isSelectedMonthly && selectedDue && amount && (
+                    <p className="mt-1.5 text-xs text-gray-400">
+                      After payment:{' '}
+                      <span className="font-bold text-green-600">{fmtRupees(Math.max(0, selectedDue.outstanding - Number(amount)))}</span>
+                      {' '}remaining
+                    </p>
+                  )}
+                </div>
+
+                {/* Note */}
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Note (optional)</p>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cash received, UPI ref…"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                  />
+                </div>
+
+                {recordError && (
+                  <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{recordError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={recording || !selCustomerId || !amount}
+                  className="w-full rounded-2xl bg-[#F4622A] py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition active:scale-[0.98] disabled:opacity-60"
+                >
+                  {recording ? 'Recording…' : 'Record Payment'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
