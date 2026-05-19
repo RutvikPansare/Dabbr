@@ -1010,8 +1010,8 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                 </div>
               </div>
 
-              {/* Week-level copy options — own 2-col grid so they are always side by side */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Week-level copy options — inline style to force side-by-side */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                 <button
                   onClick={() => { setActiveHelp(null); setWeekCopyModalOpen(true) }}
                   disabled={weekCopying}
