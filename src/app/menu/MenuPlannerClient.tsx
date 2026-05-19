@@ -1010,20 +1010,19 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                 </div>
               </div>
 
-              {/* Week-level copy options — single row outside the 2-col grid */}
-              <div className="flex gap-2">
+              {/* Week-level copy options — own 2-col grid so they are always side by side */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => { setActiveHelp(null); setWeekCopyModalOpen(true) }}
                   disabled={weekCopying}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3 py-2.5 text-xs font-black text-white shadow-md shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3 py-2.5 text-xs font-black text-white shadow-md shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   Copy week
-                  <ChevronRight className="w-3 h-3 opacity-70" />
                 </button>
                 <button
                   onClick={() => { setActiveHelp(null); setGoodWeekPickerOpen(open => !open) }}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-2.5 text-xs font-black text-orange-600 shadow-sm"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-2.5 text-xs font-black text-orange-600 shadow-sm"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Paste week
