@@ -1008,33 +1008,27 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                 <HelpBubble id="copy-menu" text="Copies this selected day's saved menu text to your device clipboard, ready to paste elsewhere." />
               </div>
 
-              {/* Week-level copy options */}
-              <div className="relative col-span-2">
+              {/* Week-level copy options — single row */}
+              <div className="col-span-2 flex gap-2">
                 <button
-                  onClick={() => {
-                    setActiveHelp(null)
-                    setWeekCopyModalOpen(true)
-                  }}
+                  onClick={() => { setActiveHelp(null); setWeekCopyModalOpen(true) }}
                   disabled={weekCopying}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3 py-2.5 pr-8 text-xs font-black text-white shadow-md shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-orange-500 px-3 py-2.5 text-xs font-black text-white shadow-md shadow-orange-500/20 transition-colors disabled:bg-gray-300 disabled:shadow-none"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  Copy entire previous week
+                  Copy
+                  <ChevronRight className="w-3 h-3 opacity-70" />
                 </button>
-                <HelpBubble id="copy-entire-week" text="Copies every saved menu item from the previous week into this week. After confirmation, this week's existing menu is replaced." />
-              </div>
-              <div className="col-span-2">
                 <button
-                  onClick={() => {
-                    setActiveHelp(null)
-                    setGoodWeekPickerOpen(open => !open)
-                  }}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-2.5 text-xs font-black text-orange-600 shadow-sm"
+                  onClick={() => { setActiveHelp(null); setGoodWeekPickerOpen(open => !open) }}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-orange-100 bg-white px-3 py-2.5 text-xs font-black text-orange-600 shadow-sm"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  Repeat last good week
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${goodWeekPickerOpen ? 'rotate-180' : ''}`} />
+                  Paste
+                  <ChevronDown className={`w-3 h-3 transition-transform ${goodWeekPickerOpen ? 'rotate-180' : ''}`} />
                 </button>
+              </div>
+              <div className="col-span-2">
                 {goodWeekPickerOpen && (
                   <div className="mt-2 rounded-3xl border border-orange-100 bg-white p-3 shadow-sm">
                     <p className="mb-2 text-xs font-black uppercase tracking-wider text-gray-500">Reusable weekly patterns</p>
