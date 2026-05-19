@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -165,6 +165,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   // Branding state
   const [slug, setSlug] = useState(provider?.slug ?? '')
   const [slugError, setSlugError] = useState('')
+  const [copiedSlug, setCopiedSlug] = useState(false)
   const [accentColor, setAccentColor] = useState(provider?.accent_color ?? '#F4622A')
   const [tagline, setTagline] = useState(provider?.tagline ?? '')
   const [supportWhatsapp, setSupportWhatsapp] = useState(provider?.support_whatsapp ?? '')
@@ -1080,9 +1081,29 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
               <p className="mt-1 text-xs font-semibold text-red-500">{slugError}</p>
             )}
             {slug && !slugError && (
-              <p className="mt-1.5 text-xs font-medium text-gray-400">
-                Your portal: <span className="text-orange-600 font-semibold">{origin}/{slug.trim().toLowerCase()}</span>
-              </p>
+              <div className="mt-2 flex items-center gap-2 rounded-2xl border border-orange-100 bg-orange-50 pl-4 pr-2 py-2.5">
+                <p className="flex-1 text-xs font-semibold text-orange-700 truncate">
+                  {origin}/{slug.trim().toLowerCase()}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://${origin}/${slug.trim().toLowerCase()}`)
+                    setCopiedSlug(true)
+                    setTimeout(() => setCopiedSlug(false), 2000)
+                  }}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                    copiedSlug
+                      ? 'bg-green-500 text-white'
+                      : 'bg-orange-500 text-white'
+                  }`}
+                >
+                  {copiedSlug
+                    ? <><Check className="w-3 h-3" /> Copied!</>
+                    : <><Copy className="w-3 h-3" /> Copy</>
+                  }
+                </button>
+              </div>
             )}
             {!slug && (
               <p className="mt-1.5 text-xs font-medium text-gray-400">
