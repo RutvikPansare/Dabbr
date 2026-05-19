@@ -945,17 +945,27 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
             </div>
           )}
 
-          {/* Copy actions — collapsed by default */}
-          <button
-            onClick={() => setActionsOpen(o => !o)}
-            className="flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-bold text-gray-600 active:bg-gray-100 transition-colors"
-          >
-            <span className="flex items-center gap-2">
+          {/* Copy + Paste — single row, always visible */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            <button
+              onClick={() => setActionsOpen(o => !o)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs font-bold text-gray-600 active:bg-gray-100 transition-colors"
+            >
               <Copy className="w-3.5 h-3.5" />
-              Copy options
-            </span>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
-          </button>
+              Copy
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <div className="relative">
+              <button
+                onClick={pasteFromClipboard}
+                className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-orange-200 bg-[#FDF8F3] px-3 py-2.5 pr-8 text-xs font-bold text-orange-600 active:bg-orange-50 transition-colors"
+              >
+                <ClipboardPaste className="w-3.5 h-3.5" />
+                Paste
+              </button>
+              <HelpBubble id="paste-menu" text="Reads copied text from WhatsApp or your clipboard, detects breakfast/lunch/dinner sections, and places it into drafts for review before saving." />
+            </div>
+          </div>
 
           {actionsOpen && (
             <div className="mt-2 space-y-2">
@@ -1062,17 +1072,6 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               </div>
             </div>
           )}
-
-          <div className="relative mt-2">
-            <button
-              onClick={pasteFromClipboard}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-orange-200 bg-[#FDF8F3] px-3 py-3 pr-9 text-xs font-black text-orange-600"
-            >
-              <ClipboardPaste className="w-4 h-4" />
-              Paste from WhatsApp or clipboard
-            </button>
-            <HelpBubble id="paste-menu" text="Reads copied text from WhatsApp or your clipboard, detects breakfast/lunch/dinner sections, and places it into drafts for review before saving." />
-          </div>
 
           <button
             onClick={() => router.push('/settings#menu-quick-tags')}
