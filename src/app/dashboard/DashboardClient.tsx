@@ -997,15 +997,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {/* Right: actions */}
                 {deliveryTrackingEnabled && (
                   <div className="flex items-center gap-1.5">
-                    {!bulkMode && pendingCount > 0 && (
-                      <button
-                        onClick={() => markAllDelivered(deliveryToday)}
-                        className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-green-50 border border-green-200 text-green-700 active:scale-95 transition-all"
-                      >
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        All done
-                      </button>
-                    )}
                     {bulkMode && (
                       <button
                         onClick={() => {
