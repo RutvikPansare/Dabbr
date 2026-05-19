@@ -208,6 +208,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   const [goodWeekPickerOpen, setGoodWeekPickerOpen] = useState(false)
   const [stickyExpanded, setStickyExpanded] = useState(false)
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [servedExpanded, setServedExpanded] = useState(false)
   const [quickTags, setQuickTags] = useState<MenuQuickTag[]>(initialQuickTags)
   const [customItemInputs, setCustomItemInputs] = useState<Record<string, string>>({})
   const seededTagsRef = useRef(false)
@@ -1110,24 +1111,32 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
           )}
         </section>
 
-        <section className="rounded-[1.5rem] border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-black text-gray-900">Served This Week</h2>
-              <p className="text-xs font-semibold text-gray-400">A quick memory of what is already planned</p>
+        <section className="rounded-[1.5rem] border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setServedExpanded(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 active:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-sm font-black text-gray-900">Served This Week</span>
+              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-600">{servedThisWeek.length} dishes</span>
             </div>
-            <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black text-orange-600">{servedThisWeek.length} dishes</span>
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {servedThisWeek.slice(0, 14).map(item => (
-              <span key={item.label} className="shrink-0 rounded-full bg-[#FDF8F3] px-3 py-1.5 text-[11px] font-black text-gray-600">
-                {item.label}{item.count > 1 ? ` ×${item.count}` : ''}
-              </span>
-            ))}
-            {!servedThisWeek.length && (
-              <span className="text-xs font-semibold text-gray-300">Nothing saved for this week yet.</span>
-            )}
-          </div>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${servedExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          {servedExpanded && (
+            <div className="px-4 pb-4">
+              <p className="text-xs font-semibold text-gray-400 mb-2.5">A quick memory of what is already planned</p>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {servedThisWeek.slice(0, 14).map(item => (
+                  <span key={item.label} className="shrink-0 rounded-full bg-[#FDF8F3] px-3 py-1.5 text-[11px] font-black text-gray-600">
+                    {item.label}{item.count > 1 ? ` ×${item.count}` : ''}
+                  </span>
+                ))}
+                {!servedThisWeek.length && (
+                  <span className="text-xs font-semibold text-gray-300">Nothing saved for this week yet.</span>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         <div className="space-y-3">
