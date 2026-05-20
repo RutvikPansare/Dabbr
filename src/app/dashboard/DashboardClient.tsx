@@ -408,6 +408,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(false)
   const [cookListOpen, setCookListOpen] = useState(true)
+  const [packingListOpen, setPackingListOpen] = useState(false)
 
   // ── Data state — seeded from server-side cached initialData ───────────────
   const [customers, setCustomers] = useState<Customer[]>(initialData.customers)
@@ -661,7 +662,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
     function processMenu(menu: TodayMenu | undefined, count: number, label: string | null) {
       if (!menu || !menu.dish_name.trim()) return
-      const dishes = menu.dish_name.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
+      const dishes = menu.dish_name.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean)
       const qtys: Record<string, number> = menu.quantities ?? {}
       for (const dish of dishes) {
         const qty = qtys[dish] ?? 1
@@ -684,6 +685,32 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     if (!totals.size) return null
     return { slot, customerCount: slotCustomers.length, items: Array.from(totals.entries()).map(([name, d]) => ({ name, ...d })) }
   }).filter(Boolean) as Array<{ slot: MealSlot; customerCount: number; items: { name: string; total: number; perCustomer: number; label: string | null }[] }>
+
+  // ── Packing list (per-customer dish breakdown) ────────────────────────────
+  function getDishesForMenus(menus: (TodayMenu | undefined)[]) {
+    const dishes: Array<{ name: string; qty: number }> = []
+    for (const menu of menus) {
+      if (!menu?.dish_name.trim()) continue
+      const items = menu.dish_name.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean)
+      const qtys = menu.quantities ?? {}
+      for (const item of items) dishes.push({ name: item, qty: qtys[item] ?? 1 })
+    }
+    return dishes
+  }
+
+  const packingList = deliveryToday.map(c => {
+    const plan = customerPlan(c)
+    if (!plan) return null
+    const planType = plan.plan_type
+    const slotItems = plan.meal_slots.map(slot => {
+      const dishes = getDishesForMenus([
+        todayMenus.find(m => m.meal_slot === slot && m.plan_type === null),
+        todayMenus.find(m => m.meal_slot === slot && m.plan_type === planType),
+      ])
+      return dishes.length ? { slot, dishes } : null
+    }).filter(Boolean) as Array<{ slot: MealSlot; dishes: Array<{ name: string; qty: number }> }>
+    return slotItems.length ? { customer: c, slots: slotItems } : null
+  }).filter(Boolean) as Array<{ customer: Customer; slots: Array<{ slot: MealSlot; dishes: Array<{ name: string; qty: number }> }> }>
 
   const trialBadgeClass =
     trialDaysLeft === null ? ''
@@ -943,6 +970,86 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Packing List (per customer) ── */}
+      {deliveryToday.length > 0 && (
+        <div className="mx-auto max-w-2xl px-4 mt-3">
+          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setPackingListOpen(v => !v)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
+                <Box className="w-3.5 h-3.5 text-orange-500" />
+              </span>
+              <span className="flex-1 text-left text-sm font-black text-gray-900">Packing List</span>
+              {packingList.length === 0 && (
+                <span className="text-[11px] font-semibold text-gray-400">No menu set</span>
+              )}
+              {packingList.length > 0 && (
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
+                  {packingList.length} boxes
+                </span>
+              )}
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {packingListOpen && (
+              <div className="border-t border-gray-100">
+                {packingList.length === 0 ? (
+                  <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
+                    <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
+                    <button
+                      onClick={() => router.push('/menu')}
+                      className="text-xs font-black text-orange-500 active:opacity-70"
+                    >
+                      Go to Menu Planner →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {packingList.map(({ customer: c, slots }) => {
+                      const plan = customerPlan(c)
+                      const isDelivered = deliveryStatuses[c.id] === 'delivered'
+                      const isSkipped = deliveryStatuses[c.id] === 'skipped'
+                      return (
+                        <div key={c.id} className={`px-4 py-3 ${isDelivered ? 'opacity-40' : ''}`}>
+                          {/* Customer row */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="flex-1 text-sm font-black text-gray-900 truncate">{c.name}</span>
+                            {plan && (
+                              <span className="text-[10px] font-black shrink-0">
+                                {plan.plan_type === 'veg' ? '🥦' : '🍗'}
+                              </span>
+                            )}
+                            {isDelivered && <span className="text-[10px] font-black text-emerald-500 shrink-0">✓ Done</span>}
+                            {isSkipped && <span className="text-[10px] font-black text-gray-400 shrink-0">Skipped</span>}
+                          </div>
+                          {/* Per-slot dishes */}
+                          <div className="space-y-1.5 pl-1">
+                            {slots.map(({ slot, dishes }) => (
+                              <div key={slot} className="flex items-start gap-2">
+                                <span className="text-sm shrink-0 leading-none mt-0.5">{MEAL_SLOT_EMOJI[slot]}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {dishes.map(d => (
+                                    <span key={d.name} className="rounded-full bg-[#FDF8F3] px-2.5 py-1 text-[11px] font-black text-gray-700">
+                                      {d.name}{d.qty > 1 ? ` ×${d.qty}` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
