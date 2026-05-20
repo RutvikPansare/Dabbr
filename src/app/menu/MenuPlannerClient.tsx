@@ -27,6 +27,7 @@ import type { MealSlot, PlanType } from '@/types/database'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS } from '@/lib/meals'
 import { DEFAULT_MENU_QUICK_TAGS, MenuQuickTag, quickTagPlanType } from '@/lib/menu-quick-tags'
 import { isProviderHoliday } from '@/lib/holidays'
+import { invalidateDashboard } from '@/lib/revalidate'
 
 interface DailyMenu {
   id: string
@@ -678,6 +679,9 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       setSavedSlot(slot)
       setTimeout(() => setSavedSlot(current => (current === slot ? null : current)), 1500)
       showToast('success', `${MEAL_SLOT_LABEL[slot]} saved`)
+      // Bust the dashboard server cache so the Cook List picks up the new menu
+      invalidateDashboard(providerId).catch(() => {})
+      router.refresh()
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : 'Section save failed. Please try again.')
     } finally {
