@@ -6,14 +6,14 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, ClipboardList, HandCoins, ChevronRight,
+  MapPin, ClipboardList, HandCoins, ChevronRight, UtensilsCrossed,
 } from 'lucide-react'
+import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
 import Paywall from '@/components/Paywall'
 import { getThemeVars } from '@/lib/branding'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
-import { formatMealSlots, MEAL_SLOT_EMOJI } from '@/lib/meals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +79,13 @@ interface DeliveryRider {
   whatsapp_number: string
 }
 
+interface TodayMenu {
+  meal_slot: string
+  plan_type: string | null
+  dish_name: string
+  quantities: Record<string, number> | null
+}
+
 interface InitialData {
   customers: any[]
   provider: any
@@ -86,6 +93,7 @@ interface InitialData {
   trial: { trialDaysLeft: number | null; isExpired: boolean; isSubscribed: boolean }
   deliveryStatuses: Record<string, string>
   todayHoliday: { label: string | null } | null
+  todayMenus?: TodayMenu[]
 }
 
 interface Props {
@@ -399,6 +407,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(false)
+  const [cookListOpen, setCookListOpen] = useState(true)
 
   // ── Data state — seeded from server-side cached initialData ───────────────
   const [customers, setCustomers] = useState<Customer[]>(initialData.customers)
@@ -411,6 +420,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [loading, setLoading] = useState(false)
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
+  const todayMenus: TodayMenu[] = initialData.todayMenus ?? []
   const [riderModal, setRiderModal] = useState<{ area: string; members: Customer[] } | null>(null)
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
 
@@ -642,6 +652,39 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     .reduce((acc, c) => { if (c.status === 'active' && c.balance_days < 5) acc.push(c); return acc }, [] as Customer[])
     .sort((a, b) => a.balance_days - b.balance_days)
 
+  // ── Cook list — dish-level prep counts from today's menu × active customers ─
+  const cookList = MEAL_SLOTS.map(slot => {
+    const slotCustomers = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes(slot))
+    if (!slotCustomers.length) return null
+
+    const totals = new Map<string, { total: number; perCustomer: number; label: string | null }>()
+
+    function processMenu(menu: TodayMenu | undefined, count: number, label: string | null) {
+      if (!menu || !menu.dish_name.trim()) return
+      const dishes = menu.dish_name.split(/[,;]+/).map(s => s.trim()).filter(Boolean)
+      const qtys: Record<string, number> = menu.quantities ?? {}
+      for (const dish of dishes) {
+        const qty = qtys[dish] ?? 1
+        const prev = totals.get(dish)
+        totals.set(dish, {
+          total: (prev?.total ?? 0) + qty * count,
+          perCustomer: qty,
+          label: prev ? prev.label : label,
+        })
+      }
+    }
+
+    const vegCount    = slotCustomers.filter(c => (customerPlan(c)?.plan_type ?? c.plan_type) === 'veg').length
+    const nonvegCount = slotCustomers.filter(c => (customerPlan(c)?.plan_type ?? c.plan_type) === 'nonveg').length
+
+    processMenu(todayMenus.find(m => m.meal_slot === slot && m.plan_type === null), slotCustomers.length, null)
+    if (vegCount)    processMenu(todayMenus.find(m => m.meal_slot === slot && m.plan_type === 'veg'),    vegCount,    'veg only')
+    if (nonvegCount) processMenu(todayMenus.find(m => m.meal_slot === slot && m.plan_type === 'nonveg'), nonvegCount, 'non-veg only')
+
+    if (!totals.size) return null
+    return { slot, customerCount: slotCustomers.length, items: Array.from(totals.entries()).map(([name, d]) => ({ name, ...d })) }
+  }).filter(Boolean) as Array<{ slot: MealSlot; customerCount: number; items: { name: string; total: number; perCustomer: number; label: string | null }[] }>
+
   const trialBadgeClass =
     trialDaysLeft === null ? ''
     : trialDaysLeft > 20 ? 'bg-green-500/20 text-green-100'
@@ -826,6 +869,87 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           </div>
         </div>
       </div>
+
+      {/* ── Today's Cook List ── */}
+      {deliveryToday.length > 0 && (
+        <div className="mx-auto max-w-2xl px-4 mt-4">
+          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setCookListOpen(v => !v)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
+                <UtensilsCrossed className="w-3.5 h-3.5 text-orange-500" />
+              </span>
+              <span className="flex-1 text-left text-sm font-black text-gray-900">Today&apos;s Cook List</span>
+              {cookList.length === 0 && (
+                <span className="text-[11px] font-semibold text-gray-400">No menu set</span>
+              )}
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${cookListOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {cookListOpen && (
+              <div className="border-t border-gray-100">
+                {cookList.length === 0 ? (
+                  <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
+                    <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
+                    <button
+                      onClick={() => router.push('/menu')}
+                      className="text-xs font-black text-orange-500 active:opacity-70"
+                    >
+                      Go to Menu Planner →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {cookList.map(({ slot, customerCount, items }) => (
+                      <div key={slot} className="px-4 py-3">
+                        {/* Slot header */}
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <span className="text-base leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
+                          <span className="text-xs font-black text-gray-700">{MEAL_SLOT_LABEL[slot]}</span>
+                          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-500">
+                            {customerCount} customer{customerCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {/* Dish rows */}
+                        <div className="space-y-1.5">
+                          {items.map(item => (
+                            <div key={item.name} className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-sm font-bold text-gray-800 truncate">{item.name}</span>
+                                {item.label && (
+                                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                                    item.label === 'veg only'
+                                      ? 'bg-emerald-50 text-emerald-600'
+                                      : 'bg-orange-50 text-orange-500'
+                                  }`}>
+                                    {item.label}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="shrink-0 flex items-center gap-1.5">
+                                {item.perCustomer > 1 && (
+                                  <span className="text-[10px] font-semibold text-gray-400">
+                                    ×{item.perCustomer} each
+                                  </span>
+                                )}
+                                <span className="rounded-xl bg-gray-900 px-2.5 py-1 text-xs font-black text-white min-w-[2rem] text-center">
+                                  {item.total}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Onboarding ── */}
       {safeCustomers.length === 0 && !isExpired && (

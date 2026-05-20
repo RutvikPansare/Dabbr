@@ -181,6 +181,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         { data: logsData },
         { data: holidayData },
         { data: riders },
+        { data: todayMenus },
         trial,
       ] = await Promise.all([
         db.from('customers').select('*, pauses(*), subscriptions(*)').eq('provider_id', userId).order('name'),
@@ -189,6 +190,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         db.from('delivery_logs').select('customer_id, status').eq('provider_id', userId).eq('date', today),
         db.from('provider_holidays').select('label').eq('provider_id', userId).eq('date', today).maybeSingle(),
         db.from('delivery_riders').select('id, name, whatsapp_number').eq('provider_id', userId).order('created_at'),
+        db.from('daily_menus').select('meal_slot, plan_type, dish_name, quantities').eq('provider_id', userId).eq('menu_date', today),
         getTrialStatus(db, userId),
       ])
 
@@ -214,6 +216,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         trial,
         deliveryStatuses,
         todayHoliday: holidayData ? { label: holidayData.label ?? null } : null,
+        todayMenus: (todayMenus ?? []) as Array<{ meal_slot: string; plan_type: string | null; dish_name: string; quantities: Record<string, number> | null }>,
       }
     },
     [`dashboard-data-${userId}-${today}`],

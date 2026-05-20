@@ -36,6 +36,7 @@ interface DailyMenu {
   dish_name: string
   plan_type: PlanType | null
   notes: string | null
+  quantities: Record<string, number> | null
 }
 
 interface Props {
@@ -170,6 +171,18 @@ function parseClipboardMenu(text: string): Partial<Record<MealSlot, SectionDraft
   return parsed
 }
 
+function extractQuantitiesFromMenus(menus: DailyMenu[]): Record<string, Record<'any' | 'veg' | 'nonveg', Record<string, number>>> {
+  const result: Record<string, Record<'any' | 'veg' | 'nonveg', Record<string, number>>> = {}
+  for (const menu of menus) {
+    if (!menu.quantities) continue
+    const sk = sectionKey(menu.menu_date, menu.meal_slot)
+    const entry: 'any' | 'veg' | 'nonveg' = menu.plan_type === null ? 'any' : (menu.plan_type as 'veg' | 'nonveg')
+    if (!result[sk]) result[sk] = { any: {}, veg: {}, nonveg: {} }
+    result[sk][entry] = { ...(result[sk][entry] ?? {}), ...menu.quantities }
+  }
+  return result
+}
+
 function serializeDayMenu(date: string, menus: DailyMenu[]) {
   const lines = [`${labelDate(date)} menu`]
   for (const slot of MEAL_SLOTS) {
@@ -213,6 +226,12 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   const [customItemInputs, setCustomItemInputs] = useState<Record<string, string>>({})
   const seededTagsRef = useRef(false)
 
+  // ── Item quantities — sectionKey → entryKey → itemName → servings per customer ──
+  // Initialized from DB menus; updated live as user taps ± buttons.
+  const [itemQuantities, setItemQuantities] = useState<Record<string, Record<EntryKey, Record<string, number>>>>(
+    () => extractQuantitiesFromMenus(initialMenus)
+  )
+
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
   const copyDates = useMemo(() => Array.from({ length: 21 }, (_, i) => addDays(selectedDate, -(i + 1))), [selectedDate])
   const thisWeekStart = useMemo(() => {
@@ -221,6 +240,29 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
     d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
     return d.toISOString().split('T')[0]
   }, [initialToday])
+
+  // ── Quantity helpers ───────────────────────────────────────────────────────
+
+  function getItemQty(date: string, slot: MealSlot, entry: EntryKey, item: string): number {
+    return itemQuantities[sectionKey(date, slot)]?.[entry]?.[item] ?? 1
+  }
+
+  function setItemQty(date: string, slot: MealSlot, entry: EntryKey, item: string, qty: number) {
+    const sk = sectionKey(date, slot)
+    setItemQuantities(prev => {
+      const existing = prev[sk] ?? { any: {}, veg: {}, nonveg: {} }
+      return {
+        ...prev,
+        [sk]: {
+          ...existing,
+          [entry]: {
+            ...(existing[entry] ?? {}),
+            [item]: Math.max(1, qty),
+          },
+        },
+      }
+    })
+  }
 
   function isDayOff(date: string): boolean {
     return isProviderHoliday(date, initialOffDays, Object.keys(initialHolidayMap))
@@ -434,7 +476,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
     updateDraft(date, slot, entry, items.join(', '))
   }
 
-  function addMenuItemToDraft(date: string, slot: MealSlot, entry: EntryKey, label: string) {
+  function addMenuItemToDraft(date: string, slot: MealSlot, entry: EntryKey, label: string, defaultQty = 1) {
     const item = label.trim()
     if (!item) return
     const section = getSectionDraft(date, slot)
@@ -442,12 +484,25 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
     const exists = items.some(current => current.toLowerCase() === item.toLowerCase())
     if (exists) return
     writeMenuItemsToDraft(date, slot, entry, [...items, item])
+    if (defaultQty > 1) setItemQty(date, slot, entry, item, defaultQty)
   }
 
   function removeMenuItemFromDraft(date: string, slot: MealSlot, entry: EntryKey, itemIndex: number) {
     const section = getSectionDraft(date, slot)
-    const nextItems = menuItemsFromDraft(section[entry]).filter((_, index) => index !== itemIndex)
+    const items = menuItemsFromDraft(section[entry])
+    const removedItem = items[itemIndex]
+    const nextItems = items.filter((_, index) => index !== itemIndex)
     writeMenuItemsToDraft(date, slot, entry, nextItems)
+    // Clean up stored quantity for the removed item
+    if (removedItem) {
+      const sk = sectionKey(date, slot)
+      setItemQuantities(prev => {
+        if (!prev[sk]?.[entry]) return prev
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [removedItem]: _removed, ...rest } = prev[sk][entry]
+        return { ...prev, [sk]: { ...prev[sk], [entry]: rest } }
+      })
+    }
   }
 
   function addCustomMenuItem(date: string, slot: MealSlot, entry: EntryKey) {
@@ -511,11 +566,13 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       return
     }
 
+    const weekMenus = (data ?? []).filter((menu: DailyMenu) => menu.menu_date >= nextStart && menu.menu_date <= end)
     setWeekStart(nextStart)
     setSelectedDate(nextSelectedDate ?? nextStart)
     setHistoryMenus(data ?? [])
-    setMenus((data ?? []).filter((menu: DailyMenu) => menu.menu_date >= nextStart && menu.menu_date <= end))
+    setMenus(weekMenus)
     setDrafts({})
+    setItemQuantities(extractQuantitiesFromMenus(weekMenus))
     setCopyPickerOpen(false)
     setGoodWeekPickerOpen(false)
   }
@@ -543,6 +600,14 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   async function saveSection(slot: MealSlot) {
     const section = getSectionDraft(selectedDate, slot)
     const existing = ENTRY_TYPES.map(({ key }) => ({ key, menu: getMenu(selectedDate, slot, entryPlanType(key)) }))
+    // Build quantities map for each entry type
+    function buildQtyMap(key: EntryKey): Record<string, number> {
+      const items = menuItemsFromDraft(section[key])
+      const map: Record<string, number> = {}
+      for (const item of items) map[item] = getItemQty(selectedDate, slot, key, item)
+      return map
+    }
+
     const inserts = ENTRY_TYPES
       .filter(({ key }) => section[key].trim() && !existing.find(item => item.key === key)?.menu)
       .map(({ key }) => ({
@@ -551,6 +616,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
         meal_slot: slot,
         plan_type: entryPlanType(key),
         dish_name: section[key].trim(),
+        quantities: buildQtyMap(key),
         updated_at: new Date().toISOString(),
       }))
 
@@ -566,7 +632,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
         if (menu && dish) {
           const { data, error } = await db
             .from('daily_menus')
-            .update({ dish_name: dish, updated_at: new Date().toISOString() })
+            .update({ dish_name: dish, quantities: buildQtyMap(key as EntryKey), updated_at: new Date().toISOString() })
             .eq('id', menu.id)
             .select('*')
             .single()
@@ -1184,10 +1250,10 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                               <button
                                 key={tag.id}
                                 type="button"
-                                onClick={() => addMenuItemToDraft(selectedDate, slot, entry.key, tag.label)}
+                                onClick={() => addMenuItemToDraft(selectedDate, slot, entry.key, tag.label, tag.default_quantity ?? 1)}
                                 className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black shadow-sm ${tagToneClasses(tag.label)}`}
                               >
-                                + {tag.label}
+                                + {tag.label}{(tag.default_quantity ?? 1) > 1 ? ` ×${tag.default_quantity}` : ''}
                               </button>
                             )
                           })}
@@ -1204,19 +1270,40 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
 
                         <div className="rounded-2xl border border-gray-200 bg-white p-2 focus-within:border-[#F4622A] focus-within:ring-2 focus-within:ring-orange-100">
                           <div className="flex min-h-10 flex-wrap gap-1.5">
-                            {selectedItems.map((item, index) => (
-                              <span key={`${item}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1.5 text-[11px] font-black text-orange-700">
-                                {item}
-                                <button
-                                  type="button"
-                                  onClick={() => removeMenuItemFromDraft(selectedDate, slot, entry.key, index)}
-                                  className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-orange-400"
-                                  aria-label={`Remove ${item}`}
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
+                            {selectedItems.map((item, index) => {
+                              const qty = getItemQty(selectedDate, slot, entry.key, item)
+                              return (
+                                <span key={`${item}-${index}`} className="inline-flex items-center gap-0.5 rounded-full border border-orange-100 bg-orange-50 pl-2.5 pr-1 py-1">
+                                  <span className="text-[11px] font-black text-orange-700">{item}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setItemQty(selectedDate, slot, entry.key, item, qty - 1)}
+                                    disabled={qty <= 1}
+                                    className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[12px] font-black leading-none text-orange-400 disabled:opacity-30 active:bg-orange-100 transition-colors"
+                                    aria-label={`Decrease ${item} quantity`}
+                                  >
+                                    −
+                                  </button>
+                                  <span className="min-w-[1.5ch] text-center text-[11px] font-black text-orange-600">{qty}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setItemQty(selectedDate, slot, entry.key, item, qty + 1)}
+                                    className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[12px] font-black leading-none text-orange-500 active:bg-orange-100 transition-colors"
+                                    aria-label={`Increase ${item} quantity`}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeMenuItemFromDraft(selectedDate, slot, entry.key, index)}
+                                    className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white/80 text-orange-300 active:bg-orange-100 transition-colors"
+                                    aria-label={`Remove ${item}`}
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              )
+                            })}
                             {!selectedItems.length && (
                               <span className="px-1 py-2 text-xs font-semibold text-gray-300">{entry.placeholder}</span>
                             )}

@@ -138,6 +138,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
         plan_type: quickTagPlanType(tag.type),
         label: tag.label,
         sort_order: tag.sort_order,
+        default_quantity: tag.default_quantity,
       }))
       const { data, error: seedError } = await db.from('menu_quick_tags').insert(payload).select('*')
       if (seedError) {
@@ -317,6 +318,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
         plan_type: quickTagPlanType(type),
         label,
         sort_order: sortOrder,
+        default_quantity: 1,
       })
       .select('*')
       .single()
@@ -354,6 +356,12 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
 
     if (data) setMenuQuickTags(prev => prev.map(item => item.id === tag.id ? data : item))
+  }
+
+  async function updateQuickTagQty(tag: MenuQuickTag, qty: number) {
+    const safeQty = Math.max(1, Math.min(99, isNaN(qty) ? 1 : qty))
+    setMenuQuickTags(prev => prev.map(t => t.id === tag.id ? { ...t, default_quantity: safeQty } : t))
+    await db.from('menu_quick_tags').update({ default_quantity: safeQty }).eq('id', tag.id)
   }
 
   async function deleteQuickTag(id: string) {
@@ -933,7 +941,21 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                                       }}
                                       onBlur={(event) => updateQuickTag(tag, event.target.value)}
                                       disabled={tagSaving === tag.id}
-                                      className="w-24 bg-transparent text-[11px] font-black text-orange-700 outline-none disabled:opacity-60"
+                                      className="w-20 bg-transparent text-[11px] font-black text-orange-700 outline-none disabled:opacity-60"
+                                    />
+                                    <span className="text-orange-300 text-[10px] font-black">×</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="99"
+                                      value={tag.default_quantity ?? 1}
+                                      onChange={(event) => {
+                                        const qty = parseInt(event.target.value) || 1
+                                        setMenuQuickTags(prev => prev.map(t => t.id === tag.id ? { ...t, default_quantity: qty } : t))
+                                      }}
+                                      onBlur={(event) => updateQuickTagQty(tag, parseInt(event.target.value) || 1)}
+                                      disabled={tagSaving === tag.id}
+                                      className="w-7 text-center bg-transparent text-[11px] font-black text-orange-500 outline-none disabled:opacity-60"
                                     />
                                     <button
                                       type="button"
