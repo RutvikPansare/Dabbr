@@ -1313,7 +1313,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                             )}
                           </div>
                           {selectedItems.some(item => pairingSuggestionsFor(item, slot).length > 0) && (
-                            <div className="mt-2 flex gap-1.5 overflow-x-auto border-t border-gray-100 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <div className="mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                               {Array.from(
                                 new Map(
                                   selectedItems.flatMap(item => pairingSuggestionsFor(item, slot)).map(pair => [pair.label, pair])
