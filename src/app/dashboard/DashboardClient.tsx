@@ -899,16 +899,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       </div>
 
-      {/* ── DEBUG (remove after fixing) ── */}
-      <div className="mx-auto max-w-2xl px-4 mt-3">
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-[11px] font-mono text-red-700 space-y-1">
-          <p><strong>today:</strong> {today} | <strong>menus:</strong> {todayMenus.length} | <strong>deliveryToday:</strong> {deliveryToday.length} | <strong>cookList:</strong> {cookList.length}</p>
-          {deliveryToday.slice(0, 2).map(c => (
-            <p key={c.id}><strong>{c.name}:</strong> plan={customerPlan(c) ? 'enriched' : 'denorm'} slots={JSON.stringify((customerPlan(c)?.meal_slots ?? c.meal_slots))}</p>
-          ))}
-        </div>
-      </div>
-
       {/* ── Today's Cook List ── */}
       {deliveryToday.length > 0 && (
         <div className="mx-auto max-w-2xl px-4 mt-4">
