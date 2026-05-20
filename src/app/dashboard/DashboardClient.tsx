@@ -968,13 +968,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const themeVars = getThemeVars(provider?.accent_color)
 
   return (
-    <div className="h-screen flex flex-col bg-[#FDF8F3]" style={themeVars as React.CSSProperties}>
+    // Mobile: full-screen flex col (header pinned top, scrollable body, nav pinned bottom)
+    // Desktop: natural document flow (sidebar handles nav, page scrolls normally)
+    <div className="h-screen flex flex-col bg-[#F7F2EC] lg:h-auto lg:min-h-screen lg:block" style={themeVars as React.CSSProperties}>
 
       {isExpired && <Paywall />}
 
-      {/* ── Header — not fixed; flex layout keeps it pinned at top ── */}
+      {/* ── Mobile header — gradient pill, hidden on desktop ── */}
       <div
-        className="shrink-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.15)]"
+        className="shrink-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.12)] lg:hidden"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
@@ -1011,13 +1013,57 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       </div>
 
-      {/* ── Scrollable content — flex-1 fills remaining height below header ── */}
-      <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]">
+      {/* ── Desktop page header — flat sticky bar, hidden on mobile ── */}
+      <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 py-4 bg-[#F7F2EC]/90 backdrop-blur-sm" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-gray-400 leading-none mb-1">{formatTodayLong(today)}</p>
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-1.5 leading-tight">
+            {greeting}, {providerName}
+            <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
+          </h1>
+        </div>
+        {trialDaysLeft !== null && (
+          <span className={`chip font-semibold ${trialDaysLeft <= 7 ? 'bg-red-50 text-red-600' : trialDaysLeft <= 20 ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-orange-600'}`}>
+            {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft}d left` : 'Trial expired'}
+          </span>
+        )}
+      </div>
 
+      {/* ── Scrollable content (mobile) / Document flow (desktop) ── */}
+      <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))] lg:flex-none lg:overflow-visible lg:pb-12">
+
+
+      {/* ── Desktop stat tiles — above slot tabs, hidden on mobile ── */}
+      {safeCustomers.length > 0 && (
+        <div className="hidden lg:grid px-8 pt-6 pb-1 gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+          <div className="stat-tile">
+            <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Today</p>
+            <p className="text-3xl font-black text-gray-900 leading-none">{deliveryToday.length}</p>
+            <p className="text-[11px] text-gray-400 mt-1.5">deliveries</p>
+          </div>
+          <div className="stat-tile">
+            <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Delivered</p>
+            <p className="text-3xl font-black text-emerald-600 leading-none">{deliveredCount}</p>
+            <p className="text-[11px] text-gray-400 mt-1.5">of {deliveryToday.length}</p>
+          </div>
+          <div className="stat-tile">
+            <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Pending</p>
+            <p className="text-3xl font-black text-orange-500 leading-none">{pendingCount}</p>
+            <p className="text-[11px] text-gray-400 mt-1.5">{slotFilter === 'all' ? 'untouched' : 'this slot'}</p>
+          </div>
+          {paymentAlerts.length > 0 && (
+            <div className="stat-tile border-red-100 bg-red-50/60">
+              <p className="text-[11px] font-semibold text-red-400 mb-1.5">Pay alerts</p>
+              <p className="text-3xl font-black text-red-600 leading-none">{paymentAlerts.length}</p>
+              <p className="text-[11px] text-red-400 mt-1.5">customers</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Cook List + Packing List with shared slot filter ── */}
       {(todayMenus.length > 0 || deliveryToday.length > 0) && (
-        <div className="mx-auto max-w-2xl px-4 mt-4 space-y-3">
+        <div className="mx-auto max-w-2xl px-4 mt-4 lg:max-w-none lg:px-8 lg:mt-4">
 
           {/* Shared slot filter bar — doubles as workspace selector.
               Shown whenever there are deliveries today, regardless of menus.
@@ -1086,6 +1132,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             )}
             </div>
           )}
+
+          {/* Cook List + Packing List — stacked on mobile, side-by-side on desktop */}
+          <div className="mt-3 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-5">
 
           {/* Cook List */}
           {todayMenus.length > 0 && (
@@ -1234,6 +1283,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               )}
             </div>
           )}
+
+          </div>
         </div>
       )}
 
@@ -1267,11 +1318,17 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Main content ── */}
       {safeCustomers.length > 0 && (
-        <main className="mx-auto mt-5 max-w-2xl space-y-5 px-4">
+        <main className="mx-auto mt-5 max-w-2xl px-4 lg:max-w-none lg:px-8 lg:mt-5">
 
-          {/* ── Payment alerts ── */}
+          {/* Desktop two-column grid: left = operational, right = status panel */}
+          <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '1fr 280px' }}>
+
+          {/* ── Left column ── */}
+          <div className="space-y-5">
+
+          {/* ── Payment alerts — mobile / left-column position ── */}
           {paymentAlerts.length > 0 && (
-            <section className="mt-8">
+            <section className="mt-8 lg:hidden">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
                   <span className="flex items-center justify-center p-1.5 bg-red-100 rounded-xl">
@@ -1636,6 +1693,104 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
           {/* ── Summary ── */}
           <SummarySection userId={userId} deliveryTrackingEnabled={deliveryTrackingEnabled} />
+
+          </div>{/* end left column */}
+
+          {/* ── Desktop right panel — slot progress + payment alerts ── */}
+          <div className="hidden lg:flex flex-col gap-4 sticky top-[73px] self-start">
+
+            {/* Slot workspace progress */}
+            {deliveryTrackingEnabled && deliveryToday.length > 0 && (
+              <div className="card p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Slot progress</p>
+                <div className="space-y-1">
+                  {MEAL_SLOTS.map(s => {
+                    const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
+                    if (!sCusts.length) return null
+                    const sDone = sCusts.filter(c => deliveryStatuses[`${c.id}:${s}`] === 'delivered').length
+                    const pct  = Math.round((sDone / sCusts.length) * 100)
+                    const isAllDone = sDone === sCusts.length
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => { setSlotFilter(s); setBulkMode(false); setSelectedIds(new Set()) }}
+                        className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all hover:bg-gray-50 active:scale-[0.98] ${slotFilter === s ? 'bg-orange-50' : ''}`}
+                      >
+                        <span className="text-base leading-none shrink-0">{MEAL_SLOT_EMOJI[s]}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className={`text-xs font-semibold ${slotFilter === s ? 'text-orange-600' : 'text-gray-700'}`}>{MEAL_SLOT_LABEL[s]}</span>
+                            <span className={`text-xs font-bold ${isAllDone ? 'text-emerald-600' : 'text-gray-400'}`}>{sDone}/{sCusts.length}</span>
+                          </div>
+                          <div className="progress-bar">
+                            <div className="progress-fill" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                        {isAllDone && <span className="text-emerald-500 text-xs shrink-0">✓</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Payment alerts — desktop compact */}
+            {paymentAlerts.length > 0 && (
+              <div className="card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Payment alerts</p>
+                  <span className="chip-sm bg-red-50 text-red-600 font-bold">{paymentAlerts.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {paymentAlerts.slice(0, 5).map(c => (
+                    <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-gray-800 truncate">{c.name}</p>
+                        <p className="text-[11px] text-gray-400">{c.balance_days}d left</p>
+                      </div>
+                      <a
+                        href={reminderLink(c)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-500 text-white ml-2 shrink-0 hover:bg-green-600 transition-colors"
+                      >
+                        <MessageSquare className="w-3 h-3" fill="currentColor" />
+                      </a>
+                    </div>
+                  ))}
+                  {paymentAlerts.length > 5 && (
+                    <p className="text-[11px] text-gray-400 text-center pt-1">+{paymentAlerts.length - 5} more</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Today's summary stats */}
+            {deliveryToday.length > 0 && (
+              <div className="card p-4">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Today's status</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-emerald-50 p-3 text-center">
+                    <p className="text-xl font-black text-emerald-600 leading-none">{deliveredCount}</p>
+                    <p className="text-[10px] font-semibold text-emerald-500 mt-1">Done</p>
+                  </div>
+                  <div className="rounded-xl bg-orange-50 p-3 text-center">
+                    <p className="text-xl font-black text-orange-500 leading-none">{pendingCount}</p>
+                    <p className="text-[10px] font-semibold text-orange-400 mt-1">Pending</p>
+                  </div>
+                  {skippedCount > 0 && (
+                    <div className="col-span-2 rounded-xl bg-amber-50 p-3 text-center">
+                      <p className="text-xl font-black text-amber-600 leading-none">{skippedCount}</p>
+                      <p className="text-[10px] font-semibold text-amber-500 mt-1">Skipped</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>{/* end right panel */}
+
+          </div>{/* end desktop grid */}
 
         </main>
       )}

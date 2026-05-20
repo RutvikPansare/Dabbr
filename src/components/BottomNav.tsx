@@ -17,7 +17,7 @@ export default function BottomNav() {
 
   return (
     /* Outer container — sits on top of safe-area, provides spacing from screen edge */
-    <nav className="fixed bottom-0 left-0 right-0 z-50 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
       <div className="mx-auto max-w-xl">
         {/* Floating card — all-rounded, elevated off the screen */}
         <div
