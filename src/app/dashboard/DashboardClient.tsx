@@ -499,26 +499,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
     const customer = customersRef.current.find(c => c.id === customerId)
     const isMonthly = (customer?.billing_type ?? 'prepaid') === 'monthly_settlement'
-    const custSlotList = customerMealSlots(customer)
-    const currentStatuses = deliveryStatusesRef.current
 
-    // Balance deducts on the FIRST slot marked delivered for a customer today.
-    // It adds back only when the LAST delivered slot is un-marked (all slots back to pending/skipped).
-    let balanceDelta = 0
-    if (newStatus === 'delivered' && prevStatus !== 'delivered') {
-      const anyOtherDelivered = custSlotList
-        .filter(s => s !== slot)
-        .some(s => currentStatuses[`${customerId}:${s}`] === 'delivered')
-      if (!anyOtherDelivered) balanceDelta = -1
-    }
-    if (prevStatus === 'delivered' && newStatus !== 'delivered') {
-      const otherDeliveredRemaining = custSlotList
-        .filter(s => s !== slot)
-        .some(s => currentStatuses[`${customerId}:${s}`] === 'delivered')
-      if (!otherDeliveredRemaining) balanceDelta = +1
-    }
-
-    // Optimistic UI
+    // ── Optimistic delivery status update ────────────────────────────────────
     setDeliveryStatuses(prev => {
       const next = { ...prev }
       if (newStatus === 'pending') delete next[key]
@@ -526,18 +508,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       return next
     })
 
-    if (balanceDelta !== 0) {
-      setCustomers(prev => prev.map(c => {
-        if (c.id !== customerId) return c
-        if (isMonthly) {
-          return { ...c, meals_delivered: Math.max(0, (c.meals_delivered ?? 0) - balanceDelta) }
-        } else {
-          return { ...c, balance_days: Math.max(0, c.balance_days + balanceDelta) }
-        }
-      }))
-    }
-
-    // Undo snackbar (single actions only)
+    // Undo snackbar (single-action only, not for resets)
     if (newStatus !== 'pending') {
       setUndoSnackbar({
         id: customerId,
@@ -550,27 +521,46 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       undoTimerRef.current = setTimeout(() => setUndoSnackbar(null), 4000)
     }
 
-    // Persist to DB — slot-scoped unique key
-    if (newStatus === 'pending') {
-      await db.from('delivery_logs').delete()
-        .eq('customer_id', customerId).eq('date', today).eq('meal_slot', slot)
-    } else {
-      await db.from('delivery_logs').upsert(
-        { customer_id: customerId, provider_id: userId, date: today, meal_slot: slot, status: newStatus },
-        { onConflict: 'customer_id,date,meal_slot' }
-      )
+    // ── Server RPC: delivery_logs write + balance update in ONE transaction ──
+    // Fixes two critical bugs:
+    //   1. Race condition: balance delta is computed server-side from DB counts,
+    //      not from stale React state. Two concurrent calls can't both deduct.
+    //   2. Two-phase commit: both writes happen atomically. A network failure
+    //      can't leave delivery logged but balance unchanged.
+    const { data, error } = await db.rpc('mark_slot_delivery', {
+      p_customer_id: customerId,
+      p_provider_id: userId,
+      p_date:        today,
+      p_meal_slot:   slot,
+      p_status:      newStatus,
+    })
+
+    if (error) {
+      // ── Rollback optimistic delivery status ───────────────────────────────
+      setDeliveryStatuses(prev => {
+        const next = { ...prev }
+        if (prevStatus === 'pending') delete next[key]
+        else next[key] = prevStatus
+        return next
+      })
+      // Dismiss the undo snackbar for this failed action
+      setUndoSnackbar(prev => (prev?.id === customerId && prev?.slot === slot ? null : prev))
+      console.error('[Dabbr] markDelivery RPC failed:', error.message)
+      return
     }
 
-    if (balanceDelta !== 0 && customer) {
-      if (isMonthly) {
-        await db.from('customers').update({
-          meals_delivered: Math.max(0, (customer.meals_delivered ?? 0) - balanceDelta),
-        }).eq('id', customerId)
-      } else {
-        await db.from('customers').update({
-          balance_days: Math.max(0, customer.balance_days + balanceDelta),
-        }).eq('id', customerId)
-      }
+    // ── Apply server-returned balance delta to local state (UI stays live) ──
+    // The server computed the correct delta atomically; we just mirror it here.
+    const balanceDelta: number = (data as any)?.balance_delta ?? 0
+    if (balanceDelta !== 0) {
+      setCustomers(prev => prev.map(c => {
+        if (c.id !== customerId) return c
+        if (isMonthly) {
+          return { ...c, meals_delivered: Math.max(0, (c.meals_delivered ?? 0) - balanceDelta) }
+        } else {
+          return { ...c, balance_days: Math.max(0, c.balance_days + balanceDelta) }
+        }
+      }))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, today])
@@ -616,6 +606,21 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     router.push('/login')
     router.refresh()
   }
+
+  // ── Midnight date-staleness guard ────────────────────────────────────────
+  // `today` is derived at component mount. If the app stays open across
+  // midnight (IST), `today` becomes yesterday — deliveries get logged to the
+  // wrong date and the delivery list shows yesterday's customers.
+  // Checking every 60s and hard-refreshing when the IST date changes keeps the
+  // component in sync. The interval is cheap; the refresh is rare (once/day).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const nowDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+      if (nowDate !== today) router.refresh()
+    }, 60_000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today])
 
   // Auto-expand delivered section when all pending are done
   // (must be before any early return to satisfy Rules of Hooks)
@@ -951,7 +956,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     key={f.key}
                     onClick={() => {
                       setSlotFilter(f.key)
-                      if (f.key === 'all') { setBulkMode(false); setSelectedIds(new Set()) }
+                      // Always clear bulk selection on workspace switch —
+                      // not clearing caused wrong-slot bulk marking (issue 3)
+                      setBulkMode(false)
+                      setSelectedIds(new Set())
                     }}
                     className={`flex flex-col items-center gap-0.5 rounded-2xl py-2.5 px-1 transition-all active:scale-95 ${
                       active
