@@ -706,13 +706,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const packingList = deliveryToday.map(c => {
     const plan = customerPlan(c)
-    // Fall back to denormalized fields if subscription join is missing
     const planType = plan?.plan_type ?? c.plan_type
-    const mealSlots = plan?.meal_slots ?? c.meal_slots ?? []
-    const slotItems = mealSlots.map(slot => {
+    // Iterate over slots that have menus saved (not customer's subscribed slots)
+    const slotItems = MEAL_SLOTS.map(slot => {
+      const slotMenus = todayMenus.filter(m => m.meal_slot === slot)
+      if (!slotMenus.length) return null
       const dishes = getDishesForMenus([
-        todayMenus.find(m => m.meal_slot === slot && m.plan_type === null),
-        todayMenus.find(m => m.meal_slot === slot && m.plan_type === planType),
+        slotMenus.find(m => m.plan_type === null),
+        slotMenus.find(m => m.plan_type === planType),
       ])
       return dishes.length ? { slot, dishes } : null
     }).filter(Boolean) as Array<{ slot: MealSlot; dishes: Array<{ name: string; qty: number }> }>
