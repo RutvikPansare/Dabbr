@@ -172,22 +172,6 @@ function customerMealSlots(c: Customer | null | undefined): MealSlot[] {
   return ((customerPlan(c)?.meal_slots ?? c?.meal_slots ?? []) as MealSlot[])
 }
 
-// Effective delivery status across all of a customer's slots
-// 'delivered' = ALL slots delivered; 'skipped' = ALL skipped;
-// 'partial' = some but not all done; 'pending' = nothing marked
-type EffectiveStatus = 'pending' | 'delivered' | 'partial' | 'skipped'
-function effectiveDeliveryStatus(
-  customerId: string,
-  slots: MealSlot[],
-  statuses: Record<string, DeliveryStatus>
-): EffectiveStatus {
-  const ss = slots.map(s => statuses[`${customerId}:${s}`] ?? 'pending')
-  if (ss.every(s => s === 'delivered')) return 'delivered'
-  if (ss.every(s => s === 'skipped'))   return 'skipped'
-  if (ss.some(s => s === 'delivered' || s === 'skipped')) return 'partial'
-  return 'pending'
-}
-
 function reminderLink(c: Customer): string {
   const msg = encodeURIComponent(
     `Hi ${c.name} 🙏, your tiffin balance is running low — only *${c.balance_days} days* remaining. Please recharge soon to keep your deliveries going. Thank you! 🍱`
@@ -637,13 +621,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     }
   }
 
-  async function markAllDelivered(list: Customer[], slot: MealSlot) {
-    const ids = list
-      .filter(c => (deliveryStatusesRef.current[`${c.id}:${slot}`] ?? 'pending') === 'pending')
-      .map(c => c.id)
-    await Promise.all(ids.map(id => markDelivery(id, slot, 'delivered')))
-  }
-
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   async function handleSignOut() {
@@ -905,10 +882,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
 
   function handleCopyList() {
+    // Copy workspace-filtered list (respects active slot) not the full deliveryToday list.
+    // In a slot workspace this means only customers subscribed to that slot are included,
+    // which matches what the packer/rider actually sees on screen.
+    const listToCopy = workspaceCustomers
+    const slotLabel = slotFilter === 'all' ? '' : ` — ${MEAL_SLOT_LABEL[slotFilter as MealSlot]}`
     const lines = [
-      `Delivery list — ${formatTodayShort(today)}`,
+      `Delivery list${slotLabel} — ${formatTodayShort(today)}`,
       '',
-      ...deliveryToday.map(
+      ...listToCopy.map(
         (c, i) =>
           `${i + 1}. ${c.name}${c.area ? ` — ${c.area}` : ''} — ${
             customerPlan(c)?.plan_type === 'veg' ? '🥦 Veg' : '🍗 Non-veg'
