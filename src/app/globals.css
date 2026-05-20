@@ -2,12 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Design Tokens
+   Central source-of-truth for all spacing, color, shadow, radius, and motion.
+   Components reference these variables so a single edit ripples everywhere.
+───────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #FDF8F3;
-  --foreground: #171717;
+  /* ── Brand ── */
+  --accent:        #F4622A;
+  --accent-dark:   #CC4315;
+  --accent-light:  #FFF3EE;
+  --accent-rgb:    244 98 42;
+
+  /* ── Surface ── */
+  --background:    #F7F2EC;
+  --foreground:    #111111;
+  --surface:       #FFFFFF;
+  --surface-2:     #FAFAFA;
+  --surface-3:     #F4F4F4;
+
+  /* ── Border ── */
+  --border:        rgba(0, 0, 0, 0.07);
+  --border-strong: rgba(0, 0, 0, 0.11);
+
+  /* ── Text ── */
+  --text-1:  #111111;
+  --text-2:  #555555;
+  --text-3:  #999999;
+  --text-4:  #BBBBBB;
+
+  /* ── Radius (token scale) ── */
+  --r-xs:   6px;
+  --r-sm:   10px;
+  --r-md:   14px;
+  --r-lg:   18px;
+  --r-xl:   24px;
+  --r-2xl:  32px;
+  --r-full: 9999px;
+
+  /* ── Shadows (all very subtle — no dark elevation) ── */
+  --sh-xs:    0 1px 2px rgba(0,0,0,0.04);
+  --sh-sm:    0 1px 4px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --sh-md:    0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.03);
+  --sh-lg:    0 8px 24px rgba(0,0,0,0.07), 0 3px 8px rgba(0,0,0,0.03);
+  --sh-float: 0 4px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04);
+  --sh-accent-sm: 0 2px 8px rgba(244,98,42,0.30);
+  --sh-accent-md: 0 4px 16px rgba(244,98,42,0.28);
+
+  /* ── Spacing scale (4-point grid) ── */
+  --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;
+  --sp-4: 16px;  --sp-5: 20px;  --sp-6: 24px;
+  --sp-8: 32px;  --sp-10: 40px; --sp-12: 48px;
+
+  /* ── Motion ── */
+  --duration-fast:   120ms;
+  --duration-base:   200ms;
+  --duration-slow:   350ms;
+  --ease-out:        cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out:     cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Legacy compat (branding.ts still writes these) ── */
   --primary: #F4622A;
   --primary-gradient: linear-gradient(135deg, #FF7B3F 0%, #E04F18 100%);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base
+───────────────────────────────────────────────────────────────────────────── */
 
 html,
 body {
@@ -18,53 +81,127 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
+  /* Subtle warm radial gradient — keeps the brand warmth without distraction */
   background-image:
-    radial-gradient(at 0% 0%, rgba(244, 98, 42, 0.12) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(244, 98, 42, 0.08) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(244, 98, 42, 0.05) 0px, transparent 50%);
+    radial-gradient(at 0% 0%,   rgba(244, 98, 42, 0.09) 0px, transparent 55%),
+    radial-gradient(at 100% 0%, rgba(244, 98, 42, 0.06) 0px, transparent 55%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* Jakarta Sans alternates */
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Reusable Utilities
+───────────────────────────────────────────────────────────────────────────── */
+
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+
+  .text-balance { text-wrap: balance; }
+
+  /* ── Cards ── */
+  /* Primary card: clean white, subtle shadow — NO backdrop-blur (expensive on Android) */
+  .card {
+    @apply bg-white border border-black/[0.06] rounded-2xl;
+    box-shadow: var(--sh-sm);
   }
-  .glass-card {
-    @apply bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
-  }
-  .glass-nav {
-    @apply bg-white/85 backdrop-blur-2xl border-t border-white/60 shadow-[0_-8px_30px_rgb(0,0,0,0.04)];
-  }
-  .btn-primary {
-    background: var(--primary-gradient);
-    @apply text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:-translate-y-0.5 transition-all duration-300 active:scale-95 active:translate-y-0;
-  }
-  .btn-secondary {
-    @apply bg-white text-gray-800 border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 active:scale-95 active:translate-y-0;
-  }
-  .input-modern {
-    @apply w-full rounded-2xl border border-gray-200 bg-white/80 px-4 py-3.5 text-sm outline-none transition-all duration-300 focus:border-[#F4622A] focus:ring-4 focus:ring-orange-500/10 backdrop-blur-sm;
+  .card-lg {
+    @apply bg-white border border-black/[0.06] rounded-3xl;
+    box-shadow: var(--sh-md);
   }
 
-  /* Onboarding step animations */
+  /* glass-card kept for backward compat — simplified to clean white */
+  .glass-card {
+    @apply bg-white border border-black/[0.06] rounded-2xl;
+    box-shadow: var(--sh-sm);
+  }
+
+  /* Navigation glass — used by BottomNav */
+  .glass-nav {
+    @apply bg-white/90 backdrop-blur-2xl;
+    box-shadow: var(--sh-float);
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    background: var(--primary-gradient);
+    @apply text-white font-semibold rounded-2xl transition-all active:scale-[0.97];
+    box-shadow: var(--sh-accent-md);
+  }
+  .btn-primary:active {
+    box-shadow: var(--sh-accent-sm);
+  }
+
+  .btn-secondary {
+    @apply bg-white text-gray-800 border border-black/[0.08] font-semibold rounded-2xl;
+    box-shadow: var(--sh-xs);
+    @apply transition-all active:scale-[0.97];
+  }
+
+  /* ── Form Inputs ── */
+  .input-modern {
+    @apply w-full rounded-2xl border border-black/[0.08] bg-white px-4 py-3.5 text-sm
+           outline-none transition-all duration-200
+           focus:border-[#F4622A] focus:ring-4 focus:ring-orange-500/10;
+  }
+
+  /* ── Pills / Chips ── */
+  /* Standardised chip — use as base, add color modifiers */
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold;
+  }
+  .chip-sm {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold;
+  }
+
+  /* ── Stat tiles ── */
+  .stat-tile {
+    @apply flex flex-col gap-1 rounded-2xl p-4 bg-white border border-black/[0.05];
+    box-shadow: var(--sh-xs);
+  }
+
+  /* ── Section headers ── */
+  .section-header {
+    @apply flex items-center justify-between mb-3;
+  }
+  .section-title {
+    @apply text-[15px] font-bold text-gray-900 tracking-tight;
+  }
+
+  /* ── Segmented control (meal slot tabs) ── */
+  .segmented-control {
+    @apply flex bg-black/[0.05] rounded-2xl p-1 gap-0.5;
+  }
+  .segmented-item {
+    @apply relative flex-1 flex flex-col items-center py-2.5 px-1 rounded-xl
+           transition-all duration-200 active:scale-[0.96] z-10;
+  }
+  .segmented-item-active-bg {
+    @apply absolute inset-0 bg-white rounded-[11px];
+    box-shadow: var(--sh-sm);
+  }
+
+  /* ── Onboarding animations ── */
   .animate-slide-in {
-    animation: slideIn 0.25s ease-out both;
+    animation: slideIn 0.25s var(--ease-out) both;
   }
   .animate-slide-out {
-    animation: slideOut 0.2s ease-in both;
+    animation: slideOut 0.2s var(--ease-in-out) both;
   }
   .animate-cheer {
-    animation: cheerPop 1.4s ease-in-out both;
+    animation: cheerPop 1.4s var(--ease-spring) both;
   }
+  .animate-fade-up {
+    animation: fadeUp 0.3s var(--ease-out) both;
+  }
+
   @keyframes slideIn {
-    from { opacity: 0; transform: translateX(24px); }
+    from { opacity: 0; transform: translateX(20px); }
     to   { opacity: 1; transform: translateX(0); }
   }
   @keyframes slideOut {
     from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(-24px); }
+    to   { opacity: 0; transform: translateX(-20px); }
   }
   @keyframes cheerPop {
     0%   { opacity: 0; transform: scale(0.7); }
@@ -72,5 +209,18 @@ body {
     35%  { transform: scale(1); }
     75%  { opacity: 1; transform: scale(1); }
     100% { opacity: 0; transform: scale(0.9); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Delivery progress bar ── */
+  .progress-bar {
+    @apply h-1.5 w-full rounded-full bg-black/[0.06] overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-500;
+    background: linear-gradient(90deg, #34d399 0%, #10b981 100%);
   }
 }

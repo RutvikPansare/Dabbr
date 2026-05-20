@@ -1,12 +1,17 @@
 import type { Metadata, Viewport } from 'next'
-import { Outfit } from 'next/font/google'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import ServiceWorkerRegistration from './ServiceWorkerRegistration'
 import CapacitorInit from './CapacitorInit'
 import NativeStatusBar from './NativeStatusBar'
 import OnboardingGuide from '@/components/OnboardingGuide'
 
-const outfit = Outfit({ subsets: ['latin'] })
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+  weight: ['400', '500', '600', '700', '800'],
+})
 
 export const metadata: Metadata = {
   title: 'Dabbr – Tiffin Manager',
@@ -44,7 +49,7 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
-      <body className={outfit.className}>
+      <body className={`${jakarta.variable} font-sans`}>
         {children}
         <ServiceWorkerRegistration />
         <CapacitorInit />

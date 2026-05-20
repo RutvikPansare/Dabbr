@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, ClipboardList, HandCoins, ChevronRight, UtensilsCrossed,
+  MapPin, HandCoins, ChevronRight, UtensilsCrossed,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import BottomNav from '@/components/BottomNav'
@@ -210,13 +210,12 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
             <MapPin className="w-3 h-3 shrink-0" />{c.area}
           </p>
         )}
-        {/* Plan chip */}
-        <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1">
-          <ClipboardList className="w-3 h-3 text-orange-400 shrink-0" />
-          <span className="text-[10px] font-bold text-orange-400">{PLAN_EMOJI[planType]}</span>
-          <span className="text-[11px] font-bold text-gray-700 truncate max-w-[90px]">{plan?.name ?? planType}</span>
-          <span className="text-orange-200 text-xs">·</span>
-          <span className="text-[10px] font-medium text-gray-400">{slots.map(s => MEAL_SLOT_EMOJI[s]).join(' ')}</span>
+        {/* Plan chip — simplified: emoji + name + slot emojis */}
+        <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-gray-100/80 px-2 py-0.5">
+          <span className="text-[11px]">{PLAN_EMOJI[planType]}</span>
+          <span className="text-[11px] font-semibold text-gray-600 truncate max-w-[80px]">{plan?.name ?? planType}</span>
+          <span className="text-gray-300 text-xs">·</span>
+          <span className="text-[11px] text-gray-400">{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
         </div>
         {c.notes && (
           <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
@@ -226,15 +225,15 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
       {/* Right: balance / billing badge */}
       <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5">
         {isMonthly ? (
-          <span className="rounded-xl px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1">
+          <span className="chip-sm bg-amber-50 text-amber-700 flex items-center gap-1">
             <HandCoins className="w-3 h-3" /> Monthly
           </span>
         ) : (
-          <span className={`rounded-xl px-2.5 py-1 text-[11px] font-bold ${balancePill(c.balance_days)}`}>
+          <span className={`chip-sm font-semibold ${balancePill(c.balance_days)}`}>
             {c.balance_days}d left
           </span>
         )}
-        <span className={`text-[10px] font-bold ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-500'}`}>
+        <span className={`text-[10px] ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-400'}`}>
           {planType === 'veg' ? <Leaf className="w-3 h-3 inline" /> : <Drumstick className="w-3 h-3 inline" />}
         </span>
       </div>
@@ -366,15 +365,14 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
                   <MapPin className="w-3 h-3 shrink-0" />{c.area}
                 </p>
               )}
-              {/* Plan chip */}
-              <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 border ${
-                isDelivered ? 'bg-gray-50 border-gray-100' : 'bg-orange-50 border-orange-100'
+              {/* Plan chip — consistent with DeliveryRow */}
+              <div className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${
+                isDelivered ? 'bg-gray-100/50' : 'bg-gray-100/80'
               }`}>
-                <ClipboardList className={`w-3 h-3 shrink-0 ${isDelivered ? 'text-gray-300' : 'text-orange-400'}`} />
-                <span className={`text-[10px] font-bold ${isDelivered ? 'text-gray-300' : 'text-orange-400'}`}>{PLAN_EMOJI[planType]}</span>
-                <span className={`text-[11px] font-bold truncate max-w-[80px] ${isDelivered ? 'text-gray-300' : 'text-gray-700'}`}>{plan?.name ?? planType}</span>
-                <span className={`text-xs ${isDelivered ? 'text-gray-200' : 'text-orange-200'}`}>·</span>
-                <span className={`text-[10px] font-medium ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join(' ')}</span>
+                <span className={`text-[11px] ${isDelivered ? 'opacity-40' : ''}`}>{PLAN_EMOJI[planType]}</span>
+                <span className={`text-[11px] font-semibold truncate max-w-[80px] ${isDelivered ? 'text-gray-300' : 'text-gray-600'}`}>{plan?.name ?? planType}</span>
+                <span className={`text-xs ${isDelivered ? 'text-gray-200' : 'text-gray-300'}`}>·</span>
+                <span className={`text-[11px] ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
               </div>
               {c.notes && !isDelivered && (
                 <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
@@ -386,15 +384,15 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         {/* Right: balance / billing badge + veg icon */}
         <div className={`shrink-0 flex flex-col items-end gap-1 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
           {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (
-            <span className="rounded-xl px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1">
+            <span className="chip-sm bg-amber-50 text-amber-700 flex items-center gap-1">
               <HandCoins className="w-3 h-3" /> Monthly
             </span>
           ) : (
-            <span className={`rounded-xl px-2.5 py-1 text-[11px] font-bold ${balancePill(c.balance_days)}`}>
+            <span className={`chip-sm font-semibold ${balancePill(c.balance_days)}`}>
               {c.balance_days}d left
             </span>
           )}
-          <span className={`text-[10px] font-bold ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-500'}`}>
+          <span className={`text-[10px] ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-400'}`}>
             {planType === 'veg' ? <Leaf className="w-3 h-3 inline" /> : <Drumstick className="w-3 h-3 inline" />}
           </span>
         </div>
@@ -1028,12 +1026,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               even on days with no menu saved. */}
           {deliveryToday.length > 0 && (
             <div className="space-y-2">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+            {/* Segmented control — iOS-style single container with active pill */}
+            <div className="segmented-control">
               {([
-                { key: 'all',       label: 'Full Day', emoji: '🍱' },
+                { key: 'all',       label: 'Full Day',  emoji: '🍱' },
                 { key: 'breakfast', label: 'Breakfast', emoji: MEAL_SLOT_EMOJI.breakfast },
-                { key: 'lunch',     label: 'Lunch',    emoji: MEAL_SLOT_EMOJI.lunch },
-                { key: 'dinner',    label: 'Dinner',   emoji: MEAL_SLOT_EMOJI.dinner },
+                { key: 'lunch',     label: 'Lunch',     emoji: MEAL_SLOT_EMOJI.lunch },
+                { key: 'dinner',    label: 'Dinner',    emoji: MEAL_SLOT_EMOJI.dinner },
               ] as const).map(f => {
                 const active = slotFilter === f.key
                 return (
@@ -1041,27 +1040,22 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     key={f.key}
                     onClick={() => {
                       setSlotFilter(f.key)
-                      // Always clear bulk selection on workspace switch —
-                      // not clearing caused wrong-slot bulk marking (issue 3)
                       setBulkMode(false)
                       setSelectedIds(new Set())
                     }}
-                    className={`flex flex-col items-center gap-0.5 rounded-2xl py-2.5 px-1 transition-all active:scale-95 ${
-                      active
-                        ? 'bg-orange-500 shadow-lg shadow-orange-500/30 text-white'
-                        : 'bg-white border border-gray-100 text-gray-500 shadow-sm'
-                    }`}
+                    className="segmented-item"
                   >
-                    <span className="text-lg leading-none">{f.emoji}</span>
-                    <span className={`text-[10px] font-black leading-none mt-0.5 ${active ? 'text-white' : 'text-gray-500'}`}>{f.label}</span>
+                    {active && <span className="segmented-item-active-bg" aria-hidden />}
+                    <span className="relative text-base leading-none">{f.emoji}</span>
+                    <span className={`relative text-[10px] font-bold leading-none mt-0.5 ${active ? 'text-orange-500' : 'text-gray-400'}`}>{f.label}</span>
                   </button>
                 )
               })}
             </div>
 
-            {/* Cross-slot awareness — when in a slot workspace, show other slots' delivery progress */}
+            {/* Cross-slot awareness — other slots' progress when in a workspace */}
             {slotFilter !== 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap">
                 {MEAL_SLOTS.filter(s => s !== slotFilter).map(s => {
                   const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
                   if (!sCusts.length) return null
@@ -1072,19 +1066,19 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <button
                       key={s}
                       onClick={() => { setSlotFilter(s); setBulkMode(false); setSelectedIds(new Set()) }}
-                      className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-bold border transition-all active:scale-95 ${
-                        isAllDone
-                          ? 'bg-green-50 border-green-200 text-green-700'
-                          : hasProgress
-                          ? 'bg-orange-50 border-orange-100 text-orange-700'
-                          : 'bg-white border-gray-100 text-gray-500'
+                      className={`chip transition-all active:scale-95 ${
+                        isAllDone   ? 'bg-emerald-50 text-emerald-700'
+                        : hasProgress ? 'bg-orange-50 text-orange-700'
+                        : 'bg-white text-gray-500'
                       }`}
+                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                     >
                       <span>{MEAL_SLOT_EMOJI[s]}</span>
-                      <span>{MEAL_SLOT_LABEL[s]}</span>
-                      <span className={`font-black ${isAllDone ? 'text-green-600' : hasProgress ? 'text-orange-600' : 'text-gray-400'}`}>
+                      <span className="font-semibold">{MEAL_SLOT_LABEL[s]}</span>
+                      <span className={`font-bold ${isAllDone ? 'text-emerald-600' : hasProgress ? 'text-orange-500' : 'text-gray-400'}`}>
                         {sDone}/{sCusts.length}
                       </span>
+                      {isAllDone && <span className="text-emerald-500">✓</span>}
                     </button>
                   )
                 })}
@@ -1364,9 +1358,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               )}
             </div>
 
-            {/* Overview mode: per-slot summary chips (tap to enter workspace) */}
+            {/* Overview mode: per-slot summary chips — tap to enter workspace */}
             {slotFilter === 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 flex flex-wrap gap-1.5">
                 {MEAL_SLOTS.map(s => {
                   const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
                   if (!sCusts.length) return null
@@ -1377,20 +1371,22 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <button
                       key={s}
                       onClick={() => setSlotFilter(s)}
-                      className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold border transition-all active:scale-95 ${
-                        isAllDone
-                          ? 'bg-green-50 border-green-200 text-green-700'
-                          : hasProgress
-                          ? 'bg-orange-50 border-orange-200 text-orange-700'
-                          : 'bg-white border-gray-100 text-gray-500'
+                      className={`chip transition-all active:scale-95 ${
+                        isAllDone   ? 'bg-emerald-50 text-emerald-700'
+                        : hasProgress ? 'bg-orange-50 text-orange-700'
+                        : 'bg-white text-gray-500'
                       }`}
+                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                     >
-                      <span className="text-base leading-none">{MEAL_SLOT_EMOJI[s]}</span>
-                      <span>{MEAL_SLOT_LABEL[s]}</span>
-                      <span className={`font-black ${isAllDone ? 'text-green-600' : hasProgress ? 'text-orange-600' : 'text-gray-400'}`}>
+                      <span className="text-sm leading-none">{MEAL_SLOT_EMOJI[s]}</span>
+                      <span className="font-semibold">{MEAL_SLOT_LABEL[s]}</span>
+                      <span className={`font-bold ${isAllDone ? 'text-emerald-600' : hasProgress ? 'text-orange-500' : 'text-gray-400'}`}>
                         {sDone}/{sCusts.length}
                       </span>
-                      {!isAllDone && <ChevronRight className="w-3 h-3 opacity-50" />}
+                      {isAllDone
+                        ? <span className="text-emerald-500 text-[10px]">✓</span>
+                        : <ChevronRight className="w-3 h-3 opacity-40" />
+                      }
                     </button>
                   )
                 })}
@@ -1399,18 +1395,18 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
             {/* Slot workspace: progress strip */}
             {slotFilter !== 'all' && deliveryTrackingEnabled && workspaceCustomers.length > 0 && !allDone && (
-              <div className="mb-3 rounded-2xl px-4 py-3 bg-white/70 border border-gray-100">
+              <div className="mb-3 rounded-2xl px-4 py-3 bg-white border border-black/[0.05]" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3 text-xs font-bold">
-                    <span className="text-green-600">{deliveredCount} done</span>
+                  <div className="flex items-center gap-3 text-xs font-semibold">
+                    <span className="text-emerald-600">{deliveredCount} done</span>
                     {skippedCount > 0 && <span className="text-amber-600">{skippedCount} skipped</span>}
                     <span className="text-gray-400">{pendingCount} pending</span>
                   </div>
-                  <span className="text-xs font-black text-gray-700">{deliveredCount} / {workspaceCustomers.length}</span>
+                  <span className="text-xs font-bold text-gray-600">{deliveredCount}/{workspaceCustomers.length}</span>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                <div className="progress-bar">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500"
+                    className="progress-fill"
                     style={{ width: `${(deliveredCount / workspaceCustomers.length) * 100}%` }}
                   />
                 </div>
@@ -1420,29 +1416,29 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             {/* View toggle + bulk controls (slot workspace only) */}
             {workspaceCustomers.length > 0 && slotFilter !== 'all' && (
               <div className="mb-3 flex items-center justify-between gap-2">
-                {/* Left: view tabs */}
-                <div className="flex items-center gap-1.5 rounded-xl bg-gray-100 p-1">
+                {/* Left: view toggle — small segmented control */}
+                <div className="flex items-center bg-black/[0.05] rounded-xl p-0.5 gap-0.5">
                   <button
                     onClick={() => setDeliveryView('list')}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
-                      deliveryView === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                    className={`flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-all duration-150 ${
+                      deliveryView === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
                     }`}
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1" fill="currentColor"/></svg>
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1" fill="currentColor"/></svg>
                     List
                   </button>
                   <button
                     onClick={() => setDeliveryView('area')}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
-                      deliveryView === 'area' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                    className={`flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-all duration-150 ${
+                      deliveryView === 'area' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
                     }`}
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><path d="M8 1.5C5.51 1.5 3.5 3.51 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6c0-2.49-2.01-4.5-4.5-4.5zm0 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="currentColor"/></svg>
-                    By Area
+                    <MapPin className="w-3 h-3" />
+                    By area
                   </button>
                 </div>
 
-                {/* Right: bulk controls */}
+                {/* Right: bulk select controls */}
                 {deliveryTrackingEnabled && (
                   <div className="flex items-center gap-1.5">
                     {bulkMode && (
@@ -1452,7 +1448,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           const allSelected = workspaceCustomers.every(c => selectedIds.has(c.id))
                           setSelectedIds(allSelected ? new Set() : allIds)
                         }}
-                        className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 text-gray-500 active:scale-95 transition-all"
+                        className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white border border-black/[0.07] text-gray-600 active:scale-95 transition-all"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
                         {workspaceCustomers.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
@@ -1460,7 +1456,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     )}
                     <button
                       onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
-                      className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 bg-white border border-gray-200 text-gray-500"
+                      className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white border border-black/[0.07] text-gray-600 active:scale-95 transition-all"
                     >
                       {bulkMode ? <X className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
                       {bulkMode ? 'Cancel' : 'Select'}
@@ -1470,10 +1466,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
-            {/* Swipe hint (slot workspace only) */}
+            {/* Swipe hint (slot workspace only, first open) */}
             {slotFilter !== 'all' && deliveryTrackingEnabled && !bulkMode && workspaceCustomers.length > 0 && deliveredCount === 0 && skippedCount === 0 && (
-              <p className="mb-2 text-center text-[11px] font-medium text-gray-400">
-                Swipe right to deliver · Swipe left to skip
+              <p className="mb-2 text-center text-[11px] font-medium text-gray-400 tracking-wide">
+                ← Skip &nbsp;·&nbsp; Swipe to mark &nbsp;·&nbsp; Deliver →
               </p>
             )}
 
