@@ -1021,8 +1021,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {(todayMenus.length > 0 || deliveryToday.length > 0) && (
         <div className="mx-auto max-w-2xl px-4 mt-4 space-y-3">
 
-          {/* Shared slot filter bar — doubles as workspace selector */}
-          {todayMenus.length > 0 && (
+          {/* Shared slot filter bar — doubles as workspace selector.
+              Shown whenever there are deliveries today, regardless of menus.
+              The slot buttons are the delivery workspace picker; they must
+              always be visible so the provider can enter B/L/D workspaces
+              even on days with no menu saved. */}
+          {deliveryToday.length > 0 && (
             <div className="space-y-2">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
               {([
