@@ -655,7 +655,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   // ── Cook list — dish-level prep counts from today's menu × active customers ─
   const cookList = MEAL_SLOTS.map(slot => {
-    const slotCustomers = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes(slot))
+    // Fall back to denormalized meal_slots on the customer if subscription join is missing
+    const slotCustomers = deliveryToday.filter(c => (customerPlan(c)?.meal_slots ?? c.meal_slots)?.includes(slot))
     if (!slotCustomers.length) return null
 
     const totals = new Map<string, { total: number; perCustomer: number; label: string | null }>()
@@ -700,9 +701,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const packingList = deliveryToday.map(c => {
     const plan = customerPlan(c)
-    if (!plan) return null
-    const planType = plan.plan_type
-    const slotItems = plan.meal_slots.map(slot => {
+    // Fall back to denormalized fields if subscription join is missing
+    const planType = plan?.plan_type ?? c.plan_type
+    const mealSlots = plan?.meal_slots ?? c.meal_slots ?? []
+    const slotItems = mealSlots.map(slot => {
       const dishes = getDishesForMenus([
         todayMenus.find(m => m.meal_slot === slot && m.plan_type === null),
         todayMenus.find(m => m.meal_slot === slot && m.plan_type === planType),
@@ -900,13 +902,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {/* ── DEBUG (remove after fixing) ── */}
       <div className="mx-auto max-w-2xl px-4 mt-3">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-[11px] font-mono text-red-700 space-y-1">
-          <p><strong>today (client):</strong> {today}</p>
-          <p><strong>todayMenus count:</strong> {todayMenus.length}</p>
-          <p><strong>deliveryToday count:</strong> {deliveryToday.length}</p>
-          {todayMenus.map((m, i) => (
-            <p key={i}><strong>menu {i}:</strong> slot={m.meal_slot} type={m.plan_type ?? 'common'} dish=&quot;{m.dish_name.slice(0, 40)}&quot;</p>
+          <p><strong>today:</strong> {today} | <strong>menus:</strong> {todayMenus.length} | <strong>deliveryToday:</strong> {deliveryToday.length} | <strong>cookList:</strong> {cookList.length}</p>
+          {deliveryToday.slice(0, 2).map(c => (
+            <p key={c.id}><strong>{c.name}:</strong> plan={customerPlan(c) ? 'enriched' : 'denorm'} slots={JSON.stringify((customerPlan(c)?.meal_slots ?? c.meal_slots))}</p>
           ))}
-          {todayMenus.length === 0 && <p className="text-red-500">⚠ No menus returned for today</p>}
         </div>
       </div>
 
