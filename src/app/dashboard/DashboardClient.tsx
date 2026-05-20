@@ -1016,28 +1016,25 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                               {isDelivered && <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-black text-emerald-700">✓ Done</span>}
                               {isSkipped && <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-black text-gray-500">Skipped</span>}
                             </div>
-                            {/* Dish rows per slot */}
-                            <div className="px-4 py-2 space-y-1">
-                              {filteredSlots.map(({ slot, dishes }) =>
-                                dishes.map((d, di) => {
-                                  const isVeg = planType === 'veg'
-                                  const isNonveg = planType === 'nonveg'
-                                  return (
-                                    <div key={`${slot}-${d.name}`} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                                      isVeg ? 'bg-emerald-50' : isNonveg ? 'bg-orange-50' : 'bg-[#FDF8F3]'
-                                    }`}>
-                                      <div className={`w-1 h-6 rounded-full shrink-0 ${isVeg ? 'bg-emerald-400' : isNonveg ? 'bg-orange-400' : 'bg-orange-200'}`} />
-                                      {/* Show slot emoji only on first dish of each slot */}
-                                      {di === 0 && <span className="text-sm leading-none shrink-0">{MEAL_SLOT_EMOJI[slot]}</span>}
-                                      {di > 0  && <span className="w-5 shrink-0" />}
-                                      <span className="flex-1 text-sm font-black text-gray-900">{d.name}</span>
-                                      {d.qty > 1 && (
-                                        <span className={`text-sm font-black shrink-0 ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>×{d.qty}</span>
-                                      )}
-                                    </div>
-                                  )
-                                })
-                              )}
+                            {/* Dish chips per slot */}
+                            <div className="px-4 py-3 space-y-2">
+                              {filteredSlots.map(({ slot, dishes }) => (
+                                <div key={slot} className="flex items-start gap-2">
+                                  <span className="text-sm shrink-0 mt-1 leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {dishes.map(d => (
+                                      <span key={d.name} className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[12px] font-black ${
+                                        planType === 'veg'
+                                          ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
+                                          : 'border-orange-100 bg-orange-50 text-orange-800'
+                                      }`}>
+                                        {d.name}
+                                        {d.qty > 1 && <span className="font-black opacity-60">×{d.qty}</span>}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )
