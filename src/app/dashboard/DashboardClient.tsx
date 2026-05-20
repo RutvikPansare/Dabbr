@@ -163,9 +163,13 @@ function balancePill(days: number): string {
   return 'bg-red-100 text-red-700 border border-red-200'
 }
 
-// Returns the customer's meal slots from their active plan (or denormalized fallback)
+// Returns the customer's meal slots from their active plan (or denormalized fallback).
+// Returns [] (not ['lunch']) when slots are unknown — a customer with no slots should
+// be visible in Full Day overview but absent from all slot workspaces. Defaulting to
+// 'lunch' silently assigned customers to the wrong workspace and could generate
+// phantom delivery logs for a slot they don't subscribe to.
 function customerMealSlots(c: Customer | null | undefined): MealSlot[] {
-  return ((customerPlan(c)?.meal_slots ?? c?.meal_slots ?? ['lunch']) as MealSlot[])
+  return ((customerPlan(c)?.meal_slots ?? c?.meal_slots ?? []) as MealSlot[])
 }
 
 // Effective delivery status across all of a customer's slots
@@ -467,28 +471,63 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const GreetingIcon = hour < 12 ? Sunrise : hour < 17 ? Sun : Moon
 
-  // ── Background refresh of delivery logs only ──────────────────────────────
-  // Heavy data (customers, provider, riders) comes from server-side cache via
-  // initialData — no need to re-fetch on mount. We only refresh delivery_logs
-  // because they change throughout the day as the provider marks deliveries.
+  // ── Delivery log sync: initial fetch + Realtime subscription ─────────────
+  // initialData.deliveryStatuses is populated server-side, but may be slightly
+  // stale by the time the client renders (Next.js cache + ISR). We re-fetch
+  // once on mount to ensure freshness, then subscribe to Realtime so that
+  // changes made on another device/tab are reflected immediately.
   useEffect(() => {
-    async function refreshLogs() {
-      const { data: logsData } = await db
-        .from('delivery_logs')
-        .select('customer_id, meal_slot, status')
-        .eq('provider_id', userId)
-        .eq('date', today)
-      if (logsData) {
-        const statusMap: Record<string, DeliveryStatus> = {}
-        logsData.forEach((log: { customer_id: string; meal_slot: string; status: DeliveryStatus }) => {
-          statusMap[`${log.customer_id}:${log.meal_slot}`] = log.status
-        })
-        setDeliveryStatuses(statusMap)
-      }
+    // Helper: rebuild statusMap from a raw log array
+    function buildStatusMap(rows: { customer_id: string; meal_slot: string; status: string }[]) {
+      const m: Record<string, DeliveryStatus> = {}
+      for (const r of rows) m[`${r.customer_id}:${r.meal_slot}`] = r.status as DeliveryStatus
+      return m
     }
-    refreshLogs()
+
+    // Initial full fetch — brings client in sync regardless of cache age
+    db.from('delivery_logs')
+      .select('customer_id, meal_slot, status')
+      .eq('provider_id', userId)
+      .eq('date', today)
+      .then(({ data }: { data: { customer_id: string; meal_slot: string; status: string }[] | null }) => {
+        if (data) setDeliveryStatuses(buildStatusMap(data))
+      })
+
+    // Realtime subscription — incremental updates from other devices/tabs.
+    // Requires `REPLICA IDENTITY FULL` on delivery_logs so DELETE payloads
+    // carry all columns (not just the PK). Covered in migration
+    // 20260521_delivery_logs_realtime.sql.
+    const channel = supabase
+      .channel(`delivery-${userId}-${today}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'delivery_logs', filter: `provider_id=eq.${userId}` },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            // old record has all columns because of REPLICA IDENTITY FULL
+            const old = payload.old as { customer_id?: string; meal_slot?: string; date?: string }
+            if (!old.customer_id || !old.meal_slot || old.date !== today) return
+            setDeliveryStatuses(prev => {
+              const next = { ...prev }
+              delete next[`${old.customer_id}:${old.meal_slot}`]
+              return next
+            })
+          } else {
+            // INSERT or UPDATE
+            const row = payload.new as { customer_id: string; meal_slot: string; status: string; date: string }
+            if (row.date !== today) return
+            setDeliveryStatuses(prev => ({
+              ...prev,
+              [`${row.customer_id}:${row.meal_slot}`]: row.status as DeliveryStatus,
+            }))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [userId, today])
 
   // ── Delivery mutation ─────────────────────────────────────────────────────
 
@@ -589,7 +628,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     const ids = Array.from(selectedIds)
     setBulkMode(false)
     setSelectedIds(new Set())
-    await Promise.all(ids.map(id => markDelivery(id, slot, newStatus)))
+    // Sequential — not concurrent — to avoid saturating the Supabase connection
+    // pool and to keep balance RPCs properly serialised at the DB level.
+    // Each markDelivery call does its own optimistic update immediately, so the
+    // visual cascade (rows flipping one by one) gives natural progress feedback.
+    for (const id of ids) {
+      await markDelivery(id, slot, newStatus)
+    }
   }
 
   async function markAllDelivered(list: Customer[], slot: MealSlot) {
@@ -622,20 +667,41 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today])
 
-  // Auto-expand delivered section when all pending are done
-  // (must be before any early return to satisfy Rules of Hooks)
+  // Auto-expand delivered section when the current workspace is fully actioned.
+  // NOTE: must stay here — before the loading early-return — to satisfy Rules of Hooks.
+  // We cannot reference `workspaceCustomers`/`deliveredCount`/`pendingCount` here because
+  // those derived values are declared after the early return. Use raw state instead.
   useEffect(() => {
-    if (!customers.length) return
-    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-    const activeToday = customers.filter(c => isActiveToday(c, todayStr))
+    if (!(provider?.enable_delivery_tracking)) return
+    const activeToday = customers.filter(c => isActiveToday(c, today))
     if (!activeToday.length) return
-    const allFullyDone = activeToday.every(c => {
-      const slots = customerMealSlots(c)
-      return slots.every(s => (deliveryStatuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
-    })
-    if (allFullyDone) setShowDelivered(true)
+
+    const wc = slotFilter === 'all'
+      ? activeToday
+      : activeToday.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
+    if (!wc.length) return
+
+    // Slot workspace: done = every customer has a terminal status for this slot.
+    // Full Day: done = every customer has at least one slot actioned (issue 9 fix).
+    const noPending = slotFilter !== 'all'
+      ? wc.every(c => {
+          const s = deliveryStatuses[`${c.id}:${slotFilter}`]
+          return s === 'delivered' || s === 'skipped'
+        })
+      : wc.every(c => {
+          const slots = customerMealSlots(c)
+          return !slots.length || slots.some(s => deliveryStatuses[`${c.id}:${s}`])
+        })
+
+    const anyDelivered = wc.some(c =>
+      slotFilter !== 'all'
+        ? deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered'
+        : customerMealSlots(c).some(s => deliveryStatuses[`${c.id}:${s}`] === 'delivered')
+    )
+
+    if (anyDelivered && noPending) setShowDelivered(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deliveryStatuses])
+  }, [deliveryStatuses, slotFilter])
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
 
@@ -766,6 +832,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     return slotItems.length ? { customer: c, slots: slotItems } : null
   }).filter(Boolean) as Array<{ customer: Customer; slots: Array<{ slot: MealSlot; dishes: Array<{ name: string; qty: number }> }> }>
 
+  // Packing list badge count: how many customers have dishes for the current slot filter.
+  // Using packingList.length (total) showed "32 boxes" in Breakfast workspace even when
+  // only 12 were breakfast-relevant. A packer would pick up 32 boxes unnecessarily.
+  const packingBadgeCount = packingList.filter(({ slots }) =>
+    slots.some(s => slotFilter === 'all' || s.slot === slotFilter)
+  ).length
+
   const trialBadgeClass =
     trialDaysLeft === null ? ''
     : trialDaysLeft > 20 ? 'bg-green-500/20 text-green-100'
@@ -777,19 +850,45 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     ? deliveryToday
     : deliveryToday.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
 
-  // Tracking counts — slot-specific in workspace mode, effective across all slots in overview
-  const deliveredCount = workspaceCustomers.filter(c =>
-    slotFilter === 'all'
-      ? customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'delivered')
-      : deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered'
-  ).length
-  const skippedCount = workspaceCustomers.filter(c =>
-    slotFilter === 'all'
-      ? customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'skipped')
-      : deliveryStatuses[`${c.id}:${slotFilter}`] === 'skipped'
-  ).length
-  const pendingCount = workspaceCustomers.length - deliveredCount - skippedCount
-  const allDone      = workspaceCustomers.length > 0 && pendingCount === 0
+  // ── Tracking counts ───────────────────────────────────────────────────────
+  //
+  // Slot workspace: counts are scoped to that slot.
+  //
+  // Full Day overview uses intentionally asymmetric definitions to avoid two bugs:
+  //   • Vacuous truth: [].every() is always true, so a customer with no slots
+  //     would count as "delivered" without any logs. Guard with slots.length > 0.
+  //   • allDone too strict (issue 9): requiring ALL slots terminal meant a customer
+  //     with breakfast=delivered + lunch=pending blocked allDone all day. Full Day
+  //     "pending" is now "no slots actioned at all" — once every customer has had
+  //     at least one mark, allDone fires and the Delivered section auto-expands.
+  //     Customers partially done (some slots terminal) fall into neither bucket
+  //     and don't block completion. The progress bar is hidden in Full Day anyway.
+
+  const deliveredCount = workspaceCustomers.filter(c => {
+    if (slotFilter !== 'all') return deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered'
+    const slots = customerMealSlots(c)
+    return slots.length > 0 && slots.every(s => deliveryStatuses[`${c.id}:${s}`] === 'delivered')
+  }).length
+
+  const skippedCount = workspaceCustomers.filter(c => {
+    if (slotFilter !== 'all') return deliveryStatuses[`${c.id}:${slotFilter}`] === 'skipped'
+    const slots = customerMealSlots(c)
+    return slots.length > 0 && slots.every(s => deliveryStatuses[`${c.id}:${s}`] === 'skipped')
+  }).length
+
+  // Full Day pending = customer has zero delivery logs today (completely untouched).
+  // Slot workspace pending = simple: not delivered and not skipped for this slot.
+  const pendingCount = slotFilter !== 'all'
+    ? workspaceCustomers.length - deliveredCount - skippedCount
+    : workspaceCustomers.filter(c => {
+        const slots = customerMealSlots(c)
+        // No slots → doesn't block completion; treat as done
+        if (!slots.length) return false
+        // All slots have no log at all = truly pending
+        return slots.every(s => !deliveryStatuses[`${c.id}:${s}`])
+      }).length
+
+  const allDone = workspaceCustomers.length > 0 && pendingCount === 0
 
   // Active / delivered split — only meaningful in a slot workspace; overview is always static
   const activeList = (slotFilter !== 'all' && deliveryTrackingEnabled)
@@ -1088,12 +1187,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   <Box className="w-3.5 h-3.5 text-orange-500" />
                 </span>
                 <span className="flex-1 text-left text-sm font-black text-gray-900">Packing List</span>
-                {packingList.length > 0 && (
+                {packingBadgeCount > 0 && (
                   <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
-                    {packingList.length} boxes
+                    {packingBadgeCount} boxes
                   </span>
                 )}
-                {packingList.length === 0 && <span className="text-[11px] font-semibold text-gray-400 mr-1">No menu set</span>}
+                {packingBadgeCount === 0 && <span className="text-[11px] font-semibold text-gray-400 mr-1">No menu set</span>}
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
               </button>
 
