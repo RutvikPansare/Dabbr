@@ -439,7 +439,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? false
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
   const hour = nowIST.getUTCHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'

@@ -12,7 +12,8 @@ export default async function DashboardPage() {
   const mealPlans = await getCachedMealPlans(user.id)
   if (!mealPlans || mealPlans.length === 0) redirect('/onboarding')
 
-  const today = new Date().toISOString().split('T')[0]
+  // Use IST (UTC+5:30) so Indian providers always get the correct local date
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   const initialData = await getCachedDashboardData(user.id, today)
 
   return (

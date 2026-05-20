@@ -8,7 +8,7 @@ export default async function SettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   const [provider, { quickTags, holidays, riders }] = await Promise.all([
     getCachedProvider(user.id),
     getCachedSettingsData(user.id, today),

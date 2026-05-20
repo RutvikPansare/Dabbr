@@ -190,7 +190,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         db.from('delivery_logs').select('customer_id, status').eq('provider_id', userId).eq('date', today),
         db.from('provider_holidays').select('label').eq('provider_id', userId).eq('date', today).maybeSingle(),
         db.from('delivery_riders').select('id, name, whatsapp_number').eq('provider_id', userId).order('created_at'),
-        db.from('daily_menus').select('meal_slot, plan_type, dish_name, quantities').eq('provider_id', userId).eq('menu_date', today),
+        db.from('daily_menus').select('*').eq('provider_id', userId).eq('menu_date', today),
         getTrialStatus(db, userId),
       ])
 
