@@ -5,7 +5,7 @@ import ServiceWorkerRegistration from './ServiceWorkerRegistration'
 import CapacitorInit from './CapacitorInit'
 import NativeStatusBar from './NativeStatusBar'
 import OnboardingGuide from '@/components/OnboardingGuide'
-import SideNav from '@/components/SideNav'
+import AppShell from '@/components/AppShell'
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -51,12 +51,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className={`${jakarta.variable} font-sans`}>
-        {/* Desktop sidebar — fixed, hidden on mobile */}
-        <SideNav />
-        {/* Content offset — pushes right of sidebar on desktop */}
-        <div className="lg:ml-[220px]">
-          {children}
-        </div>
+        <AppShell>{children}</AppShell>
         <ServiceWorkerRegistration />
         <CapacitorInit />
         <NativeStatusBar />
