@@ -630,11 +630,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     return acc
   }, [] as Customer[])
 
-  const vegToday       = deliveryToday.filter(c => customerPlan(c)?.plan_type === 'veg')
-  const nonvegToday    = deliveryToday.filter(c => customerPlan(c)?.plan_type === 'nonveg')
-  const breakfastToday = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes('breakfast'))
-  const lunchToday     = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes('lunch'))
-  const dinnerToday    = deliveryToday.filter(c => customerPlan(c)?.meal_slots.includes('dinner'))
 
   const areaGroups = deliveryToday.reduce((acc, c) => {
     const key = c.area?.trim() || 'Other'
@@ -873,37 +868,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {/* ── Scrollable content — flex-1 fills remaining height below header ── */}
       <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
-      {/* ── Packing count cards ── */}
-      <div className="relative z-10 mx-auto max-w-2xl px-4 mt-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">Today&apos;s packing count</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-4 shadow-[0_4px_20px_rgba(52,211,153,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
-            <Leaf className="absolute -right-3 -top-3 w-16 h-16 text-emerald-900 opacity-10" />
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">🥦 Veg</p>
-            <p className="text-3xl font-black text-white relative z-10">{vegToday.length}</p>
-          </div>
-          <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] p-4 shadow-[0_4px_20px_rgba(244,98,42,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
-            <Drumstick className="absolute -right-3 -top-3 w-16 h-16 text-orange-950 opacity-10" />
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">🍗 Non-veg</p>
-            <p className="text-3xl font-black text-white relative z-10">{nonvegToday.length}</p>
-          </div>
-          <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-500 p-4 shadow-[0_4px_20px_rgba(14,165,233,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
-            <Sunrise className="absolute -right-3 -top-3 w-16 h-16 text-sky-900 opacity-10" />
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">🌅 Breakfast</p>
-            <p className="text-3xl font-black text-white relative z-10">{breakfastToday.length}</p>
-          </div>
-          <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 p-4 shadow-[0_4px_20px_rgba(251,191,36,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
-            <Sun className="absolute -right-3 -top-3 w-16 h-16 text-yellow-900 opacity-10" />
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">☀️ Lunch</p>
-            <p className="text-3xl font-black text-white relative z-10">{lunchToday.length}</p>
-          </div>
-          <div className="group relative overflow-hidden flex flex-col rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 p-4 shadow-[0_4px_20px_rgba(99,102,241,0.2)] transition-transform duration-300 hover:-translate-y-0.5">
-            <Moon className="absolute -right-3 -top-3 w-16 h-16 text-indigo-950 opacity-10" />
-            <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mb-0.5 relative z-10">🌙 Dinner</p>
-            <p className="text-3xl font-black text-white relative z-10">{dinnerToday.length}</p>
-          </div>
-        </div>
-      </div>
 
       {/* ── Today's Cook List ── */}
       {todayMenus.length > 0 && (
