@@ -886,8 +886,8 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   const goodWeekOptions = previousWeekOptions()
 
   return (
-    <div onClick={() => setActiveHelp(null)} className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
-      <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+    <div onClick={() => setActiveHelp(null)} className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-12">
+      <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
         <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
           <div className="flex-1">
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Menu Planner</h1>

@@ -898,7 +898,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <div className="flex-1">
               <h1 className="text-xl font-black text-gray-900 tracking-tight">Customers</h1>
@@ -953,7 +953,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-24 pb-40 space-y-4">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-40 lg:pb-12 space-y-4">
 
           {/* Search + Filter button */}
           <div className="flex gap-2">
@@ -1421,7 +1421,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -1444,7 +1444,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 space-y-4">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 lg:pb-12 space-y-4">
 
           {/* Status + plan + balance card */}
           <div className="rounded-3xl bg-white shadow-sm border border-gray-100 overflow-hidden">
@@ -1980,7 +1980,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -2005,7 +2005,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 lg:pb-12">
           <form onSubmit={handleFormSubmit} className="space-y-4">
 
             {/* Name */}
@@ -2313,7 +2313,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -2332,7 +2332,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 lg:pb-12">
           <div className="rounded-3xl bg-white px-5 py-6 shadow-sm border border-gray-100">
             <p className="mb-5 text-sm text-gray-500 leading-relaxed">
               Deliveries for <span className="font-bold text-gray-800">{selectedCustomer.name}</span> will be skipped between these dates.
@@ -2389,7 +2389,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -2408,7 +2408,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32">
+        <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 lg:pb-12">
           {paymentsLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (

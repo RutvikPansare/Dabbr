@@ -192,8 +192,8 @@ export default function OnboardingGuide() {
 
   return (
     <div
-      className="fixed left-3 right-3 rounded-3xl bg-white shadow-2xl border border-orange-100 overflow-hidden"
-      style={{ bottom: 'calc(4.75rem + env(safe-area-inset-bottom))', zIndex: 60 }}
+      className="fixed left-3 right-3 lg:left-auto lg:right-6 lg:w-[360px] rounded-3xl bg-white shadow-2xl border border-orange-100 overflow-hidden bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6"
+      style={{ zIndex: 60 }}
     >
       {/* Celebration flash */}
       {celebrating ? (
