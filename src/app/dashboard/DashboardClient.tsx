@@ -653,11 +653,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     .reduce((acc, c) => { if (c.status === 'active' && c.balance_days < 5) acc.push(c); return acc }, [] as Customer[])
     .sort((a, b) => a.balance_days - b.balance_days)
 
-  // ── Cook list — dish-level prep counts from today's menu × active customers ─
+  // ── Cook list — show every slot that has a menu saved, regardless of customer slots ─
   const cookList = MEAL_SLOTS.map(slot => {
-    // Fall back to denormalized meal_slots on the customer if subscription join is missing
+    const slotMenus = todayMenus.filter(m => m.meal_slot === slot)
+    if (!slotMenus.length) return null  // no menu saved for this slot — skip
+
     const slotCustomers = deliveryToday.filter(c => (customerPlan(c)?.meal_slots ?? c.meal_slots)?.includes(slot))
-    if (!slotCustomers.length) return null
+    const vegCount    = slotCustomers.filter(c => (customerPlan(c)?.plan_type ?? c.plan_type) === 'veg').length
+    const nonvegCount = slotCustomers.filter(c => (customerPlan(c)?.plan_type ?? c.plan_type) === 'nonveg').length
+    // Customers with neither veg nor nonveg tag count as "all" for common dishes
+    const allCount = slotCustomers.length || deliveryToday.length
 
     const totals = new Map<string, { total: number; perCustomer: number; label: string | null }>()
 
@@ -676,12 +681,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       }
     }
 
-    const vegCount    = slotCustomers.filter(c => (customerPlan(c)?.plan_type ?? c.plan_type) === 'veg').length
-    const nonvegCount = slotCustomers.filter(c => (customerPlan(c)?.plan_type ?? c.plan_type) === 'nonveg').length
-
-    processMenu(todayMenus.find(m => m.meal_slot === slot && m.plan_type === null), slotCustomers.length, null)
-    if (vegCount)    processMenu(todayMenus.find(m => m.meal_slot === slot && m.plan_type === 'veg'),    vegCount,    'veg only')
-    if (nonvegCount) processMenu(todayMenus.find(m => m.meal_slot === slot && m.plan_type === 'nonveg'), nonvegCount, 'non-veg only')
+    processMenu(slotMenus.find(m => m.plan_type === null), allCount, null)
+    if (vegCount)    processMenu(slotMenus.find(m => m.plan_type === 'veg'),    vegCount,    'veg only')
+    if (nonvegCount) processMenu(slotMenus.find(m => m.plan_type === 'nonveg'), nonvegCount, 'non-veg only')
+    // If no plan-type breakdown, still show non-common menus with their counts
+    if (!vegCount)    processMenu(slotMenus.find(m => m.plan_type === 'veg'),    deliveryToday.length, 'veg')
+    if (!nonvegCount) processMenu(slotMenus.find(m => m.plan_type === 'nonveg'), deliveryToday.length, 'non-veg')
 
     if (!totals.size) return null
     return { slot, customerCount: slotCustomers.length, items: Array.from(totals.entries()).map(([name, d]) => ({ name, ...d })) }
@@ -900,7 +905,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Today's Cook List ── */}
-      {deliveryToday.length > 0 && (
+      {todayMenus.length > 0 && (
         <div className="mx-auto max-w-2xl px-4 mt-4">
           <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
             <button
