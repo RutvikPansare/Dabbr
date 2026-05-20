@@ -213,6 +213,8 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   const [drafts, setDrafts] = useState<SectionDrafts>({})
   const [savingSlot, setSavingSlot] = useState<MealSlot | null>(null)
   const [savedSlot, setSavedSlot] = useState<MealSlot | null>(null)
+  const [savingAll, setSavingAll] = useState(false)
+  const [savedAll, setSavedAll] = useState(false)
   const [copyPickerOpen, setCopyPickerOpen] = useState(false)
   const [workingAction, setWorkingAction] = useState<string | null>(null)
   const [toast, setToast] = useState<{ kind: ToastKind; message: string } | null>(null)
@@ -686,6 +688,25 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       showToast('error', error instanceof Error ? error.message : 'Section save failed. Please try again.')
     } finally {
       setSavingSlot(null)
+    }
+  }
+
+  async function saveAll() {
+    const slotsWithContent = MEAL_SLOTS.filter(slot =>
+      ENTRY_TYPES.some(({ key }) => getSectionDraft(selectedDate, slot)[key].trim())
+    )
+    if (!slotsWithContent.length) {
+      showToast('info', 'No items to save. Add dishes first.')
+      return
+    }
+    setSavingAll(true)
+    setSavedAll(false)
+    try {
+      for (const slot of slotsWithContent) await saveSection(slot)
+      setSavedAll(true)
+      setTimeout(() => setSavedAll(false), 2000)
+    } finally {
+      setSavingAll(false)
     }
   }
 
@@ -1342,6 +1363,20 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               </section>
             )
           })}
+        </div>
+
+        {/* ── Save All ── */}
+        <div className="mt-3 pb-2">
+          <button
+            onClick={saveAll}
+            disabled={savingAll || MEAL_SLOTS.every(slot => !ENTRY_TYPES.some(({ key }) => getSectionDraft(selectedDate, slot)[key].trim()))}
+            className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-black text-white shadow-lg transition-all disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none active:scale-[0.98] ${
+              savedAll ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-orange-500 shadow-orange-500/20'
+            }`}
+          >
+            {savedAll ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {savingAll ? 'Saving all…' : savedAll ? 'All saved!' : 'Save All'}
+          </button>
         </div>
       </main>
 
