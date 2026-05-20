@@ -893,51 +893,53 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-50">
-                    {cookList.map(({ slot, customerCount, items }) => (
-                      <div key={slot} className="px-4 pt-3 pb-4">
-                        {/* Slot header */}
-                        <div className="flex items-center gap-2 mb-3">
+                  <div>
+                    {cookList.map(({ slot, customerCount, items }, slotIndex) => (
+                      <div key={slot}>
+                        {/* Bold slot divider */}
+                        <div className={`flex items-center gap-3 px-4 py-2.5 ${
+                          slotIndex === 0 ? 'bg-gray-50' : 'bg-gray-50 border-t-2 border-gray-200'
+                        }`}>
                           <span className="text-base leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
-                          <span className="text-xs font-black uppercase tracking-wide text-gray-500">{MEAL_SLOT_LABEL[slot]}</span>
+                          <span className="flex-1 text-xs font-black uppercase tracking-widest text-gray-600">{MEAL_SLOT_LABEL[slot]}</span>
                           {customerCount > 0 && (
-                            <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500">
+                            <span className="rounded-full bg-white border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500">
                               {customerCount} customer{customerCount !== 1 ? 's' : ''}
                             </span>
                           )}
                         </div>
-                        {/* Dish chips */}
-                        <div className="flex flex-wrap gap-2">
-                          {items.map(item => (
-                            <div key={item.name} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${
-                              item.label === 'veg only' || item.label === 'veg'
-                                ? 'border-emerald-100 bg-emerald-50'
-                                : item.label === 'non-veg only' || item.label === 'non-veg'
-                                  ? 'border-orange-100 bg-orange-50'
-                                  : 'border-gray-100 bg-[#FDF8F3]'
-                            }`}>
-                              <div className="min-w-0">
-                                <p className="text-sm font-black text-gray-900 leading-none">{item.name}</p>
-                                {item.label && (
-                                  <p className={`text-[10px] font-bold mt-0.5 leading-none ${
-                                    item.label === 'veg only' || item.label === 'veg' ? 'text-emerald-600' : 'text-orange-500'
-                                  }`}>{item.label}</p>
-                                )}
+                        {/* Vertical dish rows */}
+                        <div className="px-4 py-2 space-y-1">
+                          {items.map(item => {
+                            const isVeg = item.label === 'veg only' || item.label === 'veg'
+                            const isNonveg = item.label === 'non-veg only' || item.label === 'non-veg'
+                            return (
+                              <div key={item.name} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+                                isVeg ? 'bg-emerald-50' : isNonveg ? 'bg-orange-50' : 'bg-[#FDF8F3]'
+                              }`}>
+                                {/* Left accent bar */}
+                                <div className={`w-1 h-6 rounded-full shrink-0 ${
+                                  isVeg ? 'bg-emerald-400' : isNonveg ? 'bg-orange-400' : 'bg-orange-200'
+                                }`} />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-black text-gray-900">{item.name}</span>
+                                  {item.label && (
+                                    <span className={`ml-2 text-[10px] font-bold ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>
+                                      {item.label}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-baseline gap-1.5 shrink-0">
+                                  {item.perCustomer > 1 && (
+                                    <span className="text-[10px] font-semibold text-gray-400">×{item.perCustomer} ea</span>
+                                  )}
+                                  <span className={`text-xl font-black leading-none ${
+                                    isVeg ? 'text-emerald-600' : 'text-orange-500'
+                                  }`}>{item.total}</span>
+                                </div>
                               </div>
-                              <div className="flex flex-col items-center shrink-0 ml-1">
-                                <span className={`text-lg font-black leading-none ${
-                                  item.label === 'veg only' || item.label === 'veg'
-                                    ? 'text-emerald-600'
-                                    : item.label === 'non-veg only' || item.label === 'non-veg'
-                                      ? 'text-orange-500'
-                                      : 'text-orange-500'
-                                }`}>{item.total}</span>
-                                {item.perCustomer > 1 && (
-                                  <span className="text-[9px] font-bold text-gray-400 leading-none mt-0.5">×{item.perCustomer} ea</span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
@@ -978,7 +980,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-50">
+                  <div className="divide-y divide-gray-200">
                     {packingList.map(({ customer: c, slots }) => {
                       const plan = customerPlan(c)
                       const planType = plan?.plan_type ?? c.plan_type
