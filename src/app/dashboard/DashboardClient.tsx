@@ -163,6 +163,27 @@ function balancePill(days: number): string {
   return 'bg-red-100 text-red-700 border border-red-200'
 }
 
+// Returns the customer's meal slots from their active plan (or denormalized fallback)
+function customerMealSlots(c: Customer | null | undefined): MealSlot[] {
+  return ((customerPlan(c)?.meal_slots ?? c?.meal_slots ?? ['lunch']) as MealSlot[])
+}
+
+// Effective delivery status across all of a customer's slots
+// 'delivered' = ALL slots delivered; 'skipped' = ALL skipped;
+// 'partial' = some but not all done; 'pending' = nothing marked
+type EffectiveStatus = 'pending' | 'delivered' | 'partial' | 'skipped'
+function effectiveDeliveryStatus(
+  customerId: string,
+  slots: MealSlot[],
+  statuses: Record<string, DeliveryStatus>
+): EffectiveStatus {
+  const ss = slots.map(s => statuses[`${customerId}:${s}`] ?? 'pending')
+  if (ss.every(s => s === 'delivered')) return 'delivered'
+  if (ss.every(s => s === 'skipped'))   return 'skipped'
+  if (ss.some(s => s === 'delivered' || s === 'skipped')) return 'partial'
+  return 'pending'
+}
+
 function reminderLink(c: Customer): string {
   const msg = encodeURIComponent(
     `Hi ${c.name} 🙏, your tiffin balance is running low — only *${c.balance_days} days* remaining. Please recharge soon to keep your deliveries going. Thank you! 🍱`
@@ -433,7 +454,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const deliveryStatusesRef = useRef<Record<string, DeliveryStatus>>({})
   deliveryStatusesRef.current = deliveryStatuses
 
-  const [undoSnackbar, setUndoSnackbar] = useState<{ id: string; prevStatus: DeliveryStatus; name: string; action: string } | null>(null)
+  const [undoSnackbar, setUndoSnackbar] = useState<{ id: string; slot: MealSlot; prevStatus: DeliveryStatus; name: string; action: string } | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [bulkMode, setBulkMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -454,13 +475,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     async function refreshLogs() {
       const { data: logsData } = await db
         .from('delivery_logs')
-        .select('customer_id, status')
+        .select('customer_id, meal_slot, status')
         .eq('provider_id', userId)
         .eq('date', today)
       if (logsData) {
         const statusMap: Record<string, DeliveryStatus> = {}
-        logsData.forEach((log: { customer_id: string; status: DeliveryStatus }) => {
-          statusMap[log.customer_id] = log.status
+        logsData.forEach((log: { customer_id: string; meal_slot: string; status: DeliveryStatus }) => {
+          statusMap[`${log.customer_id}:${log.meal_slot}`] = log.status
         })
         setDeliveryStatuses(statusMap)
       }
@@ -471,23 +492,37 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   // ── Delivery mutation ─────────────────────────────────────────────────────
 
-  const markDelivery = useCallback(async (customerId: string, newStatus: 'delivered' | 'skipped' | 'pending') => {
-    const prevStatus: DeliveryStatus = deliveryStatusesRef.current[customerId] ?? 'pending'
+  const markDelivery = useCallback(async (customerId: string, slot: MealSlot, newStatus: 'delivered' | 'skipped' | 'pending') => {
+    const key = `${customerId}:${slot}`
+    const prevStatus: DeliveryStatus = deliveryStatusesRef.current[key] ?? 'pending'
     if (prevStatus === newStatus) return
 
     const customer = customersRef.current.find(c => c.id === customerId)
     const isMonthly = (customer?.billing_type ?? 'prepaid') === 'monthly_settlement'
+    const custSlotList = customerMealSlots(customer)
+    const currentStatuses = deliveryStatusesRef.current
 
-    // Balance/counter only changes when delivering or un-delivering
+    // Balance deducts on the FIRST slot marked delivered for a customer today.
+    // It adds back only when the LAST delivered slot is un-marked (all slots back to pending/skipped).
     let balanceDelta = 0
-    if (newStatus === 'delivered' && prevStatus !== 'delivered') balanceDelta = -1
-    if (prevStatus === 'delivered' && newStatus !== 'delivered') balanceDelta = +1
+    if (newStatus === 'delivered' && prevStatus !== 'delivered') {
+      const anyOtherDelivered = custSlotList
+        .filter(s => s !== slot)
+        .some(s => currentStatuses[`${customerId}:${s}`] === 'delivered')
+      if (!anyOtherDelivered) balanceDelta = -1
+    }
+    if (prevStatus === 'delivered' && newStatus !== 'delivered') {
+      const otherDeliveredRemaining = custSlotList
+        .filter(s => s !== slot)
+        .some(s => currentStatuses[`${customerId}:${s}`] === 'delivered')
+      if (!otherDeliveredRemaining) balanceDelta = +1
+    }
 
     // Optimistic UI
     setDeliveryStatuses(prev => {
       const next = { ...prev }
-      if (newStatus === 'pending') delete next[customerId]
-      else next[customerId] = newStatus
+      if (newStatus === 'pending') delete next[key]
+      else next[key] = newStatus
       return next
     })
 
@@ -495,7 +530,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       setCustomers(prev => prev.map(c => {
         if (c.id !== customerId) return c
         if (isMonthly) {
-          // Monthly Settlement: track meals_delivered (increment on deliver, decrement on un-deliver)
           return { ...c, meals_delivered: Math.max(0, (c.meals_delivered ?? 0) - balanceDelta) }
         } else {
           return { ...c, balance_days: Math.max(0, c.balance_days + balanceDelta) }
@@ -507,6 +541,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     if (newStatus !== 'pending') {
       setUndoSnackbar({
         id: customerId,
+        slot,
         prevStatus,
         name: customer?.name ?? '',
         action: newStatus === 'delivered' ? 'Delivered' : 'Skipped',
@@ -515,13 +550,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       undoTimerRef.current = setTimeout(() => setUndoSnackbar(null), 4000)
     }
 
-    // Persist to DB
+    // Persist to DB — slot-scoped unique key
     if (newStatus === 'pending') {
-      await db.from('delivery_logs').delete().eq('customer_id', customerId).eq('date', today)
+      await db.from('delivery_logs').delete()
+        .eq('customer_id', customerId).eq('date', today).eq('meal_slot', slot)
     } else {
       await db.from('delivery_logs').upsert(
-        { customer_id: customerId, provider_id: userId, date: today, status: newStatus },
-        { onConflict: 'customer_id,date' }
+        { customer_id: customerId, provider_id: userId, date: today, meal_slot: slot, status: newStatus },
+        { onConflict: 'customer_id,date,meal_slot' }
       )
     }
 
@@ -542,9 +578,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   async function handleUndo() {
     if (!undoSnackbar) return
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    const { id, prevStatus } = undoSnackbar
+    const { id, slot, prevStatus } = undoSnackbar
     setUndoSnackbar(null)
-    await markDelivery(id, prevStatus)
+    await markDelivery(id, slot, prevStatus)
   }
 
   // ── Bulk actions ──────────────────────────────────────────────────────────
@@ -558,17 +594,19 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   }
 
   async function bulkMark(newStatus: 'delivered' | 'skipped') {
+    if (slotFilter === 'all') return  // No bulk marking in overview mode
+    const slot = slotFilter as MealSlot
     const ids = Array.from(selectedIds)
     setBulkMode(false)
     setSelectedIds(new Set())
-    await Promise.all(ids.map(id => markDelivery(id, newStatus)))
+    await Promise.all(ids.map(id => markDelivery(id, slot, newStatus)))
   }
 
-  async function markAllDelivered(list: Customer[]) {
+  async function markAllDelivered(list: Customer[], slot: MealSlot) {
     const ids = list
-      .filter(c => (deliveryStatusesRef.current[c.id] ?? 'pending') === 'pending')
+      .filter(c => (deliveryStatusesRef.current[`${c.id}:${slot}`] ?? 'pending') === 'pending')
       .map(c => c.id)
-    await Promise.all(ids.map(id => markDelivery(id, 'delivered')))
+    await Promise.all(ids.map(id => markDelivery(id, slot, 'delivered')))
   }
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -582,9 +620,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // Auto-expand delivered section when all pending are done
   // (must be before any early return to satisfy Rules of Hooks)
   useEffect(() => {
-    const delivered = Object.values(deliveryStatuses).filter(s => s === 'delivered').length
-    const pending   = Object.values(deliveryStatuses).filter(s => s === 'pending').length
-    if (delivered > 0 && pending === 0) setShowDelivered(true)
+    if (!customers.length) return
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+    const activeToday = customers.filter(c => isActiveToday(c, todayStr))
+    if (!activeToday.length) return
+    const allFullyDone = activeToday.every(c => {
+      const slots = customerMealSlots(c)
+      return slots.every(s => (deliveryStatuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
+    })
+    if (allFullyDone) setShowDelivered(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryStatuses])
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
@@ -722,20 +767,36 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     : trialDaysLeft > 7  ? 'bg-amber-400/25 text-amber-100'
     : 'bg-red-500/30 text-red-100'
 
-  // Tracking counts
-  const deliveredCount = deliveryToday.filter(c => deliveryStatuses[c.id] === 'delivered').length
-  const skippedCount   = deliveryToday.filter(c => deliveryStatuses[c.id] === 'skipped').length
-  const pendingCount   = deliveryToday.length - deliveredCount - skippedCount
-  const allDone        = deliveryToday.length > 0 && pendingCount === 0
-
-  // Split into active (pending + skipped) and delivered
-  const activeList = deliveryTrackingEnabled
+  // Workspace customers: slot-filtered when in a workspace, all customers in overview
+  const workspaceCustomers = slotFilter === 'all'
     ? deliveryToday
-        .filter(c => deliveryStatuses[c.id] !== 'delivered')
-        .sort((a, b) => (deliveryStatuses[a.id] === 'skipped' ? 1 : 0) - (deliveryStatuses[b.id] === 'skipped' ? 1 : 0))
-    : deliveryToday
-  const deliveredList = deliveryTrackingEnabled
-    ? deliveryToday.filter(c => deliveryStatuses[c.id] === 'delivered')
+    : deliveryToday.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
+
+  // Tracking counts — slot-specific in workspace mode, effective across all slots in overview
+  const deliveredCount = workspaceCustomers.filter(c =>
+    slotFilter === 'all'
+      ? customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'delivered')
+      : deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered'
+  ).length
+  const skippedCount = workspaceCustomers.filter(c =>
+    slotFilter === 'all'
+      ? customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'skipped')
+      : deliveryStatuses[`${c.id}:${slotFilter}`] === 'skipped'
+  ).length
+  const pendingCount = workspaceCustomers.length - deliveredCount - skippedCount
+  const allDone      = workspaceCustomers.length > 0 && pendingCount === 0
+
+  // Active / delivered split — only meaningful in a slot workspace; overview is always static
+  const activeList = (slotFilter !== 'all' && deliveryTrackingEnabled)
+    ? workspaceCustomers
+        .filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] !== 'delivered')
+        .sort((a, b) =>
+          (deliveryStatuses[`${a.id}:${slotFilter}`] === 'skipped' ? 1 : 0) -
+          (deliveryStatuses[`${b.id}:${slotFilter}`] === 'skipped' ? 1 : 0)
+        )
+    : workspaceCustomers
+  const deliveredList = (slotFilter !== 'all' && deliveryTrackingEnabled)
+    ? workspaceCustomers.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered')
     : []
 
 
@@ -874,8 +935,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {(todayMenus.length > 0 || deliveryToday.length > 0) && (
         <div className="mx-auto max-w-2xl px-4 mt-4 space-y-3">
 
-          {/* Shared slot filter bar */}
+          {/* Shared slot filter bar — doubles as workspace selector */}
           {todayMenus.length > 0 && (
+            <div className="space-y-2">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
               {([
                 { key: 'all',       label: 'Full Day', emoji: '🍱' },
@@ -887,7 +949,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 return (
                   <button
                     key={f.key}
-                    onClick={() => setSlotFilter(f.key)}
+                    onClick={() => {
+                      setSlotFilter(f.key)
+                      if (f.key === 'all') { setBulkMode(false); setSelectedIds(new Set()) }
+                    }}
                     className={`flex flex-col items-center gap-0.5 rounded-2xl py-2.5 px-1 transition-all active:scale-95 ${
                       active
                         ? 'bg-orange-500 shadow-lg shadow-orange-500/30 text-white'
@@ -899,6 +964,39 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   </button>
                 )
               })}
+            </div>
+
+            {/* Cross-slot awareness — when in a slot workspace, show other slots' delivery progress */}
+            {slotFilter !== 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {MEAL_SLOTS.filter(s => s !== slotFilter).map(s => {
+                  const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
+                  if (!sCusts.length) return null
+                  const sDone = sCusts.filter(c => deliveryStatuses[`${c.id}:${s}`] === 'delivered').length
+                  const isAllDone = sDone === sCusts.length
+                  const hasProgress = sDone > 0 && !isAllDone
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => { setSlotFilter(s); setBulkMode(false); setSelectedIds(new Set()) }}
+                      className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-bold border transition-all active:scale-95 ${
+                        isAllDone
+                          ? 'bg-green-50 border-green-200 text-green-700'
+                          : hasProgress
+                          ? 'bg-orange-50 border-orange-100 text-orange-700'
+                          : 'bg-white border-gray-100 text-gray-500'
+                      }`}
+                    >
+                      <span>{MEAL_SLOT_EMOJI[s]}</span>
+                      <span>{MEAL_SLOT_LABEL[s]}</span>
+                      <span className={`font-black ${isAllDone ? 'text-green-600' : hasProgress ? 'text-orange-600' : 'text-gray-400'}`}>
+                        {sDone}/{sCusts.length}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             </div>
           )}
 
@@ -1003,8 +1101,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       {packingList.map(({ customer: c, slots }, custIndex) => {
                         const plan = customerPlan(c)
                         const planType = plan?.plan_type ?? c.plan_type
-                        const isDelivered = deliveryStatuses[c.id] === 'delivered'
-                        const isSkipped = deliveryStatuses[c.id] === 'skipped'
+                        const isDelivered = slotFilter !== 'all'
+                          ? deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered'
+                          : customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'delivered')
+                        const isSkipped = slotFilter !== 'all'
+                          ? deliveryStatuses[`${c.id}:${slotFilter}`] === 'skipped'
+                          : customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'skipped')
                         const filteredSlots = slots.filter(s => slotFilter === 'all' || s.slot === slotFilter)
                         if (!filteredSlots.length) return null
                         return (
@@ -1149,15 +1251,18 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   <span className="flex items-center justify-center p-1.5 bg-orange-100 rounded-xl">
                     <Box className="w-4 h-4 text-orange-600" />
                   </span>
-                  Today&apos;s Deliveries
+                  {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
                 </h2>
                 <p className="text-xs font-medium text-gray-500 mt-0.5">
-                  {deliveryToday.length} customer{deliveryToday.length !== 1 ? 's' : ''} total
+                  {workspaceCustomers.length} customer{workspaceCustomers.length !== 1 ? 's' : ''}
+                  {slotFilter !== 'all' && deliveryTrackingEnabled && pendingCount > 0 && (
+                    <span className="ml-1 text-orange-500 font-bold">· {pendingCount} pending</span>
+                  )}
                 </p>
               </div>
-              {riders.length > 0 && deliveryToday.length > 0 && (
+              {riders.length > 0 && workspaceCustomers.length > 0 && (
                 <button
-                  onClick={() => setRiderModal({ area: 'All deliveries', members: deliveryToday })}
+                  onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
                   className="flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide bg-orange-500 text-white shadow-sm active:scale-95 transition-all duration-300"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -1166,8 +1271,41 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               )}
             </div>
 
-            {/* Progress strip (tracking ON, in-progress only) */}
-            {deliveryTrackingEnabled && deliveryToday.length > 0 && !allDone && (
+            {/* Overview mode: per-slot summary chips (tap to enter workspace) */}
+            {slotFilter === 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {MEAL_SLOTS.map(s => {
+                  const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
+                  if (!sCusts.length) return null
+                  const sDone = sCusts.filter(c => deliveryStatuses[`${c.id}:${s}`] === 'delivered').length
+                  const isAllDone = sDone === sCusts.length
+                  const hasProgress = sDone > 0 && !isAllDone
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setSlotFilter(s)}
+                      className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold border transition-all active:scale-95 ${
+                        isAllDone
+                          ? 'bg-green-50 border-green-200 text-green-700'
+                          : hasProgress
+                          ? 'bg-orange-50 border-orange-200 text-orange-700'
+                          : 'bg-white border-gray-100 text-gray-500'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{MEAL_SLOT_EMOJI[s]}</span>
+                      <span>{MEAL_SLOT_LABEL[s]}</span>
+                      <span className={`font-black ${isAllDone ? 'text-green-600' : hasProgress ? 'text-orange-600' : 'text-gray-400'}`}>
+                        {sDone}/{sCusts.length}
+                      </span>
+                      {!isAllDone && <ChevronRight className="w-3 h-3 opacity-50" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Slot workspace: progress strip */}
+            {slotFilter !== 'all' && deliveryTrackingEnabled && workspaceCustomers.length > 0 && !allDone && (
               <div className="mb-3 rounded-2xl px-4 py-3 bg-white/70 border border-gray-100">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3 text-xs font-bold">
@@ -1175,28 +1313,26 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     {skippedCount > 0 && <span className="text-amber-600">{skippedCount} skipped</span>}
                     <span className="text-gray-400">{pendingCount} pending</span>
                   </div>
-                  <span className="text-xs font-black text-gray-700">{deliveredCount} / {deliveryToday.length}</span>
+                  <span className="text-xs font-black text-gray-700">{deliveredCount} / {workspaceCustomers.length}</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 transition-all duration-500"
-                    style={{ width: `${(deliveredCount / deliveryToday.length) * 100}%` }}
+                    style={{ width: `${(deliveredCount / workspaceCustomers.length) * 100}%` }}
                   />
                 </div>
               </div>
             )}
 
-            {/* View toggle + bulk controls */}
-            {deliveryToday.length > 0 && (
+            {/* View toggle + bulk controls (slot workspace only) */}
+            {workspaceCustomers.length > 0 && slotFilter !== 'all' && (
               <div className="mb-3 flex items-center justify-between gap-2">
                 {/* Left: view tabs */}
                 <div className="flex items-center gap-1.5 rounded-xl bg-gray-100 p-1">
                   <button
                     onClick={() => setDeliveryView('list')}
                     className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
-                      deliveryView === 'list'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500'
+                      deliveryView === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
                     }`}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1" fill="currentColor"/></svg>
@@ -1205,9 +1341,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   <button
                     onClick={() => setDeliveryView('area')}
                     className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${
-                      deliveryView === 'area'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500'
+                      deliveryView === 'area' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
                     }`}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16"><path d="M8 1.5C5.51 1.5 3.5 3.51 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6c0-2.49-2.01-4.5-4.5-4.5zm0 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" fill="currentColor"/></svg>
@@ -1215,29 +1349,25 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   </button>
                 </div>
 
-                {/* Right: actions */}
+                {/* Right: bulk controls */}
                 {deliveryTrackingEnabled && (
                   <div className="flex items-center gap-1.5">
                     {bulkMode && (
                       <button
                         onClick={() => {
-                          const allIds = new Set(deliveryToday.map(c => c.id))
-                          const allSelected = deliveryToday.every(c => selectedIds.has(c.id))
+                          const allIds = new Set(workspaceCustomers.map(c => c.id))
+                          const allSelected = workspaceCustomers.every(c => selectedIds.has(c.id))
                           setSelectedIds(allSelected ? new Set() : allIds)
                         }}
                         className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 text-gray-500 active:scale-95 transition-all"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
-                        {deliveryToday.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
+                        {workspaceCustomers.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
                       </button>
                     )}
                     <button
                       onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
-                      className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
-                        bulkMode
-                          ? 'bg-white border border-gray-200 text-gray-500'
-                          : 'bg-white border border-gray-200 text-gray-500'
-                      }`}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all active:scale-95 bg-white border border-gray-200 text-gray-500"
                     >
                       {bulkMode ? <X className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
                       {bulkMode ? 'Cancel' : 'Select'}
@@ -1247,24 +1377,43 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
-            {/* Swipe hint */}
-            {deliveryTrackingEnabled && !bulkMode && deliveryToday.length > 0 && deliveredCount === 0 && skippedCount === 0 && (
+            {/* Swipe hint (slot workspace only) */}
+            {slotFilter !== 'all' && deliveryTrackingEnabled && !bulkMode && workspaceCustomers.length > 0 && deliveredCount === 0 && skippedCount === 0 && (
               <p className="mb-2 text-center text-[11px] font-medium text-gray-400">
                 Swipe right to deliver · Swipe left to skip
               </p>
             )}
 
-            {/* ── List ── */}
-            {deliveryToday.length === 0 ? (
+            {/* ── Delivery list ── */}
+            {workspaceCustomers.length === 0 ? (
               <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-12">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-50 text-orange-400 shadow-inner border border-orange-100/50">
                   <PartyPopper className="w-8 h-8" />
                 </div>
-                <p className="text-sm font-bold text-gray-600">No deliveries today</p>
-                <p className="text-xs text-gray-400 mt-1">Enjoy your day off!</p>
+                <p className="text-sm font-bold text-gray-600">
+                  {slotFilter === 'all' ? 'No deliveries today' : `No ${MEAL_SLOT_LABEL[slotFilter as MealSlot]} deliveries`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {slotFilter === 'all' ? 'Enjoy your day off!' : 'No customers subscribed to this slot'}
+                </p>
+              </div>
+
+            ) : slotFilter === 'all' ? (
+              /* ── Overview mode: static list of all customers ── */
+              <div className="glass-card overflow-hidden rounded-3xl">
+                {deliveryToday.map((c, i) => (
+                  <DeliveryRow
+                    key={c.id}
+                    c={c}
+                    index={i}
+                    isLast={i === deliveryToday.length - 1}
+                    onOpen={() => setCustomerModal(c)}
+                  />
+                ))}
               </div>
 
             ) : deliveryView === 'list' ? (
+              /* ── Slot workspace: list view ── */
               <div className="space-y-3">
                 {/* Active (pending + skipped) */}
                 {activeList.length > 0 ? (
@@ -1276,8 +1425,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           c={c}
                           index={i}
                           isLast={i === activeList.length - 1}
-                          status={deliveryStatuses[c.id] ?? 'pending'}
-                          onMark={(s) => markDelivery(c.id, s)}
+                          status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
+                          onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
                           bulkMode={bulkMode}
                           selected={selectedIds.has(c.id)}
                           onToggleSelect={() => toggleSelect(c.id)}
@@ -1293,8 +1442,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-500">
                       <PartyPopper className="w-7 h-7" />
                     </div>
-                    <p className="text-sm font-black text-green-700">All deliveries done!</p>
-                    <p className="text-xs text-gray-400 mt-1">Everyone&apos;s been taken care of today 🎉</p>
+                    <p className="text-sm font-black text-green-700">
+                      All {MEAL_SLOT_LABEL[slotFilter as MealSlot]} deliveries done!
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Everyone&apos;s been taken care of 🎉</p>
                   </div>
                 ) : null}
 
@@ -1320,13 +1471,17 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
 
             ) : (
+              /* ── Slot workspace: area view ── */
               <div className="space-y-3">
-                {sortedAreas.map(([area, members]) => {
+                {sortedAreas.map(([area, allMembers]) => {
+                  // Only show members that have the current slot
+                  const members = allMembers.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
+                  if (!members.length) return null
                   const areaActive = deliveryTrackingEnabled
-                    ? members.filter(c => deliveryStatuses[c.id] !== 'delivered')
+                    ? members.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] !== 'delivered')
                     : members
                   const areaDelivered = deliveryTrackingEnabled
-                    ? members.filter(c => deliveryStatuses[c.id] === 'delivered')
+                    ? members.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered')
                     : []
                   return (
                     <div key={area} className="glass-card overflow-hidden rounded-3xl">
@@ -1364,8 +1519,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                             index={i}
                             isLast={i === areaActive.length - 1 && areaDelivered.length === 0}
                             hideArea
-                            status={deliveryStatuses[c.id] ?? 'pending'}
-                            onMark={(s) => markDelivery(c.id, s)}
+                            status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
+                            onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
                             bulkMode={bulkMode}
                             selected={selectedIds.has(c.id)}
                             onToggleSelect={() => toggleSelect(c.id)}
@@ -1434,8 +1589,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 pointer-events-none">
           <div className="mx-auto max-w-2xl">
             <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl pointer-events-auto">
-              <span className={`text-xs font-bold ${undoSnackbar.action === 'Delivered' ? 'text-green-400' : 'text-amber-400'}`}>
+              <span className={`text-xs font-bold flex items-center gap-1.5 ${undoSnackbar.action === 'Delivered' ? 'text-green-400' : 'text-amber-400'}`}>
                 {undoSnackbar.action === 'Delivered' ? '✓' : '—'} {undoSnackbar.name}
+                <span className="opacity-60">{MEAL_SLOT_EMOJI[undoSnackbar.slot]}</span>
               </span>
               <div className="flex-1" />
               <button
@@ -1453,7 +1609,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {customerModal && (() => {
         const c = customerModal
         const plan = customerPlan(c)
-        const status = deliveryStatuses[c.id] ?? 'pending'
         const balanceClass = c.balance_days > 7
           ? 'bg-green-50 text-green-700 border-green-200'
           : c.balance_days >= 3
@@ -1481,15 +1636,19 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     }`}>
                       {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                     </span>
-                    {deliveryTrackingEnabled && (
-                      <span className={`rounded-lg px-2 py-0.5 text-[11px] font-bold border ${
-                        status === 'delivered' ? 'bg-green-50 text-green-700 border-green-200'
-                        : status === 'skipped' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-gray-100 text-gray-500 border-gray-200'
-                      }`}>
-                        {status === 'delivered' ? '✓ Delivered' : status === 'skipped' ? '— Skipped' : 'Pending'}
-                      </span>
-                    )}
+                    {deliveryTrackingEnabled && customerMealSlots(c).map(s => {
+                      const slotSt = deliveryStatuses[`${c.id}:${s}`] ?? 'pending'
+                      return (
+                        <span key={s} className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-bold border ${
+                          slotSt === 'delivered' ? 'bg-green-50 text-green-700 border-green-200'
+                          : slotSt === 'skipped'  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-gray-100 text-gray-500 border-gray-200'
+                        }`}>
+                          <span>{MEAL_SLOT_EMOJI[s]}</span>
+                          {slotSt === 'delivered' ? '✓' : slotSt === 'skipped' ? '—' : '·'}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
                 <button

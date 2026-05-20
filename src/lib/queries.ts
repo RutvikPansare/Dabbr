@@ -186,7 +186,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         db.from('customers').select('*, pauses(*), subscriptions(*)').eq('provider_id', userId).order('name'),
         db.from('meal_plans').select('*').eq('provider_id', userId),
         db.from('providers').select('*').eq('id', userId).single(),
-        db.from('delivery_logs').select('customer_id, status').eq('provider_id', userId).eq('date', today),
+        db.from('delivery_logs').select('customer_id, meal_slot, status').eq('provider_id', userId).eq('date', today),
         db.from('provider_holidays').select('label').eq('provider_id', userId).eq('date', today).maybeSingle(),
         db.from('delivery_riders').select('id, name, whatsapp_number').eq('provider_id', userId).order('created_at'),
         getTrialStatus(db, userId),
@@ -202,9 +202,10 @@ export function getCachedDashboardData(userId: string, today: string) {
         })),
       }))
 
+      // Key: `${customer_id}:${meal_slot}` — each slot is an independent workspace
       const deliveryStatuses: Record<string, string> = {}
       for (const log of (logsData ?? [])) {
-        deliveryStatuses[log.customer_id] = log.status
+        deliveryStatuses[`${log.customer_id}:${log.meal_slot}`] = log.status
       }
 
       return {
