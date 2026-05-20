@@ -881,9 +881,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <UtensilsCrossed className="w-3.5 h-3.5 text-orange-500" />
               </span>
               <span className="flex-1 text-left text-sm font-black text-gray-900">Today&apos;s Cook List</span>
-              {cookList.length === 0 && (
-                <span className="text-[11px] font-semibold text-gray-400">No menu set</span>
-              )}
+              {cookList.length === 0 && <span className="text-[11px] font-semibold text-gray-400">No menu set</span>}
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${cookListOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -892,50 +890,51 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {cookList.length === 0 ? (
                   <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
                     <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
-                    <button
-                      onClick={() => router.push('/menu')}
-                      className="text-xs font-black text-orange-500 active:opacity-70"
-                    >
-                      Go to Menu Planner →
-                    </button>
+                    <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50">
                     {cookList.map(({ slot, customerCount, items }) => (
-                      <div key={slot} className="px-4 py-3">
+                      <div key={slot} className="px-4 pt-3 pb-4">
                         {/* Slot header */}
-                        <div className="flex items-center gap-2 mb-2.5">
+                        <div className="flex items-center gap-2 mb-3">
                           <span className="text-base leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
-                          <span className="text-xs font-black text-gray-700">{MEAL_SLOT_LABEL[slot]}</span>
-                          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-500">
-                            {customerCount} customer{customerCount !== 1 ? 's' : ''}
-                          </span>
+                          <span className="text-xs font-black uppercase tracking-wide text-gray-500">{MEAL_SLOT_LABEL[slot]}</span>
+                          {customerCount > 0 && (
+                            <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500">
+                              {customerCount} customer{customerCount !== 1 ? 's' : ''}
+                            </span>
+                          )}
                         </div>
-                        {/* Dish rows */}
-                        <div className="space-y-1.5">
+                        {/* Dish chips */}
+                        <div className="flex flex-wrap gap-2">
                           {items.map(item => (
-                            <div key={item.name} className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-sm font-bold text-gray-800 truncate">{item.name}</span>
+                            <div key={item.name} className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${
+                              item.label === 'veg only' || item.label === 'veg'
+                                ? 'border-emerald-100 bg-emerald-50'
+                                : item.label === 'non-veg only' || item.label === 'non-veg'
+                                  ? 'border-orange-100 bg-orange-50'
+                                  : 'border-gray-100 bg-[#FDF8F3]'
+                            }`}>
+                              <div className="min-w-0">
+                                <p className="text-sm font-black text-gray-900 leading-none">{item.name}</p>
                                 {item.label && (
-                                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-black ${
-                                    item.label === 'veg only'
-                                      ? 'bg-emerald-50 text-emerald-600'
-                                      : 'bg-orange-50 text-orange-500'
-                                  }`}>
-                                    {item.label}
-                                  </span>
+                                  <p className={`text-[10px] font-bold mt-0.5 leading-none ${
+                                    item.label === 'veg only' || item.label === 'veg' ? 'text-emerald-600' : 'text-orange-500'
+                                  }`}>{item.label}</p>
                                 )}
                               </div>
-                              <div className="shrink-0 flex items-center gap-1.5">
+                              <div className="flex flex-col items-center shrink-0 ml-1">
+                                <span className={`text-lg font-black leading-none ${
+                                  item.label === 'veg only' || item.label === 'veg'
+                                    ? 'text-emerald-600'
+                                    : item.label === 'non-veg only' || item.label === 'non-veg'
+                                      ? 'text-orange-500'
+                                      : 'text-orange-500'
+                                }`}>{item.total}</span>
                                 {item.perCustomer > 1 && (
-                                  <span className="text-[10px] font-semibold text-gray-400">
-                                    ×{item.perCustomer} each
-                                  </span>
+                                  <span className="text-[9px] font-bold text-gray-400 leading-none mt-0.5">×{item.perCustomer} ea</span>
                                 )}
-                                <span className="rounded-xl bg-gray-900 px-2.5 py-1 text-xs font-black text-white min-w-[2rem] text-center">
-                                  {item.total}
-                                </span>
                               </div>
                             </div>
                           ))}
@@ -962,14 +961,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <Box className="w-3.5 h-3.5 text-orange-500" />
               </span>
               <span className="flex-1 text-left text-sm font-black text-gray-900">Packing List</span>
-              {packingList.length === 0 && (
-                <span className="text-[11px] font-semibold text-gray-400">No menu set</span>
-              )}
               {packingList.length > 0 && (
-                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
+                <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
                   {packingList.length} boxes
                 </span>
               )}
+              {packingList.length === 0 && <span className="text-[11px] font-semibold text-gray-400 mr-1">No menu set</span>}
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -978,41 +975,37 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {packingList.length === 0 ? (
                   <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
                     <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
-                    <button
-                      onClick={() => router.push('/menu')}
-                      className="text-xs font-black text-orange-500 active:opacity-70"
-                    >
-                      Go to Menu Planner →
-                    </button>
+                    <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50">
                     {packingList.map(({ customer: c, slots }) => {
                       const plan = customerPlan(c)
+                      const planType = plan?.plan_type ?? c.plan_type
                       const isDelivered = deliveryStatuses[c.id] === 'delivered'
                       const isSkipped = deliveryStatuses[c.id] === 'skipped'
                       return (
-                        <div key={c.id} className={`px-4 py-3 ${isDelivered ? 'opacity-40' : ''}`}>
-                          {/* Customer row */}
-                          <div className="flex items-center gap-2 mb-2">
+                        <div key={c.id} className={`px-4 pt-3 pb-4 transition-opacity ${isDelivered ? 'opacity-40' : ''}`}>
+                          {/* Customer header */}
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <span className="text-base leading-none shrink-0">{planType === 'veg' ? '🥦' : '🍗'}</span>
                             <span className="flex-1 text-sm font-black text-gray-900 truncate">{c.name}</span>
-                            {plan && (
-                              <span className="text-[10px] font-black shrink-0">
-                                {plan.plan_type === 'veg' ? '🥦' : '🍗'}
-                              </span>
+                            {isDelivered && (
+                              <span className="rounded-full bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-600">✓ Done</span>
                             )}
-                            {isDelivered && <span className="text-[10px] font-black text-emerald-500 shrink-0">✓ Done</span>}
-                            {isSkipped && <span className="text-[10px] font-black text-gray-400 shrink-0">Skipped</span>}
+                            {isSkipped && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-400">Skipped</span>
+                            )}
                           </div>
-                          {/* Per-slot dishes */}
-                          <div className="space-y-1.5 pl-1">
+                          {/* Per-slot dish chips */}
+                          <div className="space-y-2 pl-7">
                             {slots.map(({ slot, dishes }) => (
                               <div key={slot} className="flex items-start gap-2">
-                                <span className="text-sm shrink-0 leading-none mt-0.5">{MEAL_SLOT_EMOJI[slot]}</span>
-                                <div className="flex flex-wrap gap-1">
+                                <span className="text-xs shrink-0 leading-none mt-1">{MEAL_SLOT_EMOJI[slot]}</span>
+                                <div className="flex flex-wrap gap-1.5">
                                   {dishes.map(d => (
-                                    <span key={d.name} className="rounded-full bg-[#FDF8F3] px-2.5 py-1 text-[11px] font-black text-gray-700">
-                                      {d.name}{d.qty > 1 ? ` ×${d.qty}` : ''}
+                                    <span key={d.name} className="rounded-xl bg-white border border-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-700 shadow-sm">
+                                      {d.name}{d.qty > 1 ? <span className="text-orange-500"> ×{d.qty}</span> : ''}
                                     </span>
                                   ))}
                                 </div>
