@@ -409,6 +409,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [showDelivered, setShowDelivered] = useState(false)
   const [cookListOpen, setCookListOpen] = useState(true)
   const [packingListOpen, setPackingListOpen] = useState(false)
+  const [slotFilter, setSlotFilter] = useState<'all' | MealSlot>('all')
 
   // ── Data state — seeded from server-side cached initialData ───────────────
   const [customers, setCustomers] = useState<Customer[]>(initialData.customers)
@@ -869,159 +870,184 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]">
 
 
-      {/* ── Today's Cook List ── */}
-      {todayMenus.length > 0 && (
-        <div className="mx-auto max-w-2xl px-4 mt-4">
-          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-            <button
-              onClick={() => setCookListOpen(v => !v)}
-              className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
-                <UtensilsCrossed className="w-3.5 h-3.5 text-orange-500" />
-              </span>
-              <span className="flex-1 text-left text-sm font-black text-gray-900">Today&apos;s Cook List</span>
-              {cookList.length === 0 && <span className="text-[11px] font-semibold text-gray-400">No menu set</span>}
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${cookListOpen ? 'rotate-180' : ''}`} />
-            </button>
+      {/* ── Cook List + Packing List with shared slot filter ── */}
+      {(todayMenus.length > 0 || deliveryToday.length > 0) && (
+        <div className="mx-auto max-w-2xl px-4 mt-4 space-y-3">
 
-            {cookListOpen && (
-              <div className="border-t border-gray-100">
-                {cookList.length === 0 ? (
-                  <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
-                    <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
-                    <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
-                  </div>
-                ) : (
-                  <div>
-                    {cookList.map(({ slot, customerCount, items }, slotIndex) => (
-                      <div key={slot}>
-                        {/* Bold slot divider */}
-                        <div className={`flex items-center gap-3 px-4 py-2.5 ${
-                          slotIndex === 0 ? 'bg-gray-50' : 'bg-gray-50 border-t-2 border-gray-200'
-                        }`}>
-                          <span className="text-base leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
-                          <span className="flex-1 text-xs font-black uppercase tracking-widest text-gray-600">{MEAL_SLOT_LABEL[slot]}</span>
-                          {customerCount > 0 && (
-                            <span className="rounded-full bg-white border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500">
-                              {customerCount} customer{customerCount !== 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                        {/* Vertical dish rows */}
-                        <div className="px-4 py-2 space-y-1">
-                          {items.map(item => {
-                            const isVeg = item.label === 'veg only' || item.label === 'veg'
-                            const isNonveg = item.label === 'non-veg only' || item.label === 'non-veg'
-                            return (
-                              <div key={item.name} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                                isVeg ? 'bg-emerald-50' : isNonveg ? 'bg-orange-50' : 'bg-[#FDF8F3]'
-                              }`}>
-                                {/* Left accent bar */}
-                                <div className={`w-1 h-6 rounded-full shrink-0 ${
-                                  isVeg ? 'bg-emerald-400' : isNonveg ? 'bg-orange-400' : 'bg-orange-200'
-                                }`} />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm font-black text-gray-900">{item.name}</span>
-                                  {item.label && (
-                                    <span className={`ml-2 text-[10px] font-bold ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>
-                                      {item.label}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-baseline gap-1.5 shrink-0">
-                                  {item.perCustomer > 1 && (
-                                    <span className="text-[10px] font-semibold text-gray-400">×{item.perCustomer} ea</span>
-                                  )}
-                                  <span className={`text-xl font-black leading-none ${
-                                    isVeg ? 'text-emerald-600' : 'text-orange-500'
-                                  }`}>{item.total}</span>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+          {/* Shared slot filter bar */}
+          {todayMenus.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+              {([
+                { key: 'all',       label: 'Full Day', emoji: '🍱' },
+                { key: 'breakfast', label: 'Breakfast', emoji: MEAL_SLOT_EMOJI.breakfast },
+                { key: 'lunch',     label: 'Lunch',    emoji: MEAL_SLOT_EMOJI.lunch },
+                { key: 'dinner',    label: 'Dinner',   emoji: MEAL_SLOT_EMOJI.dinner },
+              ] as const).map(f => {
+                const active = slotFilter === f.key
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => setSlotFilter(f.key)}
+                    className={`flex flex-col items-center gap-0.5 rounded-2xl py-2.5 px-1 transition-all active:scale-95 ${
+                      active
+                        ? 'bg-orange-500 shadow-lg shadow-orange-500/30 text-white'
+                        : 'bg-white border border-gray-100 text-gray-500 shadow-sm'
+                    }`}
+                  >
+                    <span className="text-lg leading-none">{f.emoji}</span>
+                    <span className={`text-[10px] font-black leading-none mt-0.5 ${active ? 'text-white' : 'text-gray-500'}`}>{f.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
-      {/* ── Packing List (per customer) ── */}
-      {deliveryToday.length > 0 && (
-        <div className="mx-auto max-w-2xl px-4 mt-3">
-          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-            <button
-              onClick={() => setPackingListOpen(v => !v)}
-              className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
-                <Box className="w-3.5 h-3.5 text-orange-500" />
-              </span>
-              <span className="flex-1 text-left text-sm font-black text-gray-900">Packing List</span>
-              {packingList.length > 0 && (
-                <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
-                  {packingList.length} boxes
+          {/* Cook List */}
+          {todayMenus.length > 0 && (
+            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+              <button
+                onClick={() => setCookListOpen(v => !v)}
+                className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
+                  <UtensilsCrossed className="w-3.5 h-3.5 text-orange-500" />
                 </span>
-              )}
-              {packingList.length === 0 && <span className="text-[11px] font-semibold text-gray-400 mr-1">No menu set</span>}
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
-            </button>
+                <span className="flex-1 text-left text-sm font-black text-gray-900">Cook List</span>
+                {cookList.length === 0 && <span className="text-[11px] font-semibold text-gray-400">No menu set</span>}
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${cookListOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-            {packingListOpen && (
-              <div className="border-t border-gray-100">
-                {packingList.length === 0 ? (
-                  <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
-                    <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
-                    <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-200">
-                    {packingList.map(({ customer: c, slots }) => {
-                      const plan = customerPlan(c)
-                      const planType = plan?.plan_type ?? c.plan_type
-                      const isDelivered = deliveryStatuses[c.id] === 'delivered'
-                      const isSkipped = deliveryStatuses[c.id] === 'skipped'
-                      return (
-                        <div key={c.id} className={`px-4 pt-3 pb-4 transition-opacity ${isDelivered ? 'opacity-40' : ''}`}>
-                          {/* Customer header */}
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <span className="text-base leading-none shrink-0">{planType === 'veg' ? '🥦' : '🍗'}</span>
-                            <span className="flex-1 text-sm font-black text-gray-900 truncate">{c.name}</span>
-                            {isDelivered && (
-                              <span className="rounded-full bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-600">✓ Done</span>
-                            )}
-                            {isSkipped && (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-400">Skipped</span>
-                            )}
+              {cookListOpen && (
+                <div className="border-t border-gray-100">
+                  {cookList.length === 0 ? (
+                    <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
+                      <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
+                      <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
+                    </div>
+                  ) : (
+                    <div>
+                      {cookList
+                        .filter(s => slotFilter === 'all' || s.slot === slotFilter)
+                        .map(({ slot, customerCount, items }, slotIndex) => (
+                          <div key={slot}>
+                            <div className={`flex items-center gap-3 px-4 py-2.5 bg-gray-50 ${slotIndex > 0 ? 'border-t-2 border-gray-200' : ''}`}>
+                              <span className="text-base leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
+                              <span className="flex-1 text-xs font-black uppercase tracking-widest text-gray-600">{MEAL_SLOT_LABEL[slot]}</span>
+                              {customerCount > 0 && (
+                                <span className="rounded-full bg-white border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500">
+                                  {customerCount} customer{customerCount !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                            </div>
+                            <div className="px-4 py-2 space-y-1">
+                              {items.map(item => {
+                                const isVeg = item.label === 'veg only' || item.label === 'veg'
+                                const isNonveg = item.label === 'non-veg only' || item.label === 'non-veg'
+                                return (
+                                  <div key={item.name} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+                                    isVeg ? 'bg-emerald-50' : isNonveg ? 'bg-orange-50' : 'bg-[#FDF8F3]'
+                                  }`}>
+                                    <div className={`w-1 h-6 rounded-full shrink-0 ${isVeg ? 'bg-emerald-400' : isNonveg ? 'bg-orange-400' : 'bg-orange-200'}`} />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-sm font-black text-gray-900">{item.name}</span>
+                                      {item.label && (
+                                        <span className={`ml-2 text-[10px] font-bold ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>{item.label}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-baseline gap-1.5 shrink-0">
+                                      {item.perCustomer > 1 && <span className="text-[10px] font-semibold text-gray-400">×{item.perCustomer} ea</span>}
+                                      <span className={`text-xl font-black leading-none ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>{item.total}</span>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
-                          {/* Per-slot dish chips */}
-                          <div className="space-y-2 pl-7">
-                            {slots.map(({ slot, dishes }) => (
-                              <div key={slot} className="flex items-start gap-2">
-                                <span className="text-xs shrink-0 leading-none mt-1">{MEAL_SLOT_EMOJI[slot]}</span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {dishes.map(d => (
-                                    <span key={d.name} className="rounded-xl bg-white border border-gray-100 px-2.5 py-1 text-[11px] font-black text-gray-700 shadow-sm">
-                                      {d.name}{d.qty > 1 ? <span className="text-orange-500"> ×{d.qty}</span> : ''}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Packing List */}
+          {deliveryToday.length > 0 && (
+            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+              <button
+                onClick={() => setPackingListOpen(v => !v)}
+                className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
+                  <Box className="w-3.5 h-3.5 text-orange-500" />
+                </span>
+                <span className="flex-1 text-left text-sm font-black text-gray-900">Packing List</span>
+                {packingList.length > 0 && (
+                  <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
+                    {packingList.length} boxes
+                  </span>
                 )}
-              </div>
-            )}
-          </div>
+                {packingList.length === 0 && <span className="text-[11px] font-semibold text-gray-400 mr-1">No menu set</span>}
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {packingListOpen && (
+                <div className="border-t border-gray-100">
+                  {packingList.length === 0 ? (
+                    <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
+                      <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
+                      <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
+                    </div>
+                  ) : (
+                    <div>
+                      {packingList.map(({ customer: c, slots }, custIndex) => {
+                        const plan = customerPlan(c)
+                        const planType = plan?.plan_type ?? c.plan_type
+                        const isDelivered = deliveryStatuses[c.id] === 'delivered'
+                        const isSkipped = deliveryStatuses[c.id] === 'skipped'
+                        const filteredSlots = slots.filter(s => slotFilter === 'all' || s.slot === slotFilter)
+                        if (!filteredSlots.length) return null
+                        return (
+                          <div key={c.id} className={isDelivered ? 'opacity-40' : ''}>
+                            {/* Customer header band */}
+                            <div className={`flex items-center gap-3 px-4 py-2.5 bg-gray-50 ${custIndex > 0 ? 'border-t-2 border-gray-200' : ''}`}>
+                              <span className="text-base leading-none shrink-0">{planType === 'veg' ? '🥦' : '🍗'}</span>
+                              <span className="flex-1 text-xs font-black uppercase tracking-widest text-gray-600 truncate">{c.name}</span>
+                              {isDelivered && <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-black text-emerald-700">✓ Done</span>}
+                              {isSkipped && <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-black text-gray-500">Skipped</span>}
+                            </div>
+                            {/* Dish rows per slot */}
+                            <div className="px-4 py-2 space-y-1">
+                              {filteredSlots.map(({ slot, dishes }) =>
+                                dishes.map((d, di) => {
+                                  const isVeg = planType === 'veg'
+                                  const isNonveg = planType === 'nonveg'
+                                  return (
+                                    <div key={`${slot}-${d.name}`} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
+                                      isVeg ? 'bg-emerald-50' : isNonveg ? 'bg-orange-50' : 'bg-[#FDF8F3]'
+                                    }`}>
+                                      <div className={`w-1 h-6 rounded-full shrink-0 ${isVeg ? 'bg-emerald-400' : isNonveg ? 'bg-orange-400' : 'bg-orange-200'}`} />
+                                      {/* Show slot emoji only on first dish of each slot */}
+                                      {di === 0 && <span className="text-sm leading-none shrink-0">{MEAL_SLOT_EMOJI[slot]}</span>}
+                                      {di > 0  && <span className="w-5 shrink-0" />}
+                                      <span className="flex-1 text-sm font-black text-gray-900">{d.name}</span>
+                                      {d.qty > 1 && (
+                                        <span className={`text-sm font-black shrink-0 ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>×{d.qty}</span>
+                                      )}
+                                    </div>
+                                  )
+                                })
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
