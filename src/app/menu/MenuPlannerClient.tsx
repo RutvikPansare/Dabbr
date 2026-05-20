@@ -1312,24 +1312,6 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                               <span className="px-1 py-2 text-xs font-semibold text-gray-300">{entry.placeholder}</span>
                             )}
                           </div>
-                          {selectedItems.some(item => pairingSuggestionsFor(item, slot).length > 0) && (
-                            <div className="mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                              {Array.from(
-                                new Map(
-                                  selectedItems.flatMap(item => pairingSuggestionsFor(item, slot)).map(pair => [pair.label, pair])
-                                ).values()
-                              ).slice(0, 4).map(pair => (
-                                <button
-                                  key={pair.label}
-                                  type="button"
-                                  onClick={() => addMenuItemToDraft(selectedDate, slot, entry.key, pair.label)}
-                                  className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700"
-                                >
-                                  Usually with {pair.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
                           <div className="mt-2 flex items-center gap-2 border-t border-gray-100 pt-2">
                             <input
                               value={customItemInputs[inputKey] ?? ''}
