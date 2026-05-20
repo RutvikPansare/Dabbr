@@ -1310,7 +1310,11 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                           </div>
                           {selectedItems.some(item => pairingSuggestionsFor(item, slot).length > 0) && (
                             <div className="mt-2 flex gap-1.5 overflow-x-auto border-t border-gray-100 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                              {selectedItems.flatMap(item => pairingSuggestionsFor(item, slot)).slice(0, 4).map(pair => (
+                              {Array.from(
+                                new Map(
+                                  selectedItems.flatMap(item => pairingSuggestionsFor(item, slot)).map(pair => [pair.label, pair])
+                                ).values()
+                              ).slice(0, 4).map(pair => (
                                 <button
                                   key={pair.label}
                                   type="button"
