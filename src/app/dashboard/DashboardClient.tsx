@@ -1441,11 +1441,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             </div>
           )}
 
-          {/* ── Today's delivery list ── */}
+          {/* ── Today's delivery list — everything in one card ── */}
           <section className="mb-8">
+          <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
 
-            {/* Header */}
-            <div className="mb-3 flex items-center justify-between gap-3">
+            {/* ── Card header ── */}
+            <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-gray-100">
               <div>
                 <h2 className="text-[18px] font-black text-gray-900 tracking-tight flex items-center gap-2">
                   <span className="flex items-center justify-center p-1.5 bg-orange-100 rounded-xl shrink-0">
@@ -1471,9 +1472,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               )}
             </div>
 
-            {/* Overview mode: per-slot summary chips — tap to enter workspace */}
+            {/* ── Overview: per-slot progress chips ── */}
             {slotFilter === 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 px-4 py-3 border-b border-gray-100 bg-gray-50/40">
                 {MEAL_SLOTS.map(s => {
                   const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
                   if (!sCusts.length) return null
@@ -1506,9 +1507,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
-            {/* Slot workspace: progress strip */}
+            {/* ── Workspace: progress bar ── */}
             {slotFilter !== 'all' && deliveryTrackingEnabled && workspaceCustomers.length > 0 && !allDone && (
-              <div className="mb-3 rounded-2xl px-4 py-3 bg-white border border-black/[0.05]" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/40">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3 text-xs font-semibold">
                     <span className="text-emerald-600">{deliveredCount} done</span>
@@ -1518,18 +1519,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   <span className="text-xs font-bold text-gray-600">{deliveredCount}/{workspaceCustomers.length}</span>
                 </div>
                 <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${(deliveredCount / workspaceCustomers.length) * 100}%` }}
-                  />
+                  <div className="progress-fill" style={{ width: `${(deliveredCount / workspaceCustomers.length) * 100}%` }} />
                 </div>
               </div>
             )}
 
-            {/* View toggle + bulk controls (slot workspace only) */}
+            {/* ── Workspace: view toggle + bulk controls ── */}
             {workspaceCustomers.length > 0 && slotFilter !== 'all' && (
-              <div className="mb-3 flex items-center justify-between gap-2">
-                {/* Left: view toggle — small segmented control */}
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-gray-100">
                 <div className="flex items-center bg-black/[0.05] rounded-xl p-0.5 gap-0.5">
                   <button
                     onClick={() => setDeliveryView('list')}
@@ -1550,8 +1547,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     By area
                   </button>
                 </div>
-
-                {/* Right: bulk select controls */}
                 {deliveryTrackingEnabled && (
                   <div className="flex items-center gap-1.5">
                     {bulkMode && (
@@ -1561,7 +1556,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           const allSelected = workspaceCustomers.every(c => selectedIds.has(c.id))
                           setSelectedIds(allSelected ? new Set() : allIds)
                         }}
-                        className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white border border-black/[0.07] text-gray-600 active:scale-95 transition-all"
+                        className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-gray-100 text-gray-600 active:scale-95 transition-all"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
                         {workspaceCustomers.every(c => selectedIds.has(c.id)) ? 'Deselect all' : 'Select all'}
@@ -1569,7 +1564,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     )}
                     <button
                       onClick={() => { setBulkMode(v => !v); setSelectedIds(new Set()) }}
-                      className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-white border border-black/[0.07] text-gray-600 active:scale-95 transition-all"
+                      className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold bg-gray-100 text-gray-600 active:scale-95 transition-all"
                     >
                       {bulkMode ? <X className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
                       {bulkMode ? 'Cancel' : 'Select'}
@@ -1579,17 +1574,17 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
-            {/* Swipe hint (slot workspace only, first open) */}
+            {/* ── Swipe hint ── */}
             {slotFilter !== 'all' && deliveryTrackingEnabled && !bulkMode && workspaceCustomers.length > 0 && deliveredCount === 0 && skippedCount === 0 && (
-              <p className="mb-2 text-center text-[11px] font-medium text-gray-400 tracking-wide">
+              <p className="text-center text-[11px] font-medium text-gray-400 tracking-wide py-2 border-b border-gray-100 bg-gray-50/30">
                 ← Skip &nbsp;·&nbsp; Swipe to mark &nbsp;·&nbsp; Deliver →
               </p>
             )}
 
-            {/* ── Delivery list ── */}
+            {/* ── Delivery rows ── */}
             {workspaceCustomers.length === 0 ? (
-              <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-12">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-50 text-orange-400 shadow-inner border border-orange-100/50">
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-50 text-orange-400">
                   <PartyPopper className="w-8 h-8" />
                 </div>
                 <p className="text-sm font-bold text-gray-600">
@@ -1601,62 +1596,48 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
 
             ) : slotFilter === 'all' ? (
-              /* ── Overview mode: static list of all customers ── */
-              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+              /* Overview: all customers */
+              <div>
                 {deliveryToday.map((c, i) => (
-                  <DeliveryRow
-                    key={c.id}
-                    c={c}
-                    index={i}
-                    isLast={i === deliveryToday.length - 1}
-                    onOpen={() => setCustomerModal(c)}
-                  />
+                  <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => setCustomerModal(c)} />
                 ))}
               </div>
 
             ) : deliveryView === 'list' ? (
-              /* ── Slot workspace: list view ── */
-              <div className="space-y-3">
-                {/* Active (pending + skipped) */}
+              /* Slot workspace — list view */
+              <div>
                 {activeList.length > 0 ? (
-                  <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                    {activeList.map((c, i) =>
-                      deliveryTrackingEnabled ? (
-                        <SwipeableDeliveryRow
-                          key={c.id}
-                          c={c}
-                          index={i}
-                          isLast={i === activeList.length - 1}
-                          status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
-                          onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                          bulkMode={bulkMode}
-                          selected={selectedIds.has(c.id)}
-                          onToggleSelect={() => toggleSelect(c.id)}
-                          onOpen={() => setCustomerModal(c)}
-                        />
-                      ) : (
-                        <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1} onOpen={() => setCustomerModal(c)} />
-                      )
-                    )}
-                  </div>
+                  activeList.map((c, i) =>
+                    deliveryTrackingEnabled ? (
+                      <SwipeableDeliveryRow
+                        key={c.id} c={c} index={i}
+                        isLast={i === activeList.length - 1 && deliveredList.length === 0}
+                        status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
+                        onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                        bulkMode={bulkMode} selected={selectedIds.has(c.id)}
+                        onToggleSelect={() => toggleSelect(c.id)}
+                        onOpen={() => setCustomerModal(c)}
+                      />
+                    ) : (
+                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} onOpen={() => setCustomerModal(c)} />
+                    )
+                  )
                 ) : deliveryTrackingEnabled ? (
-                  <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-10">
+                  <div className="flex flex-col items-center justify-center py-10">
                     <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 text-green-500">
                       <PartyPopper className="w-7 h-7" />
                     </div>
-                    <p className="text-sm font-black text-green-700">
-                      All {MEAL_SLOT_LABEL[slotFilter as MealSlot]} deliveries done!
-                    </p>
+                    <p className="text-sm font-black text-green-700">All {MEAL_SLOT_LABEL[slotFilter as MealSlot]} deliveries done!</p>
                     <p className="text-xs text-gray-400 mt-1">Everyone&apos;s been taken care of 🎉</p>
                   </div>
                 ) : null}
 
-                {/* Delivered section */}
+                {/* Delivered section — collapsible row inside same card */}
                 {deliveredList.length > 0 && (
-                  <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                  <>
                     <button
                       onClick={() => setShowDelivered(v => !v)}
-                      className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-b border-green-100/80 transition-colors active:bg-green-100/60"
+                      className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-t border-green-100 transition-colors active:bg-green-100/60"
                     >
                       <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-green-500 shrink-0">
                         <Check className="w-3.5 h-3.5 text-white" />
@@ -1668,15 +1649,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     {showDelivered && deliveredList.map((c, i) => (
                       <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveredList.length - 1} onOpen={() => setCustomerModal(c)} />
                     ))}
-                  </div>
+                  </>
                 )}
               </div>
 
             ) : (
-              /* ── Slot workspace: area view ── */
-              <div className="space-y-3">
-                {sortedAreas.map(([area, allMembers]) => {
-                  // Only show members that have the current slot
+              /* Slot workspace — area view */
+              <div>
+                {sortedAreas.map(([area, allMembers], areaIdx) => {
                   const members = allMembers.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
                   if (!members.length) return null
                   const areaActive = deliveryTrackingEnabled
@@ -1686,8 +1666,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     ? members.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered')
                     : []
                   return (
-                    <div key={area} className="glass-card overflow-hidden rounded-3xl">
-                      <div className="flex items-center gap-2 px-4 py-3 bg-gray-50/80 border-b border-gray-100">
+                    <div key={area} className={areaIdx > 0 ? 'border-t-2 border-gray-100' : ''}>
+                      {/* Area header band */}
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50/80 border-b border-gray-100">
                         <span className="text-sm">📍</span>
                         <span className="text-sm font-black text-gray-800">{area}</span>
                         <span className="rounded-lg bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
@@ -1716,15 +1697,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       {areaActive.map((c, i) =>
                         deliveryTrackingEnabled ? (
                           <SwipeableDeliveryRow
-                            key={c.id}
-                            c={c}
-                            index={i}
+                            key={c.id} c={c} index={i}
                             isLast={i === areaActive.length - 1 && areaDelivered.length === 0}
                             hideArea
                             status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
                             onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                            bulkMode={bulkMode}
-                            selected={selectedIds.has(c.id)}
+                            bulkMode={bulkMode} selected={selectedIds.has(c.id)}
                             onToggleSelect={() => toggleSelect(c.id)}
                             onOpen={() => setCustomerModal(c)}
                           />
@@ -1745,6 +1723,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
+          </div>
           </section>
 
           {/* ── Summary — mobile only (desktop shows in sidebar) ── */}
