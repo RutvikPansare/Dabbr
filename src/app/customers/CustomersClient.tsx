@@ -1023,13 +1023,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           {advancedFilterCount > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar items-center">
               {filterBalances.map(b => (
-                <span key={b} className="shrink-0 flex items-center gap-1.5 rounded-full bg-orange-100 border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-700">
+                <span key={b} className="shrink-0 flex items-center gap-1.5 rounded-lg bg-orange-100 border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-700">
                   {{ critical: 'Critical <3d', low: 'Low 3–7d', good: 'Healthy 7d+' }[b]}
                   <button onClick={() => setFilterBalances(prev => prev.filter(x => x !== b))}><XIcon className="w-3 h-3" /></button>
                 </span>
               ))}
               {filterAreas.map(a => (
-                <span key={a} className="shrink-0 flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700">
+                <span key={a} className="shrink-0 flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700">
                   <MapPin className="w-3 h-3" />{a}
                   <button onClick={() => setFilterAreas(prev => prev.filter(x => x !== a))}><XIcon className="w-3 h-3" /></button>
                 </span>
@@ -1037,14 +1037,14 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               {filterPlanIds.map(id => {
                 const p = mealPlans.find(m => m.id === id)
                 return p ? (
-                  <span key={id} className="shrink-0 flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                  <span key={id} className="shrink-0 flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">
                     <ClipboardList className="w-3 h-3" />{p.name}
                     <button onClick={() => setFilterPlanIds(prev => prev.filter(x => x !== id))}><XIcon className="w-3 h-3" /></button>
                   </span>
                 ) : null
               })}
               {filterTags.map(t => (
-                <span key={t} className={`shrink-0 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${tagColor(t)}`}>
+                <span key={t} className={`shrink-0 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold ${tagColor(t)}`}>
                   {t}
                   <button onClick={() => setFilterTags(prev => prev.filter(x => x !== t))}><XIcon className="w-3 h-3" /></button>
                 </span>
@@ -1060,7 +1060,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
           {/* Empty state */}
           {customers.length === 0 && (
-            <div className="glass-card flex flex-col items-center rounded-3xl px-6 py-14 text-center mt-8">
+            <div className="glass-card flex flex-col items-center rounded-2xl px-6 py-14 text-center mt-8">
               <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-orange-50 to-orange-100 shadow-inner border border-orange-200/50 text-orange-500">
                 <Box className="w-10 h-10" strokeWidth={2} />
               </div>
@@ -1073,7 +1073,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
           {/* Search no results */}
           {customers.length > 0 && filtered.length === 0 && (
-            <div className="glass-card flex flex-col items-center justify-center rounded-3xl py-12 text-gray-400">
+            <div className="glass-card flex flex-col items-center justify-center rounded-2xl py-12 text-gray-400">
               <SearchX className="mb-3 w-10 h-10 opacity-50" strokeWidth={1.5} />
               <p className="text-sm font-bold">No customers match your search</p>
             </div>
@@ -1100,7 +1100,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           <span className="font-black text-gray-900 text-base leading-tight truncate group-hover:text-orange-600 transition-colors">
                             {c.name}
                           </span>
-                          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${statusBadgeClass(c.status)}`}>
+                          <span className={`shrink-0 rounded-lg px-2.5 py-0.5 text-[11px] font-semibold border ${statusBadgeClass(c.status)}`}>
                             {c.status}
                           </span>
                         </div>
@@ -1114,11 +1114,11 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
                         {/* Row 3: plan + slots as uniform chips */}
                         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-100 px-2.5 py-0.5 text-[11px] font-semibold text-orange-700">
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-orange-50 border border-orange-100 px-2.5 py-0.5 text-[11px] font-semibold text-orange-700">
                             {PLAN_EMOJI[plan?.plan_type ?? c.plan_type]}
                             {plan?.name ?? PLAN_LABEL[c.plan_type]}
                           </span>
-                          <span className="rounded-full bg-gray-50 border border-gray-200 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500">
+                          <span className="rounded-lg bg-gray-50 border border-gray-200 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500">
                             {formatMealSlots(plan?.meal_slots ?? c.meal_slots)}
                           </span>
                         </div>
@@ -1132,7 +1132,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                         {(c.tags ?? []).length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {c.tags.map(tag => (
-                              <span key={tag} className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${tagColor(tag)}`}>
+                              <span key={tag} className={`rounded-lg px-2.5 py-0.5 text-[11px] font-semibold border ${tagColor(tag)}`}>
                                 {tag}
                               </span>
                             ))}
@@ -1161,7 +1161,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           const col = DUE_COLORS[u.state]
                           return (
                             <>
-                              <span className={`rounded-full px-3 py-1 text-xs font-bold border ${col.bg} ${col.text}`}>
+                              <span className={`rounded-lg px-3 py-1 text-xs font-bold border ${col.bg} ${col.text}`}>
                                 {fmtRupees(u.outstanding)} due
                               </span>
                               <span className={`flex items-center gap-1 text-[11px] font-semibold ${col.text}`}>
@@ -1171,7 +1171,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           )
                         })() : (
                           <>
-                            <span className={`rounded-full px-3 py-1 text-xs font-bold border ${balancePillClass(c.balance_days)}`}>
+                            <span className={`rounded-lg px-3 py-1 text-xs font-bold border ${balancePillClass(c.balance_days)}`}>
                               {c.balance_days}d left
                             </span>
                             <p className="text-[11px] font-semibold text-gray-400">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
@@ -1370,7 +1370,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                             <button
                               key={tag}
                               onClick={() => setFilterTags(prev => toggleItem(prev, tag))}
-                              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold border-2 transition-all active:scale-95 ${
+                              className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold border-2 transition-all active:scale-95 ${
                                 selected
                                   ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
                                   : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
@@ -1447,11 +1447,11 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 lg:pb-12 space-y-4">
 
           {/* Status + plan + balance card */}
-          <div className="rounded-3xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+          <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
 
             {/* Status row */}
             <div className="flex items-center gap-2 px-5 pt-5 pb-4">
-              <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${statusBadgeClass(c.status)}`}>
+              <span className={`rounded-lg px-3 py-1 text-xs font-bold uppercase tracking-wider ${statusBadgeClass(c.status)}`}>
                 {c.status}
               </span>
               {c.area && (
@@ -1505,7 +1505,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   <div className="flex items-center gap-2">
                     <HandCoins className={`w-4 h-4 ${col.text}`} />
                     <span className={`text-xs font-bold uppercase tracking-wider ${col.text}`}>Monthly Settlement</span>
-                    <span className={`ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-bold ${col.pill}`}>{dueStateLabel(u.state)}</span>
+                    <span className={`ml-auto rounded-lg px-2.5 py-0.5 text-[10px] font-bold ${col.pill}`}>{dueStateLabel(u.state)}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-2xl bg-white/70 p-4">
@@ -1605,7 +1605,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
 
           {/* Contact + address */}
-          <div className="rounded-3xl bg-white shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+          <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
             <a
               href={`https://wa.me/91${c.whatsapp_number}`}
               target="_blank"
@@ -1699,11 +1699,11 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
 
           {/* ── Portal Link ─────────────────────────────────────────── */}
-          <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
               <Link2 className="w-4 h-4 text-orange-400" />
               <h3 className="text-sm font-black text-gray-900 tracking-tight">Customer Portal</h3>
-              <span className="ml-auto rounded-full bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5">NEW</span>
+              <span className="ml-auto rounded-lg bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5">NEW</span>
             </div>
 
             <div className="px-5 py-4">
@@ -1761,7 +1761,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
 
           {/* ── Notes & Tags ────────────────────────────────────────── */}
-          <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
               <Tag className="w-4 h-4 text-orange-400" />
               <h3 className="text-sm font-black text-gray-900 tracking-tight">Notes & Tags</h3>
@@ -1772,7 +1772,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               <div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {(c.tags ?? []).map(tag => (
-                    <span key={tag} className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${tagColor(tag)}`}>
+                    <span key={tag} className={`flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-bold border ${tagColor(tag)}`}>
                       {tag}
                       <button
                         onClick={() => removeTag(tag)}
@@ -1833,7 +1833,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           <button
                             key={t}
                             onClick={() => { addTag(t); setShowTagInput(false); setTagInput('') }}
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all hover:scale-105 ${tagColor(t)}`}
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-all hover:scale-105 ${tagColor(t)}`}
                           >
                             + {t}
                           </button>
@@ -1874,7 +1874,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           </div>
 
           {/* ── Auto Ledger ─────────────────────────────────────────── */}
-          <div className="rounded-[2rem] border border-orange-100 bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-orange-100 bg-white shadow-sm overflow-hidden">
             {/* Section header */}
             <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
               <Clock className="w-4 h-4 text-orange-400" />
@@ -1904,7 +1904,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 {groupLedgerByDay(ledgerEvents).map(({ label, events: dayEvents }) => (
                   <div key={label}>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-1 mb-1.5">{label}</p>
-                    <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                       {dayEvents.map((event, idx) => (
                         <div
                           key={event.id}
@@ -2009,7 +2009,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
           <form onSubmit={handleFormSubmit} className="space-y-4">
 
             {/* Name */}
-            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
+            <div className="rounded-2xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Basic Info</h3>
 
               <Field label="Full Name *">
@@ -2054,7 +2054,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
 
             {/* Notes & Tags */}
-            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
+            <div className="rounded-2xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Notes & Tags</h3>
 
               <Field label="Customer Note">
@@ -2072,7 +2072,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   {formData.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {formData.tags.map(tag => (
-                        <span key={tag} className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold border ${tagColor(tag)}`}>
+                        <span key={tag} className={`flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-bold border ${tagColor(tag)}`}>
                           {tag}
                           <button
                             type="button"
@@ -2103,7 +2103,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           key={tag}
                           type="button"
                           onClick={() => setFormData((f) => ({ ...f, tags: [...f.tags, tag] }))}
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all hover:scale-105 ${tagColor(tag)}`}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold border transition-all hover:scale-105 ${tagColor(tag)}`}
                         >
                           + {tag}
                         </button>
@@ -2114,7 +2114,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
 
             {/* Subscription */}
-            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-3">
+            <div className="rounded-2xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Meal Plan</h3>
@@ -2215,7 +2215,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
 
             {/* Billing Type */}
-            <div className="rounded-3xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
+            <div className="rounded-2xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Billing Type</h3>
 
               {/* Toggle */}
@@ -2333,7 +2333,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         </header>
 
         <main className="mx-auto max-w-2xl px-4 pt-24 pb-32 lg:pb-12">
-          <div className="rounded-3xl bg-white px-5 py-6 shadow-sm border border-gray-100">
+          <div className="rounded-2xl bg-white px-5 py-6 shadow-sm border border-gray-100">
             <p className="mb-5 text-sm text-gray-500 leading-relaxed">
               Deliveries for <span className="font-bold text-gray-800">{selectedCustomer.name}</span> will be skipped between these dates.
             </p>
@@ -2416,13 +2416,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               ))}
             </div>
           ) : payments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-3xl bg-white py-16 shadow-sm border border-gray-100">
+            <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-16 shadow-sm border border-gray-100">
               <span className="mb-3 text-5xl">📭</span>
               <p className="text-base font-bold text-gray-700">No payments yet</p>
               <p className="mt-1 text-sm text-gray-400">Payments will appear here once recorded.</p>
             </div>
           ) : (
-            <div className="rounded-3xl bg-white shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+            <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
               {payments.map((p) => (
                 <div key={p.id} className="flex items-center justify-between px-5 py-4">
                   <div>
