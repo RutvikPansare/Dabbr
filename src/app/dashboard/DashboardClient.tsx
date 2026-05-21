@@ -770,9 +770,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     processMenu(slotMenus.find(m => m.plan_type === null), allCount, null)
     if (vegCount)    processMenu(slotMenus.find(m => m.plan_type === 'veg'),    vegCount,    'veg only')
     if (nonvegCount) processMenu(slotMenus.find(m => m.plan_type === 'nonveg'), nonvegCount, 'non-veg only')
-    // If no plan-type breakdown, still show non-common menus with their counts
-    if (!vegCount)    processMenu(slotMenus.find(m => m.plan_type === 'veg'),    deliveryToday.length, 'veg')
-    if (!nonvegCount) processMenu(slotMenus.find(m => m.plan_type === 'nonveg'), deliveryToday.length, 'non-veg')
 
     if (!totals.size) return null
     return { slot, customerCount: slotCustomers.length, items: Array.from(totals.entries()).map(([name, d]) => ({ name, ...d })) }
