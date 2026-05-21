@@ -85,7 +85,7 @@ export default function SideNav() {
       </div>
 
       {/* ── Navigation ───────────────────────────────────────────────── */}
-      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3 space-y-1.5 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const active =
             pathname === item.href ||
