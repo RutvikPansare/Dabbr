@@ -1013,7 +1013,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Desktop page header — flat sticky bar, hidden on mobile ── */}
-      <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 py-3 bg-[#FAF8F5]/90 backdrop-blur-sm">
+      <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 pt-7 pb-4 bg-[#FAF8F5]/90 backdrop-blur-sm">
         <div className="min-w-0">
           <p className="text-sm font-bold text-orange-500 leading-none mb-1">{formatTodayLong(today)}</p>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-1.5 leading-tight">
