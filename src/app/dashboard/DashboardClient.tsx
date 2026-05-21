@@ -1112,8 +1112,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       active ? 'bg-orange-50' : 'bg-transparent'
                     }`}
                   >
-                    <span className="text-base leading-none">{f.emoji}</span>
-                    <span className={`hidden sm:inline text-[13px] font-bold leading-none transition-colors duration-200 ${
+                    <span className="hidden sm:inline text-base leading-none">{f.emoji}</span>
+                    <span className={`text-[12px] sm:text-[13px] font-bold leading-none whitespace-nowrap transition-colors duration-200 ${
                       active ? 'text-orange-500' : 'text-gray-400'
                     }`}>{f.label}</span>
                   </button>
