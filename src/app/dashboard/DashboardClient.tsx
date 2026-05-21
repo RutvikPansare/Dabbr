@@ -1013,7 +1013,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Desktop page header — flat sticky bar, hidden on mobile ── */}
-      <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 py-4 bg-[#FAF8F5]/90 backdrop-blur-sm">
+      <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 py-3 bg-[#FAF8F5]/90 backdrop-blur-sm">
         <div className="min-w-0">
           <p className="text-sm font-bold text-orange-500 leading-none mb-1">{formatTodayLong(today)}</p>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-1.5 leading-tight">
@@ -1034,7 +1034,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Desktop stat tiles — above slot tabs, hidden on mobile ── */}
       {safeCustomers.length > 0 && (
-        <div className="hidden lg:grid px-8 pt-6 pb-1 gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+        <div className="hidden lg:grid px-8 pt-3 pb-1 gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
           <div className="stat-tile">
             <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Today</p>
             <p className="text-3xl font-black text-gray-900 leading-none">{deliveryToday.length}</p>
@@ -1078,7 +1078,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             </p>
 
             {/* Slot filter — horizontal pill tabs */}
-            <div className="flex bg-white border border-black/[0.06] rounded-2xl p-1 gap-0.5"
+            <div className="flex bg-white border border-black/[0.06] rounded-xl p-1 gap-0.5"
                  style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               {([
                 { key: 'all',       label: 'Full Day',  emoji: '🍱' },
@@ -1095,7 +1095,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       setBulkMode(false)
                       setSelectedIds(new Set())
                     }}
-                    className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 rounded-[14px] transition-all duration-200 active:scale-95 ${
+                    className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 rounded-lg transition-all duration-200 active:scale-95 ${
                       active ? 'bg-orange-50' : 'bg-transparent'
                     }`}
                   >
