@@ -1,10 +1,11 @@
 'use client'
 
+import { useEffect, useState, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users } from 'lucide-react'
+import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: Home,        label: 'Home'      },
@@ -15,16 +16,52 @@ const NAV_ITEMS = [
   { href: '/settings',  icon: Settings,    label: 'Settings'  },
 ]
 
+function getInitials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(w => w[0].toUpperCase())
+    .join('')
+}
+
 export default function SideNav() {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
+
+  const [userName, setUserName]   = useState('')
+  const [menuOpen, setMenuOpen]   = useState(false)
+  const menuRef                   = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const meta = data.user?.user_metadata
+      const name =
+        meta?.full_name ?? meta?.name ?? data.user?.email?.split('@')[0] ?? 'User'
+      setUserName(name)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
+
+  const initials = userName ? getInitials(userName) : '…'
 
   return (
     <aside
@@ -38,10 +75,7 @@ export default function SideNav() {
       {/* ── Logo ─────────────────────────────────────────────────────── */}
       <div className="px-5 py-[18px]" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
         <div className="flex items-center gap-2.5">
-          {/* Lettermark — matches the brand gradient */}
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-[10px] shrink-0 bg-orange-500"
-          >
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] shrink-0 bg-orange-500">
             <span className="text-white text-[15px] font-black leading-none">D</span>
           </div>
           <span className="text-[17px] font-black text-gray-900 tracking-tight leading-none">
@@ -70,35 +104,59 @@ export default function SideNav() {
                   : 'text-gray-500 hover:bg-gray-50/80 hover:text-gray-800'
               }`}
             >
-              {/* Active accent bar */}
               {active && (
                 <span
                   className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-orange-500"
                   aria-hidden
                 />
               )}
-
               <Icon
                 size={16}
                 strokeWidth={active ? 2.5 : 2}
                 className={`shrink-0 transition-colors ${active ? 'text-orange-500' : 'text-gray-400 group-hover:text-gray-600'}`}
               />
-
               <span className="leading-none">{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
-      {/* ── Sign out ─────────────────────────────────────────────────── */}
-      <div className="px-3 pb-5 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+      {/* ── User profile footer ──────────────────────────────────────── */}
+      <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }} ref={menuRef}>
         <button
-          onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-all duration-150 group"
+          onClick={() => setMenuOpen(v => !v)}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-all duration-150 group"
         >
-          <LogOut size={16} strokeWidth={2} className="shrink-0 group-hover:text-gray-500" />
-          Sign out
+          {/* Avatar */}
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-[12px] font-black text-orange-600">
+            {initials}
+          </div>
+
+          {/* Name + role */}
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">{userName || '…'}</p>
+            <p className="text-[11px] font-medium text-gray-400 leading-none mt-0.5">Kitchen Admin</p>
+          </div>
+
+          <ChevronDown
+            size={14}
+            strokeWidth={2.5}
+            className={`shrink-0 text-gray-400 transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
+          />
         </button>
+
+        {/* Sign out popover */}
+        {menuOpen && (
+          <div className="mt-1 rounded-xl border border-gray-100 bg-white shadow-lg overflow-hidden">
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <LogOut size={14} strokeWidth={2} className="shrink-0" />
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   )
