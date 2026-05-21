@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ArrowLeft, ClipboardList, Drumstick, Leaf, Plus, Save, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { invalidateMealPlans } from '@/lib/revalidate'
 import BottomNav from '@/components/BottomNav'
 import type { Frequency, MealPlanStatus, MealSlot, PlanType } from '@/types/database'
 import { FREQUENCY_LABEL, formatMealSlots, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -134,6 +135,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
     })
     setShowForm(false)
     setForm(EMPTY_FORM)
+    await invalidateMealPlans(providerId)
     router.refresh()
   }
 
@@ -148,6 +150,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
 
     if (!updateError && data) {
       setMealPlans(prev => prev.map(item => item.id === plan.id ? data : item))
+      await invalidateMealPlans(providerId)
       router.refresh()
     }
   }

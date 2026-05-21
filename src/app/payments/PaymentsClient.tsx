@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { invalidatePayments, invalidateCustomers } from '@/lib/revalidate'
 import BottomNav from '@/components/BottomNav'
 import {
   CreditCard, CheckCircle2, MessageCircle, Plus, Send,
@@ -345,6 +346,8 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setShowRecord(false)
     setSelCustomerId(''); setAmount(''); setNote('')
     setRecording(false)
+    await invalidatePayments(providerId)
+    await invalidateCustomers(providerId)
     router.refresh()
   }
 

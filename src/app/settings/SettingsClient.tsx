@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
+import { invalidateSettings, invalidateCustomers } from '@/lib/revalidate'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, MEAL_SLOTS, PLAN_TYPE_LABEL } from '@/lib/meals'
 import {
   DEFAULT_MENU_QUICK_TAGS,
@@ -226,6 +227,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       setTrackingError(err.message)
     } else {
       setTrackingSaved(true)
+      await invalidateSettings(providerId)
       router.refresh()
       setTimeout(() => setTrackingSaved(false), 2000)
     }
@@ -265,6 +267,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       setBrandingError(saveErr.message.includes('unique') ? 'This slug is already taken. Try a different one.' : saveErr.message)
     } else {
       setBrandingSaved(true)
+      await invalidateSettings(providerId)
       router.refresh()
       setTimeout(() => setBrandingSaved(false), 3000)
     }
@@ -289,6 +292,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       setError(`Failed to save: ${err.message}`)
     } else {
       setSaved(true)
+      await invalidateSettings(providerId)
       router.refresh()
       setTimeout(() => setSaved(false), 3000)
     }
@@ -333,6 +337,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
     if (data) setMenuQuickTags(prev => [...prev, data])
     setTagInputs(prev => ({ ...prev, [key]: '' }))
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -359,6 +364,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
 
     if (data) setMenuQuickTags(prev => prev.map(item => item.id === tag.id ? data : item))
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -366,6 +372,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     const safeQty = Math.max(1, Math.min(99, isNaN(qty) ? 1 : qty))
     setMenuQuickTags(prev => prev.map(t => t.id === tag.id ? { ...t, default_quantity: safeQty } : t))
     await db.from('menu_quick_tags').update({ default_quantity: safeQty }).eq('id', tag.id)
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -379,6 +386,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       return
     }
     setMenuQuickTags(prev => prev.filter(tag => tag.id !== id))
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -390,6 +398,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setOffDaySaving(true)
     await db.from('providers').update({ off_days: next }).eq('id', providerId)
     setOffDaySaving(false)
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -435,6 +444,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setRangeEnd('')
     setHolidayLabel('')
     setShowHolidayPicker(false)
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -442,6 +452,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setHolidayError('')
     await db.from('provider_holidays').delete().eq('id', id)
     setHolidays(prev => prev.filter(h => h.id !== id))
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -449,6 +460,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setHolidayError('')
     await db.from('provider_holidays').delete().in('id', ids)
     setHolidays(prev => prev.filter(h => !ids.includes(h.id)))
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -466,6 +478,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setMsSaving(false)
     if (err) { setMsError(err.message); return }
     setMsSaved(true)
+    await invalidateSettings(providerId)
     router.refresh()
     setTimeout(() => setMsSaved(false), 3000)
   }
@@ -489,6 +502,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     if (data) setRiders(prev => [...prev, data])
     setNewRiderName('')
     setNewRiderPhone('')
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
@@ -496,12 +510,14 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setRiderError('')
     await db.from('delivery_riders').delete().eq('id', id)
     setRiders(prev => prev.filter(r => r.id !== id))
+    await invalidateSettings(providerId)
     router.refresh()
   }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
+    await invalidateSettings(providerId)
     router.refresh()
   }
 

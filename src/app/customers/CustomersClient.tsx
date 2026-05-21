@@ -16,6 +16,7 @@ import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus,
 import { formatMealSlots } from '@/lib/meals'
 import { computeMonthlyDue, DUE_COLORS, dueStateLabel, fmtRupees, type BillingType } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
+import { invalidateCustomers } from '@/lib/revalidate'
 import CsvImport from './CsvImport'
 import ContactsImport from './ContactsImport'
 
@@ -538,6 +539,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
     setNotesSaving(false)
     setNotesSaved(true)
+    await invalidateCustomers(providerId)
     router.refresh()
     setTimeout(() => setNotesSaved(false), 2000)
   }
@@ -551,6 +553,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     const updated = { ...selectedCustomer, tags: newTags }
     setSelectedCustomer(updated)
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
+    await invalidateCustomers(providerId)
     router.refresh()
   }
 
@@ -561,6 +564,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     const updated = { ...selectedCustomer, tags: newTags }
     setSelectedCustomer(updated)
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
+    await invalidateCustomers(providerId)
     router.refresh()
   }
 
@@ -639,6 +643,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         setCustomers((prev) =>
           [...prev, hydrated].sort((a, b) => a.name.localeCompare(b.name))
         )
+        await invalidateCustomers(providerId)
         router.refresh() // bust server cache so count stays correct on re-visit
         // If there are more contacts queued from a one-by-one import, open
         // the next form; otherwise go back to the list as normal.
@@ -714,6 +719,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             .sort((a, b) => a.name.localeCompare(b.name))
         )
         void openDetail(hydrated) // refresh ledger + selected customer
+        await invalidateCustomers(providerId)
+        router.refresh()
       }
     }
 
@@ -753,6 +760,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     }
     setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)))
     void openDetail(updated) // refresh ledger + selected customer
+    await invalidateCustomers(providerId)
     router.refresh()
   }
 
@@ -798,6 +806,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)))
     setPauseLoading(false)
     void openDetail(updated) // refresh ledger + selected customer
+    await invalidateCustomers(providerId)
     router.refresh()
   }
 
@@ -873,6 +882,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
     if (fresh) {
       setCustomers(fresh.map((c: any) => enrichSubscriptions(c, mealPlans)))
+      await invalidateCustomers(providerId)
       router.refresh() // bust server cache so count is correct on re-visit
     }
   }
