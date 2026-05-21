@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight } from 'lucide-react'
+import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { invalidateSettings, invalidateCustomers } from '@/lib/revalidate'
@@ -519,6 +519,22 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     router.push('/login')
     await invalidateSettings(providerId)
     router.refresh()
+  }
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDeleteAccount() {
+    setDeleting(true)
+    try {
+      // Delete all provider data then the auth user via admin API route
+      await fetch('/api/delete-account', { method: 'DELETE' })
+      await supabase.auth.signOut()
+      router.push('/login')
+    } catch {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
   }
 
   return (
@@ -1359,12 +1375,21 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             </span>
             Account
           </h2>
-          <button
-            onClick={handleSignOut}
-            className="w-full rounded-2xl border-2 border-red-200 py-3.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50 hover:border-red-300 active:scale-95"
-          >
-            Sign out
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={handleSignOut}
+              className="w-full rounded-2xl border-2 border-red-200 py-3.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50 hover:border-red-300 active:scale-95"
+            >
+              Sign out
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full rounded-2xl border-2 border-red-100 py-3.5 text-sm font-bold text-red-400 transition-all hover:bg-red-50 hover:border-red-200 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <UserX className="w-4 h-4" />
+              Delete account
+            </button>
+          </div>
         </div>
 
         {/* App version */}
@@ -1382,6 +1407,37 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           holidays={holidays}
           onClose={() => setShowHolidayCalendar(false)}
         />
+      )}
+
+      {/* Delete account confirmation modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl p-6">
+            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-red-50 mx-auto mb-4">
+              <UserX className="w-7 h-7 text-red-500" />
+            </div>
+            <h2 className="text-center text-lg font-black text-gray-900 mb-1">Delete account?</h2>
+            <p className="text-center text-sm text-gray-500 mb-6">
+              This will permanently delete your account, all customers, meal plans, and payment history. This cannot be undone.
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="w-full rounded-2xl bg-red-500 py-3.5 text-sm font-black text-white active:scale-95 transition-all disabled:opacity-60"
+              >
+                {deleting ? 'Deleting…' : 'Yes, delete everything'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="w-full rounded-2xl border border-gray-200 py-3.5 text-sm font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+              >
+                Keep my account
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
