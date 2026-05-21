@@ -1072,6 +1072,62 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           {deliveryToday.length > 0 && (
             <div className="space-y-2">
 
+            {/* ── Hero illustration — desktop only ── */}
+            <div className="hidden lg:flex items-center justify-center rounded-2xl bg-[#FDF6EF] border border-orange-100/60 overflow-hidden mb-4" style={{ height: 200 }}>
+              <svg viewBox="0 0 520 190" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                {/* ── Tiffin box ─────────────────────────────────── */}
+                {/* Handle */}
+                <path d="M148 52 C148 34 164 26 178 26 C192 26 208 34 208 52" stroke="#E8956A" strokeWidth="3.5" strokeLinecap="round"/>
+                {/* Handle grip detail */}
+                <path d="M162 42 C162 36 168 32 178 32 C188 32 194 36 194 42" stroke="#E8956A" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.5"/>
+                {/* Top cap */}
+                <rect x="138" y="52" width="80" height="18" rx="5" stroke="#E8956A" strokeWidth="2.5"/>
+                {/* Section 1 */}
+                <rect x="134" y="68" width="88" height="38" rx="5" stroke="#E8956A" strokeWidth="2.5"/>
+                {/* Section 1 inner detail line */}
+                <path d="M142 86 Q178 90 214 86" stroke="#E8956A" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.4"/>
+                {/* Section 2 */}
+                <rect x="131" y="104" width="94" height="40" rx="5" stroke="#E8956A" strokeWidth="2.5"/>
+                {/* Section 2 inner detail */}
+                <path d="M140 124 Q178 128 218 124" stroke="#E8956A" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.4"/>
+                {/* Bottom section */}
+                <rect x="128" y="142" width="100" height="44" rx="7" stroke="#E8956A" strokeWidth="2.5"/>
+                {/* Bottom feet */}
+                <path d="M141 186 Q141 192 148 192" stroke="#E8956A" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M215 186 Q215 192 208 192" stroke="#E8956A" strokeWidth="2" strokeLinecap="round"/>
+                {/* Latch */}
+                <rect x="220" y="106" width="14" height="20" rx="3" stroke="#E8956A" strokeWidth="2"/>
+                <path d="M227 126 L227 134" stroke="#E8956A" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M222 134 Q227 140 232 134" stroke="#E8956A" strokeWidth="2" strokeLinecap="round"/>
+
+                {/* ── Bowl ────────────────────────────────────────── */}
+                {/* Steam lines */}
+                <path d="M322 78 C318 68 326 58 322 48" stroke="#E8956A" strokeWidth="2.5" strokeLinecap="round"/>
+                <path d="M344 72 C340 60 348 50 344 38" stroke="#E8956A" strokeWidth="2.5" strokeLinecap="round"/>
+                <path d="M366 78 C362 68 370 58 366 48" stroke="#E8956A" strokeWidth="2.5" strokeLinecap="round"/>
+                {/* Bowl rim ellipse */}
+                <ellipse cx="352" cy="108" rx="76" ry="14" stroke="#E8956A" strokeWidth="2.5"/>
+                {/* Bowl body */}
+                <path d="M276 108 Q278 168 352 176 Q426 168 428 108" stroke="#E8956A" strokeWidth="2.5" strokeLinecap="round"/>
+                {/* Bowl base */}
+                <ellipse cx="352" cy="176" rx="28" ry="6" stroke="#E8956A" strokeWidth="2" strokeOpacity="0.6"/>
+                {/* Food items — floating ingredients */}
+                <circle cx="326" cy="130" r="10" stroke="#E8956A" strokeWidth="2"/>
+                <path d="M320 128 Q326 124 332 128" stroke="#E8956A" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6"/>
+                <circle cx="355" cy="122" r="8" stroke="#E8956A" strokeWidth="2"/>
+                <circle cx="380" cy="133" r="9" stroke="#E8956A" strokeWidth="2"/>
+                <path d="M374 131 Q380 127 386 131" stroke="#E8956A" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6"/>
+                {/* Broth surface ripple */}
+                <path d="M300 152 Q330 157 360 153 Q390 149 415 154" stroke="#E8956A" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.35"/>
+
+                {/* ── Subtle scattered dots ── */}
+                <circle cx="80" cy="100" r="3" fill="#E8956A" fillOpacity="0.18"/>
+                <circle cx="95" cy="155" r="2" fill="#E8956A" fillOpacity="0.14"/>
+                <circle cx="460" cy="90" r="2.5" fill="#E8956A" fillOpacity="0.18"/>
+                <circle cx="472" cy="140" r="2" fill="#E8956A" fillOpacity="0.14"/>
+              </svg>
+            </div>
+
             {/* Date label */}
             <p className="text-[15px] font-bold text-orange-500 tracking-tight">
               {formatTodayLong(today)}
