@@ -1016,7 +1016,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {/* ── Desktop page header — flat sticky bar, hidden on mobile ── */}
       <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 py-4 bg-[#F7F2EC]/90 backdrop-blur-sm" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
         <div className="min-w-0">
-          <p className="text-xs font-medium text-gray-400 leading-none mb-1">{formatTodayLong(today)}</p>
+          <p className="text-sm font-bold text-orange-500 leading-none mb-1">{formatTodayLong(today)}</p>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-1.5 leading-tight">
             {greeting}, {providerName}
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
@@ -1072,8 +1072,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               even on days with no menu saved. */}
           {deliveryToday.length > 0 && (
             <div className="space-y-2">
-            {/* Segmented control — iOS-style single container with active pill */}
-            <div className="segmented-control">
+
+            {/* Date label */}
+            <p className="text-[15px] font-bold text-orange-500 tracking-tight">
+              {formatTodayLong(today)}
+            </p>
+
+            {/* Slot filter — horizontal pill tabs */}
+            <div className="flex bg-white border border-black/[0.06] rounded-2xl p-1 gap-0.5"
+                 style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               {([
                 { key: 'all',       label: 'Full Day',  emoji: '🍱' },
                 { key: 'breakfast', label: 'Breakfast', emoji: MEAL_SLOT_EMOJI.breakfast },
@@ -1089,11 +1096,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       setBulkMode(false)
                       setSelectedIds(new Set())
                     }}
-                    className="segmented-item"
+                    className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 rounded-[14px] transition-all duration-200 active:scale-95 ${
+                      active ? 'bg-orange-50' : 'bg-transparent'
+                    }`}
                   >
-                    {active && <span className="segmented-item-active-bg" aria-hidden />}
-                    <span className="relative text-base leading-none">{f.emoji}</span>
-                    <span className={`relative text-[10px] font-bold leading-none mt-0.5 ${active ? 'text-orange-500' : 'text-gray-400'}`}>{f.label}</span>
+                    <span className="text-base leading-none">{f.emoji}</span>
+                    <span className={`text-[13px] font-bold leading-none transition-colors duration-200 ${
+                      active ? 'text-orange-500' : 'text-gray-400'
+                    }`}>{f.label}</span>
                   </button>
                 )
               })}
