@@ -1081,10 +1081,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="flex bg-white border border-black/[0.06] rounded-xl p-1 gap-0.5"
                  style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               {([
-                { key: 'all',       label: 'Full Day',  emoji: '🍱' },
                 { key: 'breakfast', label: 'Breakfast', emoji: MEAL_SLOT_EMOJI.breakfast },
                 { key: 'lunch',     label: 'Lunch',     emoji: MEAL_SLOT_EMOJI.lunch },
                 { key: 'dinner',    label: 'Dinner',    emoji: MEAL_SLOT_EMOJI.dinner },
+                { key: 'all',       label: 'Full Day',  emoji: '🍱' },
               ] as const).map(f => {
                 const active = slotFilter === f.key
                 return (
