@@ -1146,17 +1146,22 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           {/* Cook List + Packing List — stacked on mobile, side-by-side on desktop */}
           <div className="mt-3 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
 
-          {/* Cook List */}
+          {/* ── Cook List ─────────────────────────────────────────────── */}
           {todayMenus.length > 0 && (
             <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+
+              {/* Header */}
               <button
                 onClick={() => setCookListOpen(v => !v)}
-                className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-4 active:bg-gray-50/50 transition-colors"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
-                  <UtensilsCrossed className="w-3.5 h-3.5 text-orange-500" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 shrink-0">
+                  <UtensilsCrossed className="w-5 h-5 text-orange-500" />
                 </span>
-                <span className="flex-1 text-left text-sm font-black text-gray-900">Cook List</span>
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-[15px] font-black text-gray-900 leading-tight">Cook List</p>
+                  <p className="text-xs font-medium text-gray-400 mt-0.5">Items to be prepared</p>
+                </div>
                 {cookList.length === 0 && <span className="text-[11px] font-semibold text-gray-400">No menu set</span>}
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${cookListOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -1164,7 +1169,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               {cookListOpen && (
                 <div className="border-t border-gray-100">
                   {cookList.length === 0 ? (
-                    <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
+                    <div className="px-4 py-6 flex flex-col items-center gap-2 text-center">
                       <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
                       <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
                     </div>
@@ -1173,34 +1178,37 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       {cookList
                         .filter(s => slotFilter === 'all' || s.slot === slotFilter)
                         .map(({ slot, customerCount, items }, slotIndex) => (
-                          <div key={slot}>
-                            <div className={`flex items-center gap-3 px-4 py-2.5 bg-gray-50 ${slotIndex > 0 ? 'border-t-2 border-gray-200' : ''}`}>
-                              <span className="text-base leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
-                              <span className="flex-1 text-xs font-black uppercase tracking-widest text-gray-600">{MEAL_SLOT_LABEL[slot]}</span>
+                          <div key={slot} className={slotIndex > 0 ? 'border-t border-gray-100' : ''}>
+                            {/* Slot label — clean, no background */}
+                            <div className="flex items-center gap-2 px-4 pt-4 pb-1">
+                              <span className="text-[11px] font-black uppercase tracking-[0.12em] text-gray-400">
+                                {MEAL_SLOT_LABEL[slot]}
+                              </span>
                               {customerCount > 0 && (
-                                <span className="rounded-full bg-white border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500">
-                                  {customerCount} customer{customerCount !== 1 ? 's' : ''}
-                                </span>
+                                <span className="text-[11px] text-gray-300">· {customerCount} customer{customerCount !== 1 ? 's' : ''}</span>
                               )}
                             </div>
-                            <div className="px-4 py-2 space-y-1">
+                            {/* Item rows */}
+                            <div className="px-4 pb-3 divide-y divide-gray-50">
                               {items.map(item => {
-                                const isVeg = item.label === 'veg only' || item.label === 'veg'
+                                const isVeg    = item.label === 'veg only' || item.label === 'veg'
                                 const isNonveg = item.label === 'non-veg only' || item.label === 'non-veg'
                                 return (
-                                  <div key={item.name} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                                    isVeg ? 'bg-emerald-50' : isNonveg ? 'bg-orange-50' : 'bg-[#FDF8F3]'
-                                  }`}>
-                                    <div className={`w-1 h-6 rounded-full shrink-0 ${isVeg ? 'bg-emerald-400' : isNonveg ? 'bg-orange-400' : 'bg-orange-200'}`} />
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-sm font-black text-gray-900">{item.name}</span>
-                                      {item.label && (
-                                        <span className={`ml-2 text-[10px] font-bold ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>{item.label}</span>
-                                      )}
+                                  <div key={item.name} className="flex items-center gap-3 py-2.5">
+                                    {/* Dot bullet */}
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${isVeg ? 'bg-emerald-500' : 'bg-orange-400'}`} />
+                                    {/* Name + diet label */}
+                                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                                      <span className="text-[14px] font-semibold text-gray-800 leading-none">{item.name}</span>
+                                      {isVeg && <span className="text-[11px] font-bold text-emerald-500">veg</span>}
+                                      {isNonveg && <span className="text-[11px] font-bold text-orange-400">non-veg</span>}
                                     </div>
+                                    {/* Qty + total */}
                                     <div className="flex items-baseline gap-1.5 shrink-0">
-                                      {item.perCustomer > 1 && <span className="text-[10px] font-semibold text-gray-400">×{item.perCustomer} ea</span>}
-                                      <span className={`text-xl font-black leading-none ${isVeg ? 'text-emerald-600' : 'text-orange-500'}`}>{item.total}</span>
+                                      {item.perCustomer > 1 && (
+                                        <span className="text-[11px] font-medium text-gray-400">×{item.perCustomer} ea</span>
+                                      )}
+                                      <span className="text-[22px] font-black leading-none text-orange-500">{item.total}</span>
                                     </div>
                                   </div>
                                 )
@@ -1215,38 +1223,45 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             </div>
           )}
 
-          {/* Packing List */}
+          {/* ── Packing List ───────────────────────────────────────────── */}
           {deliveryToday.length > 0 && (
             <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-              <button
-                onClick={() => setPackingListOpen(v => !v)}
-                className="w-full flex items-center gap-2.5 px-4 py-3 active:bg-gray-50 transition-colors"
-              >
-                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-orange-50 shrink-0">
-                  <Box className="w-3.5 h-3.5 text-orange-500" />
+
+              {/* Header */}
+              <div className="flex items-center gap-3 px-4 py-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 shrink-0">
+                  <Box className="w-5 h-5 text-orange-500" />
                 </span>
-                <span className="flex-1 text-left text-sm font-black text-gray-900">Packing List</span>
-                {packingBadgeCount > 0 && (
-                  <span className="rounded-full bg-orange-50 border border-orange-100 px-2 py-0.5 text-[10px] font-black text-orange-500 mr-1">
-                    {packingBadgeCount} boxes
-                  </span>
-                )}
-                {packingBadgeCount === 0 && <span className="text-[11px] font-semibold text-gray-400 mr-1">No menu set</span>}
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
-              </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-black text-gray-900 leading-tight">Packing List</p>
+                  <p className="text-xs font-medium text-gray-400 mt-0.5">Orders to be packed</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {packingBadgeCount > 0 && (
+                    <span className="rounded-full border border-orange-200 px-3 py-1 text-[12px] font-bold text-orange-500">
+                      {packingBadgeCount} box{packingBadgeCount !== 1 ? 'es' : ''}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setPackingListOpen(v => !v)}
+                    className="flex items-center gap-0.5 text-[12px] font-bold text-orange-500 active:opacity-70 transition-opacity"
+                  >
+                    {packingListOpen ? 'Hide' : 'View all'}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
 
               {packingListOpen && (
                 <div className="border-t border-gray-100">
                   {packingList.length === 0 ? (
-                    <div className="px-4 py-5 flex flex-col items-center gap-2 text-center">
+                    <div className="px-4 py-6 flex flex-col items-center gap-2 text-center">
                       <p className="text-xs font-bold text-gray-400">No menu saved for today yet.</p>
                       <button onClick={() => router.push('/menu')} className="text-xs font-black text-orange-500 active:opacity-70">Go to Menu Planner →</button>
                     </div>
                   ) : (
-                    <div>
-                      {packingList.map(({ customer: c, slots }, custIndex) => {
-                        const plan = customerPlan(c)
-                        const planType = plan?.plan_type ?? c.plan_type
+                    <div className="divide-y divide-gray-50">
+                      {packingList.map(({ customer: c, slots }) => {
                         const isDelivered = slotFilter !== 'all'
                           ? deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered'
                           : customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'delivered')
@@ -1255,35 +1270,67 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           : customerMealSlots(c).every(s => deliveryStatuses[`${c.id}:${s}`] === 'skipped')
                         const filteredSlots = slots.filter(s => slotFilter === 'all' || s.slot === slotFilter)
                         if (!filteredSlots.length) return null
+
+                        const totalItems = filteredSlots.reduce((sum, s) => sum + s.dishes.length, 0)
+                        const boxCount   = filteredSlots.length
+                        const initial    = c.name.charAt(0).toUpperCase()
+                        // Deterministic pastel avatar colour from name
+                        const AVATAR_PALETTES = [
+                          { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+                          { bg: 'bg-violet-100',  text: 'text-violet-700'  },
+                          { bg: 'bg-blue-100',    text: 'text-blue-700'    },
+                          { bg: 'bg-amber-100',   text: 'text-amber-700'   },
+                          { bg: 'bg-pink-100',    text: 'text-pink-700'    },
+                          { bg: 'bg-cyan-100',    text: 'text-cyan-700'    },
+                        ]
+                        const palette = AVATAR_PALETTES[
+                          (c.name.charCodeAt(0) + (c.name.charCodeAt(c.name.length - 1) || 0)) % AVATAR_PALETTES.length
+                        ]
+
                         return (
-                          <div key={c.id} className={isDelivered ? 'opacity-40' : ''}>
-                            {/* Customer header band */}
-                            <div className={`flex items-center gap-3 px-4 py-2.5 bg-gray-50 ${custIndex > 0 ? 'border-t-2 border-gray-200' : ''}`}>
-                              <span className="text-base leading-none shrink-0">{planType === 'veg' ? '🥦' : '🍗'}</span>
-                              <span className="flex-1 text-xs font-black uppercase tracking-widest text-gray-600 truncate">{c.name}</span>
-                              {isDelivered && <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2 py-0.5 text-[10px] font-black text-emerald-700">✓ Done</span>}
-                              {isSkipped && <span className="rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[10px] font-black text-gray-500">Skipped</span>}
+                          <div
+                            key={c.id}
+                            className={`flex items-start gap-3 px-4 py-3.5 ${isDelivered ? 'opacity-40' : ''}`}
+                          >
+                            {/* Letter avatar */}
+                            <div className={`flex h-10 w-10 items-center justify-center rounded-full shrink-0 ${palette.bg}`}>
+                              <span className={`text-[15px] font-black leading-none ${palette.text}`}>{initial}</span>
                             </div>
-                            {/* Dish chips per slot */}
-                            <div className="px-4 py-3 space-y-2">
-                              {filteredSlots.map(({ slot, dishes }) => (
-                                <div key={slot} className="flex items-start gap-2">
-                                  <span className="text-sm shrink-0 mt-1 leading-none">{MEAL_SLOT_EMOJI[slot]}</span>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {dishes.map(d => (
-                                      <span key={d.name} className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-[12px] font-black ${
-                                        planType === 'veg'
-                                          ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
-                                          : 'border-orange-100 bg-orange-50 text-orange-800'
-                                      }`}>
-                                        {d.name}
-                                        {d.qty > 1 && <span className="font-black opacity-60">×{d.qty}</span>}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
+
+                            {/* Name + meta + chips */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-[13px] font-black tracking-tight text-gray-900">
+                                  {c.name.toUpperCase()}
+                                </span>
+                                {isDelivered && (
+                                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">✓ Done</span>
+                                )}
+                                {isSkipped && (
+                                  <span className="text-[10px] font-black text-gray-500 bg-gray-100 border border-gray-200 rounded-full px-2 py-0.5">Skipped</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] font-medium text-gray-400 mb-2">
+                                {boxCount} box{boxCount !== 1 ? 'es' : ''} · {totalItems} item{totalItems !== 1 ? 's' : ''}
+                              </p>
+                              {/* Dish chips */}
+                              <div className="flex flex-wrap gap-1.5">
+                                {filteredSlots.flatMap(({ dishes }) =>
+                                  dishes.map(d => (
+                                    <span
+                                      key={d.name}
+                                      className="inline-flex items-center gap-0.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700"
+                                    >
+                                      {d.name}
+                                      {d.qty > 1 && <span className="opacity-60">×{d.qty}</span>}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
                             </div>
+
+                            {/* Chevron */}
+                            <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-3" />
                           </div>
                         )
                       })}
