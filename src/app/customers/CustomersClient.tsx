@@ -898,7 +898,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm py-3">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <div className="flex-1">
               <h1 className="text-xl font-black text-gray-900 tracking-tight">Customers</h1>
@@ -1421,7 +1421,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm py-3">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -1980,7 +1980,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm py-3">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -2313,7 +2313,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm py-3">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
@@ -2389,7 +2389,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       <div className="min-h-screen bg-[#FDF8F3]">
 
         {/* Header */}
-        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm py-3">
           <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
             <button
               onClick={goBack}
