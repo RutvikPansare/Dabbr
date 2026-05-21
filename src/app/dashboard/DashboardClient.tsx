@@ -1108,12 +1108,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       setBulkMode(false)
                       setSelectedIds(new Set())
                     }}
-                    className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 rounded-lg transition-all duration-200 active:scale-95 ${
+                    className={`flex flex-1 items-center justify-center gap-1 px-1 py-2.5 rounded-lg transition-all duration-200 active:scale-95 ${
                       active ? 'bg-orange-50' : 'bg-transparent'
                     }`}
                   >
                     <span className="text-base leading-none">{f.emoji}</span>
-                    <span className={`text-[13px] font-bold leading-none transition-colors duration-200 ${
+                    <span className={`hidden sm:inline text-[13px] font-bold leading-none transition-colors duration-200 ${
                       active ? 'text-orange-500' : 'text-gray-400'
                     }`}>{f.label}</span>
                   </button>
