@@ -962,7 +962,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 <Search className="w-4 h-4" />
               </span>
               <input
-                type="search"
+                type="text"
                 placeholder="Search by name or area…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
