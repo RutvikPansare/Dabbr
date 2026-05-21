@@ -4,15 +4,15 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, CreditCard, Home, LogOut, Settings, Users } from 'lucide-react'
-import SideNavStats from './SideNavStats'
+import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', icon: Home,         label: 'Home'      },
-  { href: '/customers', icon: Users,        label: 'Customers' },
+  { href: '/dashboard', icon: Home,        label: 'Home'      },
+  { href: '/customers', icon: Users,       label: 'Customers' },
   { href: '/menu',      icon: CalendarDays, label: 'Menu'      },
-  { href: '/payments',  icon: CreditCard,   label: 'Payments'  },
-  { href: '/settings',  icon: Settings,     label: 'Settings'  },
+  { href: '/payments',  icon: CreditCard,  label: 'Payments'  },
+  { href: '/summary',   icon: BarChart2,   label: 'Summary'   },
+  { href: '/settings',  icon: Settings,    label: 'Settings'  },
 ]
 
 export default function SideNav() {
@@ -89,9 +89,6 @@ export default function SideNav() {
           )
         })}
       </nav>
-
-      {/* ── Monthly summary ──────────────────────────────────────────── */}
-      <SideNavStats />
 
       {/* ── Sign out ─────────────────────────────────────────────────── */}
       <div className="px-3 pb-5 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>

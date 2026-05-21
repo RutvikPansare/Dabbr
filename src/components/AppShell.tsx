@@ -10,6 +10,7 @@ const APP_PREFIXES = [
   '/menu',
   '/payments',
   '/settings',
+  '/summary',
   '/meal-plans',
 ]
 

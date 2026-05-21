@@ -115,11 +115,11 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
   const prevRate = completionRate(previous.mealsDelivered, previous.mealsSkipped)
 
   return (
-    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-12">
 
       {/* Header */}
-      <header className="fixed inset-x-0 top-0 z-40 bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-        <div className="mx-auto max-w-2xl px-4 flex items-center gap-3">
+      <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-white backdrop-blur-xl border-b border-orange-100/50 py-3 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+        <div className="mx-auto max-w-2xl lg:max-w-none px-4 lg:px-8 flex items-center gap-3">
           <div className="flex-1">
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Summary</h1>
             <p className="text-xs font-semibold text-orange-600/80">
@@ -129,7 +129,7 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 pt-24 pb-6 space-y-5">
+      <main className="mx-auto max-w-2xl lg:max-w-4xl px-4 lg:px-8 pt-24 pb-6 space-y-5">
 
         {/* Period tabs */}
         <div className="flex rounded-2xl bg-white/50 p-1.5 shadow-inner border border-gray-200/50 gap-1">
@@ -232,7 +232,7 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
         </div>
 
         {/* Metrics grid */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <MetricCard
             label="New Customers"
             value={current.newCustomers}
@@ -255,6 +255,17 @@ export default function SummaryClient({ data }: { data: SummaryData }) {
               icon={<Users className="w-4 h-4 text-blue-600" />}
               iconBg="bg-blue-100"
             />
+          )}
+          {data.deliveryTrackingEnabled && (current.mealsDelivered + current.mealsSkipped) > 0 && (
+            <div className="hidden lg:block">
+              <MetricCard
+                label="Meals Skipped"
+                value={current.mealsSkipped}
+                icon={<XCircle className="w-4 h-4 text-gray-400" />}
+                iconBg="bg-gray-100"
+                sub={<GrowthBadge current={previous.mealsSkipped} previous={current.mealsSkipped} />}
+              />
+            </div>
           )}
         </div>
 
