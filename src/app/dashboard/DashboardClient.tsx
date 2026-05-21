@@ -1134,7 +1134,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           )}
 
           {/* Cook List + Packing List — stacked on mobile, side-by-side on desktop */}
-          <div className="mt-3 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-5">
+          <div className="mt-3 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
 
           {/* Cook List */}
           {todayMenus.length > 0 && (
@@ -1691,8 +1691,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
           </section>
 
-          {/* ── Summary ── */}
-          <SummarySection userId={userId} deliveryTrackingEnabled={deliveryTrackingEnabled} />
+          {/* ── Summary — mobile only (desktop shows in sidebar) ── */}
+          <div className="lg:hidden">
+            <SummarySection userId={userId} deliveryTrackingEnabled={deliveryTrackingEnabled} />
+          </div>
 
           </div>{/* end left column */}
 

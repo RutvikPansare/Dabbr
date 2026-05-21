@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, CreditCard, Home, LogOut, Settings, Users } from 'lucide-react'
+import SideNavStats from './SideNavStats'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: Home,         label: 'Home'      },
@@ -39,8 +40,7 @@ export default function SideNav() {
         <div className="flex items-center gap-2.5">
           {/* Lettermark — matches the brand gradient */}
           <div
-            className="flex h-8 w-8 items-center justify-center rounded-[10px] shrink-0"
-            style={{ background: 'linear-gradient(135deg, #FF7B3F 0%, #E04F18 100%)' }}
+            className="flex h-8 w-8 items-center justify-center rounded-[10px] shrink-0 bg-orange-500"
           >
             <span className="text-white text-[15px] font-black leading-none">D</span>
           </div>
@@ -89,6 +89,9 @@ export default function SideNav() {
           )
         })}
       </nav>
+
+      {/* ── Monthly summary ──────────────────────────────────────────── */}
+      <SideNavStats />
 
       {/* ── Sign out ─────────────────────────────────────────────────── */}
       <div className="px-3 pb-5 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
