@@ -755,6 +755,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       })
       setCopyPickerOpen(false)
       showToast('success', successMessage)
+      router.refresh()
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : 'Copy failed. Please try again.')
     } finally {
@@ -868,6 +869,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
       setWeekCopyModalOpen(false)
       setGoodWeekPickerOpen(false)
       showToast('success', successMessage)
+      router.refresh()
     } catch (error) {
       showToast('error', error instanceof Error ? error.message : 'Could not copy that week.')
     } finally {

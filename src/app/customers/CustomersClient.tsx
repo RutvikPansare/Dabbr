@@ -497,6 +497,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     })
     setPortalToken(newToken)
     setPortalLinkLoading(false)
+    router.refresh()
   }
 
   function copyPortalLink() {
@@ -537,6 +538,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
     setNotesSaving(false)
     setNotesSaved(true)
+    router.refresh()
     setTimeout(() => setNotesSaved(false), 2000)
   }
 
@@ -549,6 +551,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     const updated = { ...selectedCustomer, tags: newTags }
     setSelectedCustomer(updated)
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
+    router.refresh()
   }
 
   async function removeTag(tag: string) {
@@ -558,6 +561,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     const updated = { ...selectedCustomer, tags: newTags }
     setSelectedCustomer(updated)
     setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c))
+    router.refresh()
   }
 
   function goBack() {
@@ -749,6 +753,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     }
     setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)))
     void openDetail(updated) // refresh ledger + selected customer
+    router.refresh()
   }
 
   async function handlePauseSubmit(e: React.FormEvent) {
@@ -793,6 +798,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setCustomers((prev) => prev.map((c) => (c.id === selectedCustomer.id ? updated : c)))
     setPauseLoading(false)
     void openDetail(updated) // refresh ledger + selected customer
+    router.refresh()
   }
 
   // ── Contacts import ────────────────────────────────────────────────────

@@ -134,6 +134,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
     })
     setShowForm(false)
     setForm(EMPTY_FORM)
+    router.refresh()
   }
 
   async function toggleStatus(plan: MealPlan) {
@@ -147,6 +148,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
 
     if (!updateError && data) {
       setMealPlans(prev => prev.map(item => item.id === plan.id ? data : item))
+      router.refresh()
     }
   }
 

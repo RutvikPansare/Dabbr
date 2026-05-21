@@ -345,6 +345,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setShowRecord(false)
     setSelCustomerId(''); setAmount(''); setNote('')
     setRecording(false)
+    router.refresh()
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
