@@ -1447,19 +1447,21 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
             {/* ── Card header ── */}
             <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-[18px] font-black text-gray-900 tracking-tight flex items-center gap-2">
-                  <span className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-xl shrink-0 text-[17px] leading-none">
-                    🛵
-                  </span>
-                  {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
-                </h2>
-                <p className="text-sm font-medium text-gray-400 mt-0.5 pl-[34px]">
-                  {workspaceCustomers.length} customer{workspaceCustomers.length !== 1 ? 's' : ''}
-                  {slotFilter !== 'all' && deliveryTrackingEnabled && pendingCount > 0 && (
-                    <span className="ml-1 text-orange-500 font-bold">· {pendingCount} pending</span>
-                  )}
-                </p>
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 shrink-0 text-[18px] leading-none">
+                  🛵
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-black text-gray-900 leading-tight">
+                    {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
+                  </p>
+                  <p className="text-xs font-medium text-gray-400 mt-0.5">
+                    {workspaceCustomers.length} customer{workspaceCustomers.length !== 1 ? 's' : ''}
+                    {slotFilter !== 'all' && deliveryTrackingEnabled && pendingCount > 0 && (
+                      <span className="ml-1 text-orange-500 font-bold">· {pendingCount} pending</span>
+                    )}
+                  </p>
+                </div>
               </div>
               {riders.length > 0 && workspaceCustomers.length > 0 && (
                 <button
