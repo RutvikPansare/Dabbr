@@ -265,6 +265,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       setBrandingError(saveErr.message.includes('unique') ? 'This slug is already taken. Try a different one.' : saveErr.message)
     } else {
       setBrandingSaved(true)
+      router.refresh()
       setTimeout(() => setBrandingSaved(false), 3000)
     }
   }
@@ -288,6 +289,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       setError(`Failed to save: ${err.message}`)
     } else {
       setSaved(true)
+      router.refresh()
       setTimeout(() => setSaved(false), 3000)
     }
 
