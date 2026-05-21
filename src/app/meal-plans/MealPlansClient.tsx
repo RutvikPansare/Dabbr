@@ -25,6 +25,7 @@ interface MealPlan {
 interface Props {
   providerId: string
   initialMealPlans: MealPlan[]
+  backUrl?: string
 }
 
 interface PlanForm {
@@ -50,7 +51,7 @@ const EMPTY_FORM: PlanForm = {
   status: 'active',
 }
 
-export default function MealPlansClient({ providerId, initialMealPlans }: Props) {
+export default function MealPlansClient({ providerId, initialMealPlans, backUrl }: Props) {
   const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,7 +160,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
     <div className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))]">
       <header className="fixed inset-x-0 top-0 z-40 bg-[#FAF8F5]/90 backdrop-blur-sm px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <button onClick={() => router.back()} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
+          <button onClick={() => backUrl ? router.push(backUrl) : router.back()} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1">

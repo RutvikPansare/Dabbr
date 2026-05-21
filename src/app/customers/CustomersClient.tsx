@@ -1005,7 +1005,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
           {/* Meal Plans shortcut */}
           <button
-            onClick={() => router.push('/meal-plans')}
+            onClick={() => router.push(`/meal-plans${selectedCustomer ? `?back=/customers?open=${selectedCustomer.id}` : ``}`)}
             className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-2.5 shadow-sm active:scale-[0.98] transition-transform"
           >
             <ClipboardList className="w-4 h-4 text-orange-500 shrink-0" />
@@ -1480,7 +1480,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             {/* Meal plan row */}
             <button
               type="button"
-              onClick={() => router.push('/meal-plans')}
+              onClick={() => router.push(`/meal-plans${selectedCustomer ? `?back=/customers?open=${selectedCustomer.id}` : ``}`)}
               className="w-full flex items-center gap-3 px-5 py-4 border-t border-orange-50 bg-orange-50/60 hover:bg-orange-100/60 active:bg-orange-100 transition-colors text-left group"
             >
               <div className={`flex h-10 w-10 items-center justify-center rounded-xl shrink-0 ${
@@ -2138,7 +2138,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 </div>
                 <button
                   type="button"
-                  onClick={() => router.push('/meal-plans')}
+                  onClick={() => router.push(`/meal-plans${selectedCustomer ? `?back=/customers?open=${selectedCustomer.id}` : ``}`)}
                   className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-3 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
                 >
                   <ExternalLink className="w-3 h-3" />
@@ -2209,7 +2209,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                         {isSelected && (
                           <button
                             type="button"
-                            onClick={() => router.push('/meal-plans')}
+                            onClick={() => router.push(`/meal-plans${selectedCustomer ? `?back=/customers?open=${selectedCustomer.id}` : ``}`)}
                             className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
                           >
                             View

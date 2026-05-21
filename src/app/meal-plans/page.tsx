@@ -4,7 +4,12 @@ import { getCachedMealPlans, getCachedTrialStatus } from '@/lib/queries'
 import Paywall from '@/components/Paywall'
 import MealPlansClient from './MealPlansClient'
 
-export default async function MealPlansPage() {
+export default async function MealPlansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ back?: string }>
+}) {
+  const params = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -16,5 +21,5 @@ export default async function MealPlansPage() {
 
   if (trial.isExpired) return <Paywall />
 
-  return <MealPlansClient providerId={user.id} initialMealPlans={mealPlans} />
+  return <MealPlansClient providerId={user.id} initialMealPlans={mealPlans} backUrl={params.back} />
 }
