@@ -169,7 +169,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
 
       <main className="mx-auto max-w-2xl px-4 pt-24 space-y-4">
         {showForm && (
-          <form onSubmit={handleSave} className="rounded-3xl bg-white p-5 shadow-sm border border-gray-100 space-y-4">
+          <form onSubmit={handleSave} className="rounded-2xl bg-white p-5 shadow-sm border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black text-gray-900">{form.id ? 'Edit plan' : 'New plan'}</h2>
               <button type="button" onClick={() => setShowForm(false)} className="rounded-xl p-2 text-gray-400 hover:bg-gray-50">
@@ -255,7 +255,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
         )}
 
         {mealPlans.length === 0 && !showForm ? (
-          <div className="glass-card rounded-3xl px-6 py-12 text-center">
+          <div className="glass-card rounded-2xl px-6 py-12 text-center">
             <ClipboardList className="mx-auto mb-4 w-10 h-10 text-orange-500" />
             <p className="font-black text-gray-900">Create your first meal plan</p>
             <p className="mt-1 text-sm text-gray-500">Plans define the subscription structure. Menus define the actual dishes.</p>
@@ -263,7 +263,7 @@ export default function MealPlansClient({ providerId, initialMealPlans }: Props)
         ) : (
           <div className="space-y-3">
             {mealPlans.map(plan => (
-              <div key={plan.id} className="rounded-3xl bg-white p-5 shadow-sm border border-gray-100">
+              <div key={plan.id} className="rounded-2xl bg-white p-5 shadow-sm border border-gray-100">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
