@@ -966,7 +966,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 placeholder="Search by name or area…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="input-modern pl-10"
+                className="input-modern !pl-10"
               />
             </div>
             <button
