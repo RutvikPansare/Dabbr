@@ -412,9 +412,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [deliveryView, setDeliveryView] = useState<'list' | 'area'>('list')
 
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
-  const [showDelivered, setShowDelivered] = useState(false)
+  const [showDelivered, setShowDelivered] = useState(true)
   const [cookListOpen, setCookListOpen] = useState(true)
-  const [packingListOpen, setPackingListOpen] = useState(false)
+  const [packingListOpen, setPackingListOpen] = useState(true)
   const [slotFilter, setSlotFilter] = useState<'all' | MealSlot>('all')
 
   // ── Data state — seeded from server-side cached initialData ───────────────
