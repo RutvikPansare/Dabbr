@@ -1067,7 +1067,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             src="/tiffin-art.png"
             alt=""
             aria-hidden
-            className="shrink-0 w-44 h-auto pointer-events-none select-none -mt-6 mr-6"
+            className="shrink-0 w-52 h-auto pointer-events-none select-none -mt-6 mr-16"
             style={{ mixBlendMode: 'multiply' }}
           />
         </div>
