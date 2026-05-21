@@ -1034,9 +1034,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Desktop stat tiles — above slot tabs, hidden on mobile ── */}
       {safeCustomers.length > 0 && (
-        <div className="hidden lg:flex items-start gap-4 px-8 pt-3 pb-1">
-          {/* Stat grid */}
-          <div className="flex-1 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+        <div className="hidden lg:block relative px-8 pt-3 pb-1">
+          {/* Stat grid — unaffected by illustration */}
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
             <div className="stat-tile">
               <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Today</p>
               <p className="text-3xl font-black text-gray-900 leading-none">{deliveryToday.length}</p>
@@ -1061,13 +1061,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             )}
           </div>
 
-          {/* Tiffin illustration — floats up into the greeting header */}
+          {/* Tiffin illustration — absolutely positioned, never affects tile layout */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/tiffin-art.png"
             alt=""
             aria-hidden
-            className="shrink-0 w-64 h-auto pointer-events-none select-none -mt-6 mr-16"
+            className="absolute top-0 right-16 w-64 h-auto pointer-events-none select-none -translate-y-10"
             style={{ mixBlendMode: 'multiply' }}
           />
         </div>
