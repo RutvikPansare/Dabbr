@@ -1013,29 +1013,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Desktop page header — flat sticky bar, hidden on mobile ── */}
-      <div className="hidden lg:flex items-center sticky top-0 z-30 px-8 pt-6 pb-4 bg-[#FAF8F5]/90 backdrop-blur-sm">
-        {/* Greeting */}
-        <div className="min-w-0 flex-1">
+      <div className="hidden lg:flex items-center justify-between sticky top-0 z-30 px-8 pt-7 pb-4 bg-[#FAF8F5]/90 backdrop-blur-sm">
+        <div className="min-w-0">
           <p className="text-sm font-bold text-orange-500 leading-none mb-1">{formatTodayLong(today)}</p>
           <h1 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-1.5 leading-tight">
             {greeting}, {providerName}
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
           </h1>
         </div>
-
-        {/* Tiffin illustration */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/tiffin-art.png"
-          alt=""
-          aria-hidden
-          className="h-32 w-auto pointer-events-none select-none shrink-0 -my-4 mr-4"
-          style={{ mixBlendMode: 'multiply' }}
-        />
-
-        {/* Trial badge */}
         {trialDaysLeft !== null && (
-          <span className={`chip font-semibold shrink-0 ${trialDaysLeft <= 7 ? 'bg-red-50 text-red-600' : trialDaysLeft <= 20 ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-orange-600'}`}>
+          <span className={`chip font-semibold ${trialDaysLeft <= 7 ? 'bg-red-50 text-red-600' : trialDaysLeft <= 20 ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-orange-600'}`}>
             {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft}d left` : 'Trial expired'}
           </span>
         )}
@@ -1047,29 +1034,42 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Desktop stat tiles — above slot tabs, hidden on mobile ── */}
       {safeCustomers.length > 0 && (
-        <div className="hidden lg:grid px-8 pt-3 pb-1 gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
-          <div className="stat-tile">
-            <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Today</p>
-            <p className="text-3xl font-black text-gray-900 leading-none">{deliveryToday.length}</p>
-            <p className="text-[11px] text-gray-400 mt-1.5">deliveries</p>
-          </div>
-          <div className="stat-tile">
-            <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Delivered</p>
-            <p className="text-3xl font-black text-emerald-600 leading-none">{deliveredCount}</p>
-            <p className="text-[11px] text-gray-400 mt-1.5">of {deliveryToday.length}</p>
-          </div>
-          <div className="stat-tile">
-            <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Pending</p>
-            <p className="text-3xl font-black text-orange-500 leading-none">{pendingCount}</p>
-            <p className="text-[11px] text-gray-400 mt-1.5">{slotFilter === 'all' ? 'untouched' : 'this slot'}</p>
-          </div>
-          {paymentAlerts.length > 0 && (
-            <div className="stat-tile border-red-100 bg-red-50/60">
-              <p className="text-[11px] font-semibold text-red-400 mb-1.5">Pay alerts</p>
-              <p className="text-3xl font-black text-red-600 leading-none">{paymentAlerts.length}</p>
-              <p className="text-[11px] text-red-400 mt-1.5">customers</p>
+        <div className="hidden lg:flex items-start gap-4 px-8 pt-3 pb-1">
+          {/* Stat grid */}
+          <div className="flex-1 grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
+            <div className="stat-tile">
+              <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Today</p>
+              <p className="text-3xl font-black text-gray-900 leading-none">{deliveryToday.length}</p>
+              <p className="text-[11px] text-gray-400 mt-1.5">deliveries</p>
             </div>
-          )}
+            <div className="stat-tile">
+              <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Delivered</p>
+              <p className="text-3xl font-black text-emerald-600 leading-none">{deliveredCount}</p>
+              <p className="text-[11px] text-gray-400 mt-1.5">of {deliveryToday.length}</p>
+            </div>
+            <div className="stat-tile">
+              <p className="text-[11px] font-semibold text-gray-400 mb-1.5">Pending</p>
+              <p className="text-3xl font-black text-orange-500 leading-none">{pendingCount}</p>
+              <p className="text-[11px] text-gray-400 mt-1.5">{slotFilter === 'all' ? 'untouched' : 'this slot'}</p>
+            </div>
+            {paymentAlerts.length > 0 && (
+              <div className="stat-tile border-red-100 bg-red-50/60">
+                <p className="text-[11px] font-semibold text-red-400 mb-1.5">Pay alerts</p>
+                <p className="text-3xl font-black text-red-600 leading-none">{paymentAlerts.length}</p>
+                <p className="text-[11px] text-red-400 mt-1.5">customers</p>
+              </div>
+            )}
+          </div>
+
+          {/* Tiffin illustration — floats up into the greeting header */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/tiffin-art.png"
+            alt=""
+            aria-hidden
+            className="shrink-0 w-52 h-auto pointer-events-none select-none -mt-20"
+            style={{ mixBlendMode: 'multiply' }}
+          />
         </div>
       )}
 
