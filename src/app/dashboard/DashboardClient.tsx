@@ -194,15 +194,15 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
   const isMonthly = (c.billing_type ?? 'prepaid') === 'monthly_settlement'
 
   return (
-    <div onClick={onOpen} className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/50 cursor-pointer ${!isLast ? 'border-b border-gray-100/50' : ''}`}>
-      {/* Index bubble */}
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100/80 text-xs font-bold text-gray-500 shadow-sm border border-gray-200/50 mt-0.5">
+    <div onClick={onOpen} className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/40 cursor-pointer ${!isLast ? 'border-b border-gray-100' : ''}`}>
+      {/* Index circle */}
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500 mt-0.5">
         {index + 1}
       </span>
 
       {/* Main info */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-gray-900 group-hover:text-orange-600 transition-colors leading-snug">
+        <p className="truncate text-[15px] font-black text-gray-900 leading-snug">
           {c.name}
         </p>
         {!hideArea && c.area && (
@@ -210,7 +210,6 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
             <MapPin className="w-3 h-3 shrink-0" />{c.area}
           </p>
         )}
-        {/* Plan chip — simplified: emoji + name + slot emojis */}
         <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-gray-100/80 px-2 py-0.5">
           <span className="text-[11px]">{PLAN_EMOJI[planType]}</span>
           <span className="text-[11px] font-semibold text-gray-600 truncate max-w-[80px]">{plan?.name ?? planType}</span>
@@ -222,20 +221,20 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
         )}
       </div>
 
-      {/* Right: balance / billing badge */}
-      <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5">
+      {/* Right: balance badge + diet icon */}
+      <div className="shrink-0 flex flex-col items-end gap-1.5 mt-0.5">
         {isMonthly ? (
-          <span className="chip-sm bg-amber-50 text-amber-700 flex items-center gap-1">
+          <span className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
             <HandCoins className="w-3 h-3" /> Monthly
           </span>
         ) : (
-          <span className={`chip-sm font-semibold ${balancePill(c.balance_days)}`}>
+          <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePill(c.balance_days)}`}>
             {c.balance_days}d left
           </span>
         )}
-        <span className={`text-[10px] ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-400'}`}>
-          {planType === 'veg' ? <Leaf className="w-3 h-3 inline" /> : <Drumstick className="w-3 h-3 inline" />}
-        </span>
+        {planType === 'veg'
+          ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
+          : <Drumstick className="w-3.5 h-3.5 text-orange-300" />}
       </div>
     </div>
   )
@@ -340,16 +339,17 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         )}
 
         {/* Index / status icon */}
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold shadow-sm border ${
-          isDelivered ? 'bg-green-100 border-green-200 text-green-600' :
-          isSkipped   ? 'bg-amber-100 border-amber-200 text-amber-600' :
-                        'bg-gray-100/80 border-gray-200/50 text-gray-500'
+        {/* Index / status circle */}
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+          isDelivered ? 'bg-green-100 text-green-600' :
+          isSkipped   ? 'bg-amber-100 text-amber-600' :
+                        'bg-gray-100 text-gray-500'
         }`}>
           {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className={`truncate text-sm font-bold transition-colors leading-snug ${
+          <p className={`truncate text-[15px] font-black leading-snug ${
             isDelivered ? 'text-gray-400 line-through' :
             isSkipped   ? 'text-gray-500' :
                           'text-gray-900'
@@ -365,7 +365,6 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
                   <MapPin className="w-3 h-3 shrink-0" />{c.area}
                 </p>
               )}
-              {/* Plan chip — consistent with DeliveryRow */}
               <div className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${
                 isDelivered ? 'bg-gray-100/50' : 'bg-gray-100/80'
               }`}>
@@ -381,20 +380,20 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           )}
         </div>
 
-        {/* Right: balance / billing badge + veg icon */}
-        <div className={`shrink-0 flex flex-col items-end gap-1 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
+        {/* Right: balance badge + diet icon */}
+        <div className={`shrink-0 flex flex-col items-end gap-1.5 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
           {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (
-            <span className="chip-sm bg-amber-50 text-amber-700 flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
               <HandCoins className="w-3 h-3" /> Monthly
             </span>
           ) : (
-            <span className={`chip-sm font-semibold ${balancePill(c.balance_days)}`}>
+            <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePill(c.balance_days)}`}>
               {c.balance_days}d left
             </span>
           )}
-          <span className={`text-[10px] ${planType === 'veg' ? 'text-emerald-500' : 'text-orange-400'}`}>
-            {planType === 'veg' ? <Leaf className="w-3 h-3 inline" /> : <Drumstick className="w-3 h-3 inline" />}
-          </span>
+          {planType === 'veg'
+            ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
+            : <Drumstick className="w-3.5 h-3.5 text-orange-300" />}
         </div>
       </div>
     </div>
@@ -1322,7 +1321,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                       className="inline-flex items-center gap-0.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700"
                                     >
                                       {d.name}
-                                      {d.qty > 1 && <span className="text-emerald-500"> ×{d.qty}</span>}
+                                      {d.qty > 1 && <span className="ml-0.5 text-emerald-500 font-bold">×{d.qty}</span>}
                                     </span>
                                   ))
                                 )}
@@ -1446,15 +1445,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           <section className="mb-8">
 
             {/* Header */}
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
-                  <span className="flex items-center justify-center p-1.5 bg-orange-100 rounded-xl">
+                <h2 className="text-[18px] font-black text-gray-900 tracking-tight flex items-center gap-2">
+                  <span className="flex items-center justify-center p-1.5 bg-orange-100 rounded-xl shrink-0">
                     <Box className="w-4 h-4 text-orange-600" />
                   </span>
                   {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
                 </h2>
-                <p className="text-xs font-medium text-gray-500 mt-0.5">
+                <p className="text-sm font-medium text-gray-400 mt-0.5 pl-[34px]">
                   {workspaceCustomers.length} customer{workspaceCustomers.length !== 1 ? 's' : ''}
                   {slotFilter !== 'all' && deliveryTrackingEnabled && pendingCount > 0 && (
                     <span className="ml-1 text-orange-500 font-bold">· {pendingCount} pending</span>
@@ -1464,9 +1463,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               {riders.length > 0 && workspaceCustomers.length > 0 && (
                 <button
                   onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
-                  className="flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide bg-orange-500 text-white shadow-sm active:scale-95 transition-all duration-300"
+                  className="flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-black uppercase tracking-wide bg-orange-500 text-white shadow-[0_4px_14px_rgba(244,98,42,0.35)] active:scale-95 transition-all duration-200 shrink-0"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-4 h-4" />
                   Send
                 </button>
               )}
@@ -1603,7 +1602,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
             ) : slotFilter === 'all' ? (
               /* ── Overview mode: static list of all customers ── */
-              <div className="glass-card overflow-hidden rounded-3xl">
+              <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                 {deliveryToday.map((c, i) => (
                   <DeliveryRow
                     key={c.id}
@@ -1620,7 +1619,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               <div className="space-y-3">
                 {/* Active (pending + skipped) */}
                 {activeList.length > 0 ? (
-                  <div className="glass-card overflow-hidden rounded-3xl">
+                  <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                     {activeList.map((c, i) =>
                       deliveryTrackingEnabled ? (
                         <SwipeableDeliveryRow
@@ -1654,7 +1653,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
                 {/* Delivered section */}
                 {deliveredList.length > 0 && (
-                  <div className="glass-card overflow-hidden rounded-3xl">
+                  <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                     <button
                       onClick={() => setShowDelivered(v => !v)}
                       className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-b border-green-100/80 transition-colors active:bg-green-100/60"
