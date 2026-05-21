@@ -1246,7 +1246,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                     <button
                       onClick={() => saveSection(slot)}
                       disabled={isSaving || !hasAnyDraft}
-                      className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-xs font-black text-white shadow-sm transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none ${
+                      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black text-white shadow-sm transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none ${
                         isSaved ? 'bg-emerald-500' : 'bg-orange-500'
                       }`}
                     >
