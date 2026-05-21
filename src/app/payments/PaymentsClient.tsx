@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { invalidatePayments, invalidateCustomers } from '@/lib/revalidate'
 import BottomNav from '@/components/BottomNav'
@@ -145,6 +146,7 @@ const DUE_SOON_THRESHOLD = 5
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PaymentsClient({ providerId, provider, initialCustomers, initialPayments, initialMonthlyPayments }: Props) {
+  const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
