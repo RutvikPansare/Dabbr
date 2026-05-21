@@ -1449,8 +1449,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-gray-100">
               <div>
                 <h2 className="text-[18px] font-black text-gray-900 tracking-tight flex items-center gap-2">
-                  <span className="flex items-center justify-center p-1.5 bg-orange-100 rounded-xl shrink-0">
-                    <Box className="w-4 h-4 text-orange-600" />
+                  <span className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-xl shrink-0 text-[17px] leading-none">
+                    🛵
                   </span>
                   {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
                 </h2>
@@ -1655,8 +1655,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
             ) : (
               /* Slot workspace — area view */
-              <div>
-                {sortedAreas.map(([area, allMembers], areaIdx) => {
+              <div className="px-4 py-4 space-y-3">
+                {sortedAreas.map(([area, allMembers]) => {
                   const members = allMembers.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
                   if (!members.length) return null
                   const areaActive = deliveryTrackingEnabled
@@ -1665,28 +1665,36 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   const areaDelivered = deliveryTrackingEnabled
                     ? members.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered')
                     : []
+                  const allAreaDone = deliveryTrackingEnabled && areaActive.length === 0
                   return (
-                    <div key={area} className={areaIdx > 0 ? 'border-t-2 border-gray-100' : ''}>
-                      {/* Area header band */}
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50/80 border-b border-gray-100">
-                        <span className="text-sm">📍</span>
-                        <span className="text-sm font-black text-gray-800">{area}</span>
-                        <span className="rounded-lg bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700">
-                          {areaActive.length}
-                          {areaDelivered.length > 0 && <span className="text-green-600"> +{areaDelivered.length}✓</span>}
-                        </span>
-                        <div className="ml-auto flex items-center gap-1.5">
+                    <div key={area} className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+
+                      {/* Area header */}
+                      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <MapPin className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                          <span className="text-[14px] font-black text-gray-900 truncate">{area}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold shrink-0 ${
+                            allAreaDone
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-orange-50 text-orange-600'
+                          }`}>
+                            {allAreaDone ? `${members.length} ✓` : `${areaActive.length} left`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             onClick={() => handleCopyArea(area, members)}
-                            className="flex items-center gap-1 rounded-xl bg-white border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-600 active:scale-95 transition-all"
+                            className="flex items-center gap-1.5 rounded-xl bg-white border border-gray-200 px-3 py-1.5 text-[12px] font-bold text-gray-600 active:scale-95 transition-all hover:bg-gray-50"
                           >
-                            {areaCopied === area ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                            {areaCopied === area ? 'Copied' : 'Copy'}
+                            {areaCopied === area
+                              ? <><Check className="w-3 h-3 text-green-500" />Copied</>
+                              : <><Copy className="w-3 h-3" />Copy</>}
                           </button>
                           {riders.length > 0 && (
                             <button
                               onClick={() => setRiderModal({ area, members })}
-                              className="flex items-center gap-1 rounded-xl bg-orange-500 px-2.5 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all shadow-sm"
+                              className="flex items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-1.5 text-[12px] font-bold text-white active:scale-95 transition-all shadow-[0_2px_8px_rgba(244,98,42,0.3)]"
                             >
                               <Send className="w-3 h-3" />
                               Send
@@ -1694,29 +1702,38 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           )}
                         </div>
                       </div>
-                      {areaActive.map((c, i) =>
-                        deliveryTrackingEnabled ? (
-                          <SwipeableDeliveryRow
-                            key={c.id} c={c} index={i}
-                            isLast={i === areaActive.length - 1 && areaDelivered.length === 0}
-                            hideArea
-                            status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
-                            onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                            bulkMode={bulkMode} selected={selectedIds.has(c.id)}
-                            onToggleSelect={() => toggleSelect(c.id)}
-                            onOpen={() => setCustomerModal(c)}
-                          />
-                        ) : (
-                          <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
-                        )
-                      )}
+
+                      {/* Customer rows */}
+                      <div className="divide-y divide-gray-50">
+                        {areaActive.map((c, i) =>
+                          deliveryTrackingEnabled ? (
+                            <SwipeableDeliveryRow
+                              key={c.id} c={c} index={i}
+                              isLast={i === areaActive.length - 1 && areaDelivered.length === 0}
+                              hideArea
+                              status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
+                              onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                              bulkMode={bulkMode} selected={selectedIds.has(c.id)}
+                              onToggleSelect={() => toggleSelect(c.id)}
+                              onOpen={() => setCustomerModal(c)}
+                            />
+                          ) : (
+                            <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
+                          )
+                        )}
+                      </div>
+
+                      {/* Delivered footer */}
                       {areaDelivered.length > 0 && (
-                        <div className="flex items-center gap-2 px-5 py-2.5 bg-green-50/60 border-t border-green-100/80">
-                          <Check className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                          <span className="text-xs font-bold text-green-700">{areaDelivered.length} delivered</span>
-                          <span className="text-xs text-green-500 truncate">— {areaDelivered.map(c => c.name).join(', ')}</span>
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50/60 border-t border-emerald-100/60">
+                          <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500 shrink-0">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                          <span className="text-xs font-bold text-emerald-700">{areaDelivered.length} delivered</span>
+                          <span className="text-xs text-emerald-500 truncate">· {areaDelivered.map(c => c.name).join(', ')}</span>
                         </div>
                       )}
+
                     </div>
                   )
                 })}
