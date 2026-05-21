@@ -333,6 +333,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
     if (data) setMenuQuickTags(prev => [...prev, data])
     setTagInputs(prev => ({ ...prev, [key]: '' }))
+    router.refresh()
   }
 
   async function updateQuickTag(tag: MenuQuickTag, nextLabel: string) {
@@ -358,12 +359,14 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
 
     if (data) setMenuQuickTags(prev => prev.map(item => item.id === tag.id ? data : item))
+    router.refresh()
   }
 
   async function updateQuickTagQty(tag: MenuQuickTag, qty: number) {
     const safeQty = Math.max(1, Math.min(99, isNaN(qty) ? 1 : qty))
     setMenuQuickTags(prev => prev.map(t => t.id === tag.id ? { ...t, default_quantity: safeQty } : t))
     await db.from('menu_quick_tags').update({ default_quantity: safeQty }).eq('id', tag.id)
+    router.refresh()
   }
 
   async function deleteQuickTag(id: string) {
@@ -376,6 +379,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       return
     }
     setMenuQuickTags(prev => prev.filter(tag => tag.id !== id))
+    router.refresh()
   }
 
   async function handleToggleOffDay(dow: number) {
@@ -386,6 +390,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setOffDaySaving(true)
     await db.from('providers').update({ off_days: next }).eq('id', providerId)
     setOffDaySaving(false)
+    router.refresh()
   }
 
   async function handleAddHoliday() {
@@ -430,18 +435,21 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setRangeEnd('')
     setHolidayLabel('')
     setShowHolidayPicker(false)
+    router.refresh()
   }
 
   async function handleDeleteHoliday(id: string) {
     setHolidayError('')
     await db.from('provider_holidays').delete().eq('id', id)
     setHolidays(prev => prev.filter(h => h.id !== id))
+    router.refresh()
   }
 
   async function handleDeleteHolidayGroup(ids: string[]) {
     setHolidayError('')
     await db.from('provider_holidays').delete().in('id', ids)
     setHolidays(prev => prev.filter(h => !ids.includes(h.id)))
+    router.refresh()
   }
 
   async function handleSaveMonthlyDefaults() {
@@ -458,6 +466,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     setMsSaving(false)
     if (err) { setMsError(err.message); return }
     setMsSaved(true)
+    router.refresh()
     setTimeout(() => setMsSaved(false), 3000)
   }
 
@@ -480,12 +489,14 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     if (data) setRiders(prev => [...prev, data])
     setNewRiderName('')
     setNewRiderPhone('')
+    router.refresh()
   }
 
   async function handleDeleteRider(id: string) {
     setRiderError('')
     await db.from('delivery_riders').delete().eq('id', id)
     setRiders(prev => prev.filter(r => r.id !== id))
+    router.refresh()
   }
 
   async function handleSignOut() {
