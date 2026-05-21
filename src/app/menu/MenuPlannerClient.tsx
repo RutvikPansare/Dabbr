@@ -1147,7 +1147,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                           <span className="mt-1 block text-[11px] font-bold text-gray-400">{option.itemCount} saved items</span>
                           <span className="mt-2 flex gap-1 overflow-hidden">
                             {option.preview.map(item => (
-                              <span key={item} className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-black text-orange-600">{item}</span>
+                              <span key={item} className="shrink-0 rounded-xl bg-white px-2 py-1 text-[10px] font-black text-orange-600">{item}</span>
                             ))}
                           </span>
                         </button>
@@ -1204,7 +1204,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
           >
             <div className="flex items-center gap-2.5">
               <span className="text-sm font-black text-gray-900">Served This Week</span>
-              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-600">{servedThisWeek.length} dishes</span>
+              <span className="rounded-xl bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-600">{servedThisWeek.length} dishes</span>
             </div>
             <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${servedExpanded ? 'rotate-180' : ''}`} />
           </button>
@@ -1213,7 +1213,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
               <p className="text-xs font-semibold text-gray-400 mb-2.5">A quick memory of what is already planned</p>
               <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {servedThisWeek.slice(0, 14).map(item => (
-                  <span key={item.label} className="shrink-0 rounded-full bg-[#FDF8F3] px-3 py-1.5 text-[11px] font-black text-gray-600">
+                  <span key={item.label} className="shrink-0 rounded-xl bg-[#FDF8F3] px-3 py-1.5 text-[11px] font-black text-gray-600">
                     {item.label}{item.count > 1 ? ` ×${item.count}` : ''}
                   </span>
                 ))}
@@ -1276,7 +1276,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                                 key={tag.id}
                                 type="button"
                                 onClick={() => addMenuItemToDraft(selectedDate, slot, entry.key, tag.label, tag.default_quantity ?? 1)}
-                                className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-black shadow-sm ${tagToneClasses(tag.label)}`}
+                                className={`shrink-0 rounded-xl border px-3 py-1.5 text-[11px] font-black shadow-sm ${tagToneClasses(tag.label)}`}
                               >
                                 + {tag.label}{(tag.default_quantity ?? 1) > 1 ? ` ×${tag.default_quantity}` : ''}
                               </button>
@@ -1286,7 +1286,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                             <button
                               type="button"
                               onClick={() => router.push('/settings#menu-quick-tags')}
-                              className="shrink-0 rounded-full border border-dashed border-gray-200 bg-white px-3 py-1.5 text-[11px] font-black text-gray-400"
+                              className="shrink-0 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-1.5 text-[11px] font-black text-gray-400"
                             >
                               Add tags
                             </button>
@@ -1298,7 +1298,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                             {selectedItems.map((item, index) => {
                               const qty = getItemQty(selectedDate, slot, entry.key, item)
                               return (
-                                <span key={`${item}-${index}`} className="inline-flex items-center gap-0.5 rounded-full border border-orange-100 bg-orange-50 pl-2.5 pr-1 py-1">
+                                <span key={`${item}-${index}`} className="inline-flex items-center gap-0.5 rounded-xl border border-orange-100 bg-orange-50 pl-2.5 pr-1 py-1">
                                   <span className="text-[11px] font-black text-orange-700">{item}</span>
                                   <button
                                     type="button"
@@ -1350,7 +1350,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
                               type="button"
                               onClick={() => addCustomMenuItem(selectedDate, slot, entry.key)}
                               disabled={!(customItemInputs[inputKey] ?? '').trim()}
-                              className="rounded-full bg-orange-500 px-3 py-1.5 text-[11px] font-black text-white disabled:bg-gray-200 disabled:text-gray-400"
+                              className="rounded-xl bg-orange-500 px-3 py-1.5 text-[11px] font-black text-white disabled:bg-gray-200 disabled:text-gray-400"
                             >
                               Add
                             </button>

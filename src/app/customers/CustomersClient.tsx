@@ -909,7 +909,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             <div className="relative">
               <button
                 onClick={() => setShowImportMenu(v => !v)}
-                className="flex items-center gap-2 rounded-2xl bg-orange-500 border-2 border-orange-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-orange-600 hover:border-orange-600 active:scale-95 transition-all"
+                className="flex items-center gap-2 rounded-xl bg-orange-500 border-2 border-orange-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-orange-600 hover:border-orange-600 active:scale-95 transition-all"
               >
                 <FileUp className="w-3.5 h-3.5" />
                 Import
