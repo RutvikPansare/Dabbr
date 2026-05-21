@@ -888,7 +888,7 @@ export default function MenuPlannerClient({ providerId, initialMenus, initialHis
   return (
     <div onClick={() => setActiveHelp(null)} className="min-h-screen bg-[#FDF8F3] pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-12">
       <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm py-3">
-        <div className="mx-auto flex max-w-2xl px-4 items-center gap-3">
+        <div className="mx-auto flex max-w-2xl lg:max-w-none px-4 lg:px-8 items-center gap-3">
           <div className="flex-1">
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Menu Planner</h1>
             <p className="text-xs font-semibold text-orange-600/80">Reuse, paste, and save by meal slot</p>
