@@ -1315,14 +1315,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                               </p>
                               {/* Dish chips */}
                               <div className="flex flex-wrap gap-1.5">
-                                {filteredSlots.flatMap(({ dishes }) =>
+                                {filteredSlots.flatMap(({ slot, dishes }) =>
                                   dishes.map(d => (
                                     <span
-                                      key={d.name}
+                                      key={`${slot}-${d.name}`}
                                       className="inline-flex items-center gap-0.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700"
                                     >
                                       {d.name}
-                                      {d.qty > 1 && <span className="opacity-60">×{d.qty}</span>}
+                                      {d.qty > 1 && <span className="text-emerald-500"> ×{d.qty}</span>}
                                     </span>
                                   ))
                                 )}
