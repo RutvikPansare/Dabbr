@@ -443,6 +443,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     return { plan: p.subscription_plan as string, daysLeft, expired: daysLeft <= 0 }
   })()
 
+  // On mount: force a fresh data load so subscription state is always current
+  useEffect(() => { router.refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // On mount: auto-downgrade if trial expired, then show one-time modal
   useEffect(() => {
     const p = provider as any
@@ -482,8 +485,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? false
-  const customerLimitPlan: CustomerLimitPlanId =
-    provider?.subscription_status === 'active' && provider.subscription_plan ? provider.subscription_plan : 'free'
+  const customerLimitPlan: CustomerLimitPlanId = (() => {
+    const p = provider as any
+    if (p?.is_subscribed && isBillingPlanId(p?.subscription_plan)) return p.subscription_plan as BillingPlanId
+    return 'free'
+  })()
   const customerLimit = getCustomerLimit(customerLimitPlan)
   const overCustomerLimit = customerLimit != null && customers.length > customerLimit
   const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(overCustomerLimit)
@@ -871,10 +877,17 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     : trialDaysLeft > 7  ? 'bg-amber-400/25 text-amber-100'
     : 'bg-red-500/30 text-red-100'
 
-  // Active plan name to show as badge when subscribed
+  // Active plan name to show as badge when subscribed (not during trial)
   const activePlanName = (() => {
     const p = provider as any
+    // Must be subscribed and not on a trial
+    if (!p?.is_subscribed || p?.subscription_status === 'trial') return null
+    // Primary: explicit 'active' status
     if (p?.subscription_status === 'active' && isBillingPlanId(p?.subscription_plan)) {
+      return BILLING_PLANS[p.subscription_plan as BillingPlanId].name
+    }
+    // Fallback: is_subscribed=true and plan is set (handles null/unexpected subscription_status)
+    if (isBillingPlanId(p?.subscription_plan)) {
       return BILLING_PLANS[p.subscription_plan as BillingPlanId].name
     }
     return null
