@@ -171,7 +171,7 @@ function Hero({ isLoggedIn }: { isLoggedIn: boolean }) {
 
         {/* Subtext */}
         <p className="mx-auto mt-6 max-w-2xl text-lg text-orange-100/60 leading-relaxed sm:text-xl">
-          Track customers, manage daily deliveries, record payments, and send WhatsApp reminders — all from your phone. Built for home cooks across India.
+          Track customers, manage daily deliveries, record payments, and send WhatsApp reminders — all from your phone. Built for tiffin providers across India.
         </p>
 
         {/* CTA */}
@@ -545,7 +545,7 @@ function Footer() {
             <span className="text-sm font-black text-white">D</span>
           </div>
           <span className="text-lg font-black text-white">Dabbr</span>
-          <span className="text-orange-200/30 text-sm ml-2">Tiffin service manager for home cooks</span>
+          <span className="text-orange-200/30 text-sm ml-2">Tiffin management for India's food providers</span>
         </div>
         <div className="flex items-center gap-4">
           <a href="/privacy" className="text-orange-200/40 hover:text-orange-200/70 text-xs transition-colors">
@@ -557,7 +557,7 @@ function Footer() {
           </a>
           <span className="text-orange-200/20 text-xs">·</span>
           <p className="text-orange-200/30 text-xs">
-            © {new Date().getFullYear()} Dabbr. Made with ❤️ for home cooks in India.
+            © {new Date().getFullYear()} Dabbr. Made with ❤️ for tiffin providers across India.
           </p>
         </div>
       </div>
