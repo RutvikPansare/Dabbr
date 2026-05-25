@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Loader2, X, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -67,8 +67,6 @@ export default function OnboardingGuide() {
   const [celebrating, setCelebrating] = useState(false)
   const [confirmExit, setConfirmExit] = useState(false)
 
-  // Track the next page to navigate to after the celebration
-  const pendingNav = useRef<string | null>(null)
 
   // Read step from localStorage once on mount
   useEffect(() => {
@@ -76,31 +74,15 @@ export default function OnboardingGuide() {
     setStep(stored)
   }, [])
 
-  // On mount (and when step changes), navigate to the right page if not already there
-  // Uses a ref so we only auto-navigate once per step to avoid loops
-  const lastAutoNavStep = useRef<string | null>(null)
-  useEffect(() => {
-    if (!isActiveStep(step)) return
-    if (lastAutoNavStep.current === step) return   // already handled this step
-    lastAutoNavStep.current = step
-    const def = STEPS[step]
-    if (pathname !== def.page) {
-      router.push(def.navTo)
-    }
-  }, [step, pathname, router])
 
-  // After celebration, navigate to the next page
+  // After celebration, just hide the celebration flash — no forced navigation
   useEffect(() => {
     if (!celebrating) return
-    const target = pendingNav.current
-    if (!target) return
     const timer = setTimeout(() => {
       setCelebrating(false)
-      router.push(target)
-      pendingNav.current = null
     }, 900)
     return () => clearTimeout(timer)
-  }, [celebrating, router])
+  }, [celebrating])
 
   // Don't render on /onboarding page or when not in an active step
   if (pathname === '/onboarding') return null
@@ -165,8 +147,6 @@ export default function OnboardingGuide() {
       localStorage.setItem('dabbr_onboarding_step', nextStep)
       setStep(nextStep)
 
-      // Show celebration; useEffect above will navigate after 900ms
-      pendingNav.current = def.nextPage
       setChecking(false)
       setCelebrating(true)
     } catch {
@@ -179,7 +159,7 @@ export default function OnboardingGuide() {
     const nextStep = def.nextStep
     localStorage.setItem('dabbr_onboarding_step', nextStep)
     setStep(nextStep)
-    router.push(def.nextPage)
+    // Don't force navigation — user stays where they are
   }
 
   function confirmExitGuide() {
@@ -252,9 +232,17 @@ export default function OnboardingGuide() {
             <span className="text-lg">{def.emoji}</span>
             <p className="text-sm font-black text-gray-900">{def.title}</p>
           </div>
-          <p className="text-xs font-medium text-gray-500 leading-relaxed mb-3">
+          <p className="text-xs font-medium text-gray-500 leading-relaxed mb-1">
             {def.instruction}
           </p>
+          {pathname !== def.page && (
+            <button
+              onClick={() => router.push(def.navTo)}
+              className="text-xs font-black text-orange-500 active:opacity-70 mb-2"
+            >
+              Go there →
+            </button>
+          )}
 
           {/* Error */}
           {error && (
