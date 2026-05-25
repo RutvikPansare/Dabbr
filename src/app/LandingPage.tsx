@@ -103,7 +103,7 @@ function Navbar({ isLoggedIn }: { isLoggedIn: boolean }) {
                 disabled={loading}
                 className="rounded-full bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] px-5 py-2 text-sm font-bold text-white shadow-md hover:shadow-orange-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-60"
               >
-                {loading ? 'Signing in…' : 'Start Free Trial'}
+                {loading ? 'Signing in…' : 'Get Started Free'}
               </button>
             </>
           )}
@@ -133,7 +133,7 @@ function Navbar({ isLoggedIn }: { isLoggedIn: boolean }) {
               </Link>
             ) : (
               <button onClick={signIn} disabled={loading} className="w-full rounded-2xl bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] py-3 text-sm font-bold text-white disabled:opacity-60">
-                {loading ? 'Signing in…' : 'Start Free Trial with Google'}
+                {loading ? 'Signing in…' : 'Get Started Free with Google'}
               </button>
             )}
           </div>
@@ -158,7 +158,7 @@ function Hero({ isLoggedIn }: { isLoggedIn: boolean }) {
         {/* Badge */}
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-orange-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-orange-300">
           <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />
-          30-Day Free Trial — No Credit Card Needed
+          Free Forever — No Credit Card Needed
         </div>
 
         {/* Headline */}
@@ -203,7 +203,7 @@ function Hero({ isLoggedIn }: { isLoggedIn: boolean }) {
         </div>
 
         <p className="mt-4 text-xs text-orange-200/40 font-medium">
-          Free for 30 days with up to 15 customers. Paid plans start at ₹200/month. Cancel anytime.
+          Free plan available. Paid plans start at ₹200/month. Cancel anytime.
         </p>
 
         {/* Dashboard mockup */}
@@ -270,7 +270,7 @@ function Hero({ isLoggedIn }: { isLoggedIn: boolean }) {
 // ── Stats ─────────────────────────────────────────────────────────────────────
 function Stats() {
   const items = [
-    { value: '30', unit: 'days', label: 'Free trial, no card' },
+    { value: 'Free', unit: '', label: 'Plan available, no card' },
     { value: '1-tap', unit: '', label: 'WhatsApp reminders' },
     { value: '₹200', unit: '/mo', label: 'Starter plan' },
     { value: '100%', unit: '', label: 'Mobile-first design' },
@@ -424,10 +424,10 @@ function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {/* Trial */}
           <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm p-8 flex flex-col">
-            <h3 className="text-xl font-bold text-white mb-1">Free Trial</h3>
+            <h3 className="text-xl font-bold text-white mb-1">Free Plan</h3>
             <div className="flex items-end gap-1 mb-6">
               <span className="text-5xl font-black text-white">₹0</span>
-              <span className="text-orange-200/50 mb-2">/ 30 days</span>
+              <span className="text-orange-200/50 mb-2">/ forever</span>
             </div>
             <ul className="flex-1 space-y-3 mb-8">
               {trialFeatures.map(f => (
@@ -443,7 +443,7 @@ function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
               </Link>
             ) : (
               <button onClick={signIn} disabled={loading} className="w-full py-3.5 rounded-2xl font-bold text-white border border-white/20 hover:bg-white/10 transition-colors disabled:opacity-60">
-                {loading ? 'Signing in…' : 'Start Free Trial'}
+                {loading ? 'Signing in…' : 'Get Started Free'}
               </button>
             )}
           </div>
@@ -508,7 +508,7 @@ function CTA({ isLoggedIn }: { isLoggedIn: boolean }) {
           Ready to grow your tiffin business?
         </h2>
         <p className="text-orange-100/70 text-lg mb-10 max-w-xl mx-auto">
-          Join tiffin providers who manage their kitchen business with Dabbr. Start your 30-day free trial today.
+          Join tiffin providers who manage their kitchen business with Dabbr. Get started free today.
         </p>
         {isLoggedIn ? (
           <Link
@@ -528,7 +528,7 @@ function CTA({ isLoggedIn }: { isLoggedIn: boolean }) {
           </button>
         )}
         <p className="mt-4 text-xs text-orange-100/50 font-medium">
-          No credit card. 30 days free. Cancel anytime.
+          No credit card. Free plan available. Cancel anytime.
         </p>
       </div>
     </section>

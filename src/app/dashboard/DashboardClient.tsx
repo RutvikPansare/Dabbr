@@ -1014,12 +1014,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               {greeting}, {providerName}
               <GreetingIcon className="w-5 h-5 text-yellow-300 shrink-0" strokeWidth={2.5} />
             </h1>
-            {trialDaysLeft !== null && (
-              <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border border-white/20 ${trialBadgeClass}`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-                {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft}d left` : 'Trial expired'}
-              </div>
-            )}
           </div>
           <button
             onClick={handleSignOut}
@@ -1040,11 +1034,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
           </h1>
         </div>
-        {trialDaysLeft !== null && (
-          <span className={`chip font-semibold ${trialDaysLeft <= 7 ? 'bg-red-50 text-red-600' : trialDaysLeft <= 20 ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-orange-600'}`}>
-            {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft}d left` : 'Trial expired'}
-          </span>
-        )}
       </div>
 
       {/* ── Scrollable content (mobile) / Document flow (desktop) ── */}

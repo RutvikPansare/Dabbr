@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown } from 'lucide-react'
+import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown, Sparkles } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: Home,        label: 'Home'      },
@@ -74,14 +74,14 @@ export default function SideNav() {
     >
       {/* ── Logo ─────────────────────────────────────────────────────── */}
       <div className="px-5 py-[18px]" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-        <div className="flex items-center gap-2.5">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-[10px] shrink-0 bg-orange-500">
             <span className="text-white text-[15px] font-black leading-none">D</span>
           </div>
           <span className="text-[17px] font-black text-gray-900 tracking-tight leading-none">
             Dabbr
           </span>
-        </div>
+        </Link>
       </div>
 
       {/* ── Navigation ───────────────────────────────────────────────── */}
@@ -120,6 +120,17 @@ export default function SideNav() {
           )
         })}
       </nav>
+
+      {/* ── Upgrade button ───────────────────────────────────────────── */}
+      <div className="px-3 pb-3">
+        <Link
+          href="/settings#billing"
+          className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all"
+        >
+          <Sparkles size={15} strokeWidth={2.5} className="shrink-0 text-white" />
+          <span className="text-[13.5px] font-black text-white leading-none">Upgrade plan</span>
+        </Link>
+      </div>
 
       {/* ── User profile footer ──────────────────────────────────────── */}
       <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }} ref={menuRef}>
