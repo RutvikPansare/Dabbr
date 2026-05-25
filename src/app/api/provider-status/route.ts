@@ -14,7 +14,7 @@ export async function GET() {
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('providers')
-      .select('is_subscribed, subscription_plan, subscription_status, subscription_current_period_end, plan_trial_ends_at')
+      .select('*')
       .eq('id', user.id)
       .single()
 

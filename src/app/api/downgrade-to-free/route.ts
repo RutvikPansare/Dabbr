@@ -29,7 +29,7 @@ export async function POST() {
       .from('providers')
       .update({
         subscription_plan: null,
-        subscription_status: null,
+        subscription_status: 'trial', // NOT NULL column — 'trial' is the DB default for free users
         is_subscribed: false,
       })
       .eq('id', user.id)

@@ -446,9 +446,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // Effective subscription data: live fetch wins over cached server data
   const subData = liveStatus ?? (provider as any)
 
-  // Derive plan trial info
+  // "On paid plan trial" = subscribed + plan_trial_ends_at set (not just subscription_status,
+  // because every new user's DB row defaults to subscription_status='trial' for the old 30-day trial)
   const planTrialInfo = (() => {
-    if (subData?.subscription_status !== 'trial' || !subData?.plan_trial_ends_at) return null
+    if (!subData?.is_subscribed || !subData?.plan_trial_ends_at) return null
     const msLeft = new Date(subData.plan_trial_ends_at).getTime() - Date.now()
     const daysLeft = Math.ceil(msLeft / 86_400_000)
     return { plan: subData.subscription_plan as string, daysLeft, expired: daysLeft <= 0 }
@@ -462,10 +463,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When live status arrives: auto-downgrade if trial expired, show one-time modal
+  // When live status arrives: auto-downgrade if paid trial expired, show one-time modal
   useEffect(() => {
     if (!liveStatus) return
-    if (liveStatus.subscription_status !== 'trial' || !liveStatus.plan_trial_ends_at) return
+    if (!liveStatus.is_subscribed || !liveStatus.plan_trial_ends_at) return
     const expired = new Date(liveStatus.plan_trial_ends_at) < new Date()
     if (!expired) return
 
@@ -892,15 +893,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     : trialDaysLeft > 7  ? 'bg-amber-400/25 text-amber-100'
     : 'bg-red-500/30 text-red-100'
 
-  // Current plan label — always shown (Free / Starter / Pro), trial handled separately
+  // Current plan label — always shown (Free / Starter / Pro), trial badge shown separately
   const activePlanName = (() => {
-    // During trial: handled by trialBadge, don't show plan name here
-    if (subData?.subscription_status === 'trial') return null
-    // Paid/subscribed: show plan name
+    // During active paid trial: trialBadge handles display
+    if (planTrialInfo && !planTrialInfo.expired) return null
+    // Paid plan active
     if (subData?.is_subscribed && isBillingPlanId(subData?.subscription_plan)) {
       return BILLING_PLANS[subData.subscription_plan as BillingPlanId].name
     }
-    // Free plan (default for all users)
+    // Free plan (is_subscribed=false — the default for all new users)
     return 'Free'
   })()
 

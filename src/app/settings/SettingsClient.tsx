@@ -1490,30 +1490,38 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             Subscribe to unlock more customers and features.
           </p>
 
-          {/* Current plan status */}
-          {activeBillingPlan && subData?.is_subscribed && subData?.subscription_status !== 'trial' ? (
-            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
-              <span className="text-lg shrink-0">✅</span>
-              <div>
-                <p className="text-sm font-black text-emerald-700">Active plan: Dabbr {activeBillingPlan.name}</p>
-                {billingRenewalDate && (
-                  <p className="mt-1 text-xs font-bold text-emerald-600">Renews {billingRenewalDate}</p>
-                )}
+          {/* Current plan status — driven by is_subscribed, not subscription_status
+              (every new user defaults to subscription_status='trial' in the DB for the
+               old 30-day system; real paid-trial is indicated by plan_trial_ends_at) */}
+          {(() => {
+            const isOnPaidTrial = subData?.is_subscribed && subData?.plan_trial_ends_at
+            const isActive = subData?.is_subscribed && !isOnPaidTrial
+            if (isActive && activeBillingPlan) return (
+              <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg shrink-0">✅</span>
+                <div>
+                  <p className="text-sm font-black text-emerald-700">Active plan: Dabbr {activeBillingPlan.name}</p>
+                  {billingRenewalDate && (
+                    <p className="mt-1 text-xs font-bold text-emerald-600">Renews {billingRenewalDate}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : subData?.subscription_status !== 'trial' && (
-            <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-3">
-              <span className="text-lg shrink-0">🆓</span>
-              <div>
-                <p className="text-sm font-black text-gray-700">Current plan: Dabbr Free</p>
-                <p className="text-xs font-semibold text-gray-400 mt-0.5">Up to 15 customers. Upgrade for more.</p>
+            )
+            if (!subData?.is_subscribed) return (
+              <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg shrink-0">🆓</span>
+                <div>
+                  <p className="text-sm font-black text-gray-700">Current plan: Dabbr Free</p>
+                  <p className="text-xs font-semibold text-gray-400 mt-0.5">Up to 15 customers. Upgrade for more.</p>
+                </div>
               </div>
-            </div>
-          )}
+            )
+            return null // on paid trial — trial banner below handles it
+          })()}
 
           {/* Plan trial status banner */}
           {(() => {
-            if (subData?.subscription_status !== 'trial' || !subData?.plan_trial_ends_at) return null
+            if (!subData?.is_subscribed || !subData?.plan_trial_ends_at) return null
             const daysLeft = Math.ceil((new Date(subData.plan_trial_ends_at).getTime() - Date.now()) / 86_400_000)
             const planName = activeBillingPlan?.name ?? subData?.subscription_plan
             if (daysLeft <= 0) return null
@@ -1536,7 +1544,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           )}
 
           {/* Pending / failed payment state */}
-          {latestTransaction && !subData?.is_subscribed && (() => {
+          {latestTransaction && !(subData?.is_subscribed && !subData?.plan_trial_ends_at) && (() => {
             const isPending = latestTransaction.status === 'pending'
             const isFailed  = latestTransaction.status === 'failed'
             const isPaid    = latestTransaction.status === 'paid'
@@ -1579,11 +1587,13 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           <div className="grid gap-3 sm:grid-cols-2">
             {(['starter', 'pro'] as BillingPlanId[]).map(planId => {
               const plan = BILLING_PLANS[planId]
-              const isThisPlanTrial  = subData?.subscription_plan === planId && subData?.subscription_status === 'trial'
-              const isThisPlanActive = subData?.subscription_plan === planId && subData?.is_subscribed && !isThisPlanTrial
-              const isAnyTrial       = subData?.subscription_status === 'trial'
-              const isAnyActive      = subData?.is_subscribed && !isAnyTrial
-              const canTrial         = !isAnyTrial && !isAnyActive
+              // "On paid trial" = subscribed + plan_trial_ends_at set (subscription_status
+              // defaults to 'trial' in the DB for all new free users — not a reliable gate)
+              const isOnPaidTrial    = subData?.is_subscribed && !!subData?.plan_trial_ends_at
+              const isThisPlanTrial  = subData?.subscription_plan === planId && isOnPaidTrial
+              const isThisPlanActive = subData?.subscription_plan === planId && subData?.is_subscribed && !isOnPaidTrial
+              const isAnyActive      = subData?.is_subscribed && !isOnPaidTrial
+              const canTrial         = !subData?.is_subscribed // only free users can start a trial
               return (
                 <div key={plan.id} className={`rounded-3xl p-4 border ${isThisPlanActive ? 'border-emerald-200 bg-emerald-50' : isThisPlanTrial ? 'border-orange-200 bg-orange-50' : 'border-orange-100 bg-[#FDF8F3]'}`}>
                   <div className="flex items-center justify-between">
