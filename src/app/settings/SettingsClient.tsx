@@ -124,14 +124,43 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     status: string; plan: string | null; paid_at: string | null; created_at: string
   } | null>(null)
 
+  // Billing ledger — paid transactions + refunds merged and sorted
+  type LedgerEntry =
+    | { kind: 'payment'; id: string; plan: string; amount: number; date: string; razorpay_payment_id: string | null }
+    | { kind: 'refund';  id: string; amount: number; reason: string | null; date: string; razorpay_refund_id: string | null }
+
+  const [ledger, setLedger] = useState<LedgerEntry[]>([])
+
   useEffect(() => {
-    db.from('billing_transactions')
-      .select('status, plan, paid_at, created_at')
-      .eq('provider_id', providerId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }: any) => { if (data) setLatestTransaction(data) })
+    async function fetchBillingData() {
+      const [{ data: txns }, { data: refunds }] = await Promise.all([
+        db.from('billing_transactions')
+          .select('id, status, plan, amount, paid_at, created_at, razorpay_payment_id')
+          .eq('provider_id', providerId)
+          .order('created_at', { ascending: false }),
+        db.from('billing_refunds')
+          .select('id, amount, reason, razorpay_refund_id, created_at')
+          .eq('provider_id', providerId)
+          .order('created_at', { ascending: false }),
+      ])
+
+      // Set latest transaction for pending/failed banner
+      if (txns && txns.length > 0) setLatestTransaction(txns[0])
+
+      // Build merged ledger
+      const entries: LedgerEntry[] = []
+      for (const t of (txns ?? [])) {
+        if (t.status === 'paid') {
+          entries.push({ kind: 'payment', id: t.id, plan: t.plan, amount: t.amount, date: t.paid_at ?? t.created_at, razorpay_payment_id: t.razorpay_payment_id })
+        }
+      }
+      for (const r of (refunds ?? [])) {
+        entries.push({ kind: 'refund', id: r.id, amount: r.amount, reason: r.reason, date: r.created_at, razorpay_refund_id: r.razorpay_refund_id })
+      }
+      entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      setLedger(entries)
+    }
+    fetchBillingData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1480,6 +1509,60 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
               )
             })}
           </div>
+
+          {/* ── Billing Ledger ── */}
+          {ledger.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-wide mb-3">Payment History</p>
+              <div className="rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                {ledger.map(entry => {
+                  const dateStr = new Date(entry.date).toLocaleDateString('en-IN', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                  })
+                  if (entry.kind === 'payment') {
+                    const planLabel = BILLING_PLANS[entry.plan as BillingPlanId]?.name ?? entry.plan
+                    return (
+                      <div key={entry.id} className="flex items-center gap-3 px-4 py-3 bg-white">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
+                          <span className="text-base">✅</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-gray-900">Dabbr {planLabel}</p>
+                          <p className="text-xs font-semibold text-gray-400">{dateStr}</p>
+                          {entry.razorpay_payment_id && (
+                            <p className="text-[10px] font-mono text-gray-300 truncate">{entry.razorpay_payment_id}</p>
+                          )}
+                        </div>
+                        <span className="text-sm font-black text-emerald-600 shrink-0">
+                          +₹{(entry.amount / 100).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    )
+                  } else {
+                    return (
+                      <div key={entry.id} className="flex items-center gap-3 px-4 py-3 bg-white">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50">
+                          <span className="text-base">↩️</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-gray-900">Refund</p>
+                          <p className="text-xs font-semibold text-gray-400">
+                            {dateStr}{entry.reason ? ` · ${entry.reason}` : ''}
+                          </p>
+                          {entry.razorpay_refund_id && (
+                            <p className="text-[10px] font-mono text-gray-300 truncate">{entry.razorpay_refund_id}</p>
+                          )}
+                        </div>
+                        <span className="text-sm font-black text-red-500 shrink-0">
+                          −₹{(entry.amount / 100).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    )
+                  }
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Danger zone */}

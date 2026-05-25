@@ -141,6 +141,30 @@ export interface Database {
           paid_at?: string | null
         }
       }
+      billing_refunds: {
+        Row: {
+          id: string
+          provider_id: string
+          transaction_id: string | null
+          amount: number
+          currency: string
+          reason: string | null
+          razorpay_refund_id: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          provider_id: string
+          transaction_id?: string | null
+          amount: number
+          currency?: string
+          reason?: string | null
+          razorpay_refund_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+      }
       customers: {
         Row: {
           id: string
