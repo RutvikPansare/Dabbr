@@ -15,6 +15,8 @@ import {
   quickTagPlanType,
 } from '@/lib/menu-quick-tags'
 import { DAY_NAMES } from '@/lib/holidays'
+import { BILLING_PLANS, BillingPlanId } from '@/lib/billing'
+import { useBillingCheckout } from '@/lib/use-billing-checkout'
 import CalendarPicker from './CalendarPicker'
 import HolidayCalendar from './HolidayCalendar'
 
@@ -32,6 +34,9 @@ interface Provider {
   off_days: number[]
   default_credit_limit: number
   default_meal_rate: number
+  subscription_plan?: BillingPlanId | null
+  subscription_status?: string | null
+  subscription_current_period_end?: string | null
 }
 
 interface ProviderHoliday {
@@ -110,6 +115,7 @@ function groupHolidays(holidays: ProviderHoliday[]): HolidayGroup[] {
 export default function SettingsClient({ providerId, provider, initialQuickTags, initialHolidays, initialRiders }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const { startCheckout, loadingPlan, error: billingError } = useBillingCheckout()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
@@ -182,6 +188,10 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [trackingSaving, setTrackingSaving] = useState(false)
   const [trackingSaved, setTrackingSaved] = useState(false)
   const [trackingError, setTrackingError] = useState('')
+  const activeBillingPlan = provider?.subscription_plan ? BILLING_PLANS[provider.subscription_plan] : null
+  const billingRenewalDate = provider?.subscription_current_period_end
+    ? new Date(provider.subscription_current_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null
 
   // Holidays & off-days
   const [offDays, setOffDays] = useState<number[]>(provider?.off_days ?? [])
@@ -1364,6 +1374,60 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             {riderError && (
               <p className="text-xs font-semibold text-red-500">{riderError}</p>
             )}
+          </div>
+        </div>
+
+        {/* Billing */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+          <h2 className="mb-2 text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+              <HandCoins className="w-4 h-4 text-orange-500" />
+            </span>
+            Billing
+          </h2>
+          <p className="mb-4 text-xs font-semibold text-gray-400">
+            Subscribe through Razorpay to keep Dabbr active after your trial.
+          </p>
+
+          {activeBillingPlan && provider?.subscription_status === 'active' && (
+            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+              <p className="text-sm font-black text-emerald-700">Active: Dabbr {activeBillingPlan.name}</p>
+              {billingRenewalDate && (
+                <p className="mt-1 text-xs font-bold text-emerald-600">Current period ends {billingRenewalDate}</p>
+              )}
+            </div>
+          )}
+
+          {billingError && (
+            <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+              {billingError}
+            </p>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(['starter', 'pro'] as BillingPlanId[]).map(planId => {
+              const plan = BILLING_PLANS[planId]
+              return (
+                <div key={plan.id} className="rounded-3xl border border-orange-100 bg-[#FDF8F3] p-4">
+                  <p className="text-sm font-black text-gray-900">Dabbr {plan.name}</p>
+                  <div className="mt-2 flex items-end gap-1">
+                    <span className="text-3xl font-black text-gray-900">₹{plan.amount}</span>
+                    <span className="mb-1 text-xs font-bold text-gray-400">/ month</span>
+                  </div>
+                  <p className="mt-2 text-xs font-semibold text-gray-400">
+                    {plan.id === 'starter' ? 'Best for early tiffin businesses.' : 'Best for growing kitchens.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => startCheckout(plan.id, 'app')}
+                    disabled={loadingPlan !== null}
+                    className="mt-4 w-full rounded-2xl bg-orange-500 py-3 text-xs font-black text-white shadow-sm disabled:bg-gray-300"
+                  >
+                    {loadingPlan === plan.id ? 'Opening Razorpay…' : `Subscribe ₹${plan.amount}/mo`}
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
 

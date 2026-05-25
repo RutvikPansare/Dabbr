@@ -42,7 +42,7 @@ export async function requestProviderOtp(
 export async function verifyProviderOtp(
   phone: string,
   otp: string,
-): Promise<{ ok: boolean; error?: string; magicLink?: string }> {
+): Promise<{ ok: boolean; error?: string; email?: string; tokenHash?: string; magicLink?: string }> {
   const result = await verifyOtp(phone, otp)
   if (!result.ok) return result
 
@@ -77,11 +77,16 @@ export async function verifyProviderOtp(
     options: { redirectTo: `${appUrl}/auth/callback` },
   })
 
-  if (linkErr || !linkData?.properties?.action_link) {
+  if (linkErr || !linkData?.properties?.action_link || !linkData.properties.hashed_token) {
     return { ok: false, error: 'Failed to generate sign-in link. Please try again.' }
   }
 
-  return { ok: true, magicLink: linkData.properties.action_link }
+  return {
+    ok: true,
+    email,
+    tokenHash: linkData.properties.hashed_token,
+    magicLink: linkData.properties.action_link,
+  }
 }
 
 // ── Google OAuth redirect (keep existing flow available) ─────────────────────

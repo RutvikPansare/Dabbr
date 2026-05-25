@@ -1,10 +1,11 @@
 'use client'
 
-// Hardcode your Razorpay payment page link here.
-// Replace with your actual Razorpay Payment Page URL after creating one.
-const RAZORPAY_LINK = 'https://rzp.io/l/dabbr-subscription'
+import { BILLING_PLANS } from '@/lib/billing'
+import { useBillingCheckout } from '@/lib/use-billing-checkout'
 
 export default function Paywall() {
+  const { startCheckout, loadingPlan, error } = useBillingCheckout()
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#FDF8F3] px-6 text-center">
       {/* Logo */}
@@ -20,10 +21,10 @@ export default function Paywall() {
       {/* Price card */}
       <div className="mt-8 w-full max-w-xs rounded-3xl bg-white p-6 shadow-md">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Dabbr Pro
+          Dabbr Starter
         </p>
         <div className="mt-2 flex items-end gap-1">
-          <span className="text-4xl font-black text-gray-900">₹399</span>
+          <span className="text-4xl font-black text-gray-900">₹{BILLING_PLANS.starter.amount}</span>
           <span className="mb-1 text-sm text-gray-400">/ month</span>
         </div>
         <ul className="mt-4 space-y-2 text-left text-sm text-gray-600">
@@ -39,15 +40,20 @@ export default function Paywall() {
         </ul>
       </div>
 
+      {error && (
+        <p className="mt-4 max-w-xs rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+          {error}
+        </p>
+      )}
+
       {/* CTA */}
-      <a
-        href={RAZORPAY_LINK}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        onClick={() => startCheckout('starter', 'paywall')}
+        disabled={loadingPlan !== null}
         className="mt-6 flex w-full max-w-xs items-center justify-center rounded-2xl bg-[#F4622A] py-4 text-base font-black text-white shadow-lg transition hover:bg-orange-600 active:scale-95"
       >
-        Subscribe Now — ₹399/mo
-      </a>
+        {loadingPlan === 'starter' ? 'Opening Razorpay…' : `Subscribe Now — ₹${BILLING_PLANS.starter.amount}/mo`}
+      </button>
 
       <p className="mt-4 text-xs text-gray-400">
         Already paid?{' '}

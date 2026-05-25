@@ -6,6 +6,10 @@ export type DeliveryStatus = 'delivered' | 'skipped'
 export type MealPlanStatus = 'active' | 'inactive'
 export type SubscriptionStatus = 'active' | 'paused' | 'cancelled'
 export type CancellationRequestStatus = 'pending' | 'approved' | 'rejected'
+export type AppBillingPlan = 'starter' | 'pro'
+export type AppSubscriptionStatus = 'trial' | 'active' | 'past_due' | 'cancelled'
+export type BillingTransactionStatus = 'created' | 'paid' | 'failed' | 'cancelled'
+export type BillingTransactionSource = 'landing' | 'app' | 'paywall'
 
 export interface Database {
   public: {
@@ -26,6 +30,10 @@ export interface Database {
           tagline: string | null
           support_whatsapp: string | null
           business_description: string | null
+          subscription_plan: AppBillingPlan | null
+          subscription_status: AppSubscriptionStatus
+          subscription_current_period_end: string | null
+          razorpay_customer_id: string | null
         }
         Insert: {
           id: string
@@ -42,6 +50,10 @@ export interface Database {
           tagline?: string | null
           support_whatsapp?: string | null
           business_description?: string | null
+          subscription_plan?: AppBillingPlan | null
+          subscription_status?: AppSubscriptionStatus
+          subscription_current_period_end?: string | null
+          razorpay_customer_id?: string | null
         }
         Update: {
           id?: string
@@ -58,6 +70,75 @@ export interface Database {
           tagline?: string | null
           support_whatsapp?: string | null
           business_description?: string | null
+          subscription_plan?: AppBillingPlan | null
+          subscription_status?: AppSubscriptionStatus
+          subscription_current_period_end?: string | null
+          razorpay_customer_id?: string | null
+        }
+      }
+      billing_transactions: {
+        Row: {
+          id: string
+          provider_id: string | null
+          plan: AppBillingPlan
+          source: BillingTransactionSource
+          amount: number
+          currency: string
+          status: BillingTransactionStatus
+          reference_id: string
+          razorpay_order_id: string | null
+          razorpay_payment_link_id: string | null
+          razorpay_payment_id: string | null
+          razorpay_event_id: string | null
+          payment_link_url: string | null
+          customer_email: string | null
+          customer_phone: string | null
+          raw_payload: unknown | null
+          created_at: string
+          updated_at: string
+          paid_at: string | null
+        }
+        Insert: {
+          id?: string
+          provider_id?: string | null
+          plan: AppBillingPlan
+          source?: BillingTransactionSource
+          amount: number
+          currency?: string
+          status?: BillingTransactionStatus
+          reference_id: string
+          razorpay_order_id?: string | null
+          razorpay_payment_link_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_event_id?: string | null
+          payment_link_url?: string | null
+          customer_email?: string | null
+          customer_phone?: string | null
+          raw_payload?: unknown | null
+          created_at?: string
+          updated_at?: string
+          paid_at?: string | null
+        }
+        Update: {
+          id?: string
+          provider_id?: string | null
+          plan?: AppBillingPlan
+          source?: BillingTransactionSource
+          amount?: number
+          currency?: string
+          status?: BillingTransactionStatus
+          reference_id?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_link_id?: string | null
+          razorpay_payment_id?: string | null
+          razorpay_event_id?: string | null
+          payment_link_url?: string | null
+          customer_email?: string | null
+          customer_phone?: string | null
+          raw_payload?: unknown | null
+          created_at?: string
+          updated_at?: string
+          paid_at?: string | null
         }
       }
       customers: {

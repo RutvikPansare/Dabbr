@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { BILLING_PLANS, BillingPlanId } from '@/lib/billing'
+import { useBillingCheckout } from '@/lib/use-billing-checkout'
 
 // ── Google Icon ───────────────────────────────────────────────────────────────
 function GoogleIcon() {
@@ -201,7 +203,7 @@ function Hero({ isLoggedIn }: { isLoggedIn: boolean }) {
         </div>
 
         <p className="mt-4 text-xs text-orange-200/40 font-medium">
-          Free for 30 days. Then ₹399/month. Cancel anytime.
+          Free for 30 days with up to 15 customers. Paid plans start at ₹200/month. Cancel anytime.
         </p>
 
         {/* Dashboard mockup */}
@@ -270,7 +272,7 @@ function Stats() {
   const items = [
     { value: '30', unit: 'days', label: 'Free trial, no card' },
     { value: '1-tap', unit: '', label: 'WhatsApp reminders' },
-    { value: '₹399', unit: '/mo', label: 'After trial ends' },
+    { value: '₹200', unit: '/mo', label: 'Starter plan' },
     { value: '100%', unit: '', label: 'Mobile-first design' },
   ]
   return (
@@ -376,13 +378,35 @@ function HowItWorks() {
 // ── Pricing ───────────────────────────────────────────────────────────────────
 function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
   const { signIn, loading } = useSignIn()
+  const { startCheckout, loadingPlan, error } = useBillingCheckout()
   const trialFeatures = [
-    'Unlimited customers',
+    'Up to 15 customers',
     'Daily delivery tracking',
     'Payment recording',
     'WhatsApp reminders',
     'Pause management',
     'Copy delivery list',
+  ]
+  const paidPlans: Array<{
+    id: BillingPlanId
+    badge: string
+    features: string[]
+    featured?: boolean
+    cta: string
+  }> = [
+    {
+      id: 'starter',
+      badge: 'Starter',
+      features: ['Up to 50 customers', 'Daily delivery tracking', 'Payments and reminders', 'Menu planner'],
+      cta: 'Get Starter Plan',
+    },
+    {
+      id: 'pro',
+      badge: 'Best for growing kitchens',
+      features: ['Everything in Starter', 'Unlimited customers', 'Meal plans and subscriptions', 'Priority support'],
+      featured: true,
+      cta: 'Get Pro Plan',
+    },
   ]
   return (
     <section id="pricing" className="relative bg-[#160800] py-24 px-5 overflow-hidden">
@@ -397,7 +421,7 @@ function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
             Start free. Stay only if you love it.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {/* Trial */}
           <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm p-8 flex flex-col">
             <h3 className="text-xl font-bold text-white mb-1">Free Trial</h3>
@@ -424,35 +448,49 @@ function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
             )}
           </div>
 
-          {/* Pro */}
-          <div className="relative rounded-3xl border border-[#F4622A]/50 bg-gradient-to-br from-[#F4622A]/20 to-orange-900/20 p-8 flex flex-col shadow-[0_0_40px_rgba(244,98,42,0.15)]">
-            <div className="absolute -top-3 right-6 bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
-              After Trial
-            </div>
-            <h3 className="text-xl font-bold text-white mb-1">Dabbr Pro</h3>
-            <div className="flex items-end gap-1 mb-6">
-              <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#FF7B3F] to-[#FFB347]">₹399</span>
-              <span className="text-orange-200/50 mb-2">/ month</span>
-            </div>
-            <ul className="flex-1 space-y-3 mb-8">
-              {['Everything in Free Trial', 'Priority support', 'New features first', 'Cancel anytime'].map(f => (
-                <li key={f} className="flex items-center gap-3 text-orange-100/70 text-sm">
-                  <span className="text-orange-400 text-base">✦</span>
-                  {f}
-                </li>
-              ))}
-            </ul>
-            {isLoggedIn ? (
-              <Link href="/dashboard" className="block w-full text-center py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] hover:-translate-y-0.5 transition-all shadow-lg shadow-orange-900/40">
-                Go to Dashboard →
-              </Link>
-            ) : (
-              <button onClick={signIn} disabled={loading} className="w-full py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] hover:-translate-y-0.5 transition-all shadow-lg shadow-orange-900/40 disabled:opacity-60">
-                {loading ? 'Signing in…' : 'Start Free, Upgrade Later'}
-              </button>
-            )}
-          </div>
+          {paidPlans.map(planConfig => {
+            const plan = BILLING_PLANS[planConfig.id]
+            return (
+              <div
+                key={plan.id}
+                className={`relative rounded-3xl p-8 flex flex-col ${
+                  planConfig.featured
+                    ? 'border border-[#F4622A]/50 bg-gradient-to-br from-[#F4622A]/20 to-orange-900/20 shadow-[0_0_40px_rgba(244,98,42,0.15)]'
+                    : 'border border-white/10 bg-white/5 backdrop-blur-sm'
+                }`}
+              >
+                <div className="absolute -top-3 right-6 bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
+                  {planConfig.badge}
+                </div>
+                <h3 className="text-xl font-bold text-white mb-1">Dabbr {plan.name}</h3>
+                <div className="flex items-end gap-1 mb-6">
+                  <span className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#FF7B3F] to-[#FFB347]">₹{plan.amount}</span>
+                  <span className="text-orange-200/50 mb-2">/ month</span>
+                </div>
+                <ul className="flex-1 space-y-3 mb-8">
+                  {planConfig.features.map(f => (
+                    <li key={f} className="flex items-center gap-3 text-orange-100/70 text-sm">
+                      <span className="text-orange-400 text-base">✦</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => startCheckout(plan.id, 'landing')}
+                  disabled={loadingPlan !== null}
+                  className="w-full py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] hover:-translate-y-0.5 transition-all shadow-lg shadow-orange-900/40 disabled:opacity-60"
+                >
+                  {loadingPlan === plan.id ? 'Opening Razorpay…' : planConfig.cta}
+                </button>
+              </div>
+            )
+          })}
         </div>
+        {error && (
+          <p className="mx-auto mt-5 max-w-lg rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-center text-sm font-semibold text-red-100">
+            {error}
+          </p>
+        )}
       </div>
     </section>
   )
@@ -535,15 +573,33 @@ export default function LandingPage({
   isLoggedIn: boolean
   userEmail: string | null
 }) {
+  const [clientLoggedIn, setClientLoggedIn] = useState(isLoggedIn)
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    supabase.auth.getSession().then(({ data }) => {
+      setClientLoggedIn(!!data.session)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setClientLoggedIn(!!session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <div className="min-h-screen">
-      <Navbar isLoggedIn={isLoggedIn} />
-      <Hero isLoggedIn={isLoggedIn} />
+      <Navbar isLoggedIn={clientLoggedIn} />
+      <Hero isLoggedIn={clientLoggedIn} />
       <Stats />
       <Features />
       <HowItWorks />
-      <Pricing isLoggedIn={isLoggedIn} />
-      <CTA isLoggedIn={isLoggedIn} />
+      <Pricing isLoggedIn={clientLoggedIn} />
+      <CTA isLoggedIn={clientLoggedIn} />
       <Footer />
     </div>
   )

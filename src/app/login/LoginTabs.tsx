@@ -49,7 +49,23 @@ export default function LoginForm() {
     startTransition(async () => {
       const res = await verifyProviderOtp(normalizedPhone, otp)
       if (!res.ok) { setError(res.error ?? 'Verification failed.'); return }
-      window.location.href = res.magicLink!
+      if (!res.email || !res.tokenHash) {
+        setError('Could not complete sign in. Please request a new code.')
+        return
+      }
+
+      const { error: sbError } = await supabase.auth.verifyOtp({
+        email: res.email,
+        token_hash: res.tokenHash,
+        type: 'magiclink',
+      })
+
+      if (sbError) {
+        setError(sbError.message || 'Could not complete sign in. Please try again.')
+        return
+      }
+
+      window.location.href = '/dashboard'
     })
   }
 

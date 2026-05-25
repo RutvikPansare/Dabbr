@@ -10,7 +10,13 @@ create table public.providers (
   phone       text,
   name        text not null,
   upi_id      text,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  trial_started_at timestamptz default now(),
+  is_subscribed boolean not null default false,
+  subscription_plan text check (subscription_plan in ('starter', 'pro')),
+  subscription_status text not null default 'trial' check (subscription_status in ('trial', 'active', 'past_due', 'cancelled')),
+  subscription_current_period_end timestamptz,
+  razorpay_customer_id text
 );
 
 alter table public.providers enable row level security;
@@ -20,6 +26,39 @@ create policy "providers: own row only"
   for all
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+-- ============================================================
+-- BILLING TRANSACTIONS
+-- Razorpay-hosted payment links and webhook receipts.
+-- ============================================================
+create table public.billing_transactions (
+  id uuid primary key default uuid_generate_v4(),
+  provider_id uuid references public.providers(id) on delete set null,
+  plan text not null check (plan in ('starter', 'pro')),
+  source text not null default 'app' check (source in ('landing', 'app', 'paywall')),
+  amount integer not null,
+  currency text not null default 'INR',
+  status text not null default 'created' check (status in ('created', 'paid', 'failed', 'cancelled')),
+  reference_id text not null unique,
+  razorpay_order_id text unique,
+  razorpay_payment_link_id text unique,
+  razorpay_payment_id text,
+  razorpay_event_id text unique,
+  payment_link_url text,
+  customer_email text,
+  customer_phone text,
+  raw_payload jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+
+alter table public.billing_transactions enable row level security;
+
+create policy "billing_transactions: provider reads own"
+  on public.billing_transactions
+  for select
+  using (provider_id = auth.uid());
 
 -- ============================================================
 -- CUSTOMERS

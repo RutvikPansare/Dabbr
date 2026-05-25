@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import LandingPage from './LandingPage'
 import CapacitorLandingGuard from './CapacitorLandingGuard'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   const supabase = await createClient()
   const {

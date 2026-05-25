@@ -2,7 +2,7 @@
  * OTP generation, hashing, and dispatch for customer phone auth.
  *
  * SMS provider is configured via SMS_PROVIDER env var:
- *   console    (default/dev) — logs OTP to server console
+ *   console    (default) — logs OTP to server console
  *   twofactor  — 2Factor.in  (recommended for India, cheapest)
  *   msg91      — MSG91
  *   twilio     — Twilio
@@ -57,13 +57,27 @@ export async function sendOtp(
   const hash = await hashOtp(otp)
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
-  await db.from('customer_otps').insert({
+  const { data: insertedOtp, error: insertError } = await db.from('customer_otps').insert({
     phone,
     otp_hash: hash,
     expires_at: expiresAt,
-  })
+  }).select('id').single()
 
-  await dispatchSms(phone, otp)
+  if (insertError) {
+    return { ok: false, error: 'Could not create verification code. Please try again.' }
+  }
+
+  const smsResult = await dispatchSms(phone, otp)
+  if (!smsResult.ok) {
+    if (insertedOtp?.id) {
+      await db.from('customer_otps').update({ used: true }).eq('id', insertedOtp.id)
+    }
+    return {
+      ok: false,
+      error: smsResult.error ?? 'Could not send verification code. Please try again.',
+    }
+  }
+
   return { ok: true }
 }
 
@@ -114,31 +128,46 @@ export async function verifyOtp(
 
 // ── SMS dispatch ──────────────────────────────────────────────────────────────
 
-async function dispatchSms(phone: string, otp: string) {
+async function dispatchSms(phone: string, otp: string): Promise<{ ok: boolean; error?: string }> {
   const provider = process.env.SMS_PROVIDER ?? 'console'
 
-  if (provider === 'console' || process.env.NODE_ENV !== 'production') {
+  if (provider === 'console') {
     console.log(`\n🔐 [OTP] ${phone} → ${otp}\n`)
-    return
+    return { ok: true }
   }
 
   if (provider === 'twofactor') {
     // 2Factor.in — simple GET API, no DLT template required for transactional OTPs
     // Phone: 10-digit Indian number (strip country code)
-    const apiKey = process.env.TWOFACTOR_API_KEY!
+    const apiKey = process.env.TWOFACTOR_API_KEY
+    if (!apiKey || apiKey === 'your_2factor_api_key_here') {
+      return { ok: false, error: '2Factor API key is not configured.' }
+    }
+
     const digits = phone.replace(/\D/g, '').slice(-10)
     const templateName = process.env.TWOFACTOR_TEMPLATE_NAME ?? 'AUTOGEN' // AUTOGEN = 2Factor default OTP template
-    await fetch(
+    const response = await fetch(
       `https://2factor.in/API/V1/${apiKey}/SMS/${digits}/${otp}/${templateName}`,
       { method: 'GET' },
     )
-    return
+    const body = await response.text()
+
+    if (!response.ok || !body.toLowerCase().includes('success')) {
+      console.error('[OTP] 2Factor send failed:', body)
+      return { ok: false, error: 'SMS provider could not send the OTP.' }
+    }
+
+    return { ok: true }
   }
 
   if (provider === 'msg91') {
-    const authKey = process.env.MSG91_AUTH_KEY!
-    const templateId = process.env.MSG91_TEMPLATE_ID!
-    await fetch('https://control.msg91.com/api/v5/otp', {
+    const authKey = process.env.MSG91_AUTH_KEY
+    const templateId = process.env.MSG91_TEMPLATE_ID
+    if (!authKey || !templateId) {
+      return { ok: false, error: 'MSG91 credentials are not configured.' }
+    }
+
+    const response = await fetch('https://control.msg91.com/api/v5/otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', authkey: authKey },
       body: JSON.stringify({
@@ -147,14 +176,23 @@ async function dispatchSms(phone: string, otp: string) {
         otp,
       }),
     })
-    return
+    if (!response.ok) {
+      console.error('[OTP] MSG91 send failed:', await response.text())
+      return { ok: false, error: 'SMS provider could not send the OTP.' }
+    }
+
+    return { ok: true }
   }
 
   if (provider === 'twilio') {
-    const sid = process.env.TWILIO_ACCOUNT_SID!
-    const token = process.env.TWILIO_AUTH_TOKEN!
-    const from = process.env.TWILIO_FROM_NUMBER!
-    await fetch(
+    const sid = process.env.TWILIO_ACCOUNT_SID
+    const token = process.env.TWILIO_AUTH_TOKEN
+    const from = process.env.TWILIO_FROM_NUMBER
+    if (!sid || !token || !from) {
+      return { ok: false, error: 'Twilio credentials are not configured.' }
+    }
+
+    const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
       {
         method: 'POST',
@@ -169,6 +207,13 @@ async function dispatchSms(phone: string, otp: string) {
         }),
       },
     )
-    return
+    if (!response.ok) {
+      console.error('[OTP] Twilio send failed:', await response.text())
+      return { ok: false, error: 'SMS provider could not send the OTP.' }
+    }
+
+    return { ok: true }
   }
+
+  return { ok: false, error: `Unsupported SMS provider: ${provider}` }
 }
