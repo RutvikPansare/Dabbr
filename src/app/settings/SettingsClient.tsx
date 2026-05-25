@@ -154,34 +154,47 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
   useEffect(() => {
     async function fetchBillingData() {
-      const [{ data: txns }, { data: refunds }] = await Promise.all([
-        db.from('billing_transactions')
-          .select('id, status, plan, amount, paid_at, created_at, razorpay_payment_id')
-          .eq('provider_id', providerId)
-          .order('created_at', { ascending: false }),
-        db.from('billing_refunds')
-          .select('id, amount, reason, razorpay_refund_id, created_at')
-          .eq('provider_id', providerId)
-          .order('created_at', { ascending: false }),
-      ])
+      try {
+        const res = await fetch('/api/billing-history')
+        if (!res.ok) return
+        const { txns, refunds, latestTransaction: latest } = await res.json()
 
-      // Set latest transaction for pending/failed banner
-      if (txns && txns.length > 0) setLatestTransaction(txns[0])
+        // Set latest transaction for pending/failed banner
+        if (latest) setLatestTransaction(latest)
 
-      // Build merged ledger
-      const entries: LedgerEntry[] = []
-      for (const t of (txns ?? [])) {
-        if (t.status === 'paid') {
-          entries.push({ kind: 'payment', id: t.id, plan: t.plan, amount: t.amount, date: t.paid_at ?? t.created_at, razorpay_payment_id: t.razorpay_payment_id })
+        // Build merged ledger
+        const entries: LedgerEntry[] = []
+        for (const t of (txns ?? [])) {
+          if (t.status === 'paid') {
+            entries.push({ kind: 'payment', id: t.id, plan: t.plan, amount: t.amount, date: t.paid_at ?? t.created_at, razorpay_payment_id: t.razorpay_payment_id })
+          }
         }
+        for (const r of (refunds ?? [])) {
+          entries.push({ kind: 'refund', id: r.id, amount: r.amount, reason: r.reason, date: r.created_at, razorpay_refund_id: r.razorpay_refund_id })
+        }
+        entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        setLedger(entries)
+      } catch {
+        // silently ignore — non-critical
       }
-      for (const r of (refunds ?? [])) {
-        entries.push({ kind: 'refund', id: r.id, amount: r.amount, reason: r.reason, date: r.created_at, razorpay_refund_id: r.razorpay_refund_id })
-      }
-      entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      setLedger(entries)
     }
     fetchBillingData()
+
+    // Scroll to hash on mount (handles /settings#billing navigation)
+    const hash = window.location.hash
+    if (hash) {
+      const el = document.getElementById(hash.slice(1))
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120)
+      }
+    }
+    // Also handle in-page hash changes (e.g. clicking Upgrade plan while on settings)
+    function onHashChange() {
+      const el = document.getElementById(window.location.hash.slice(1))
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1455,12 +1468,15 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             Subscribe through Razorpay to keep Dabbr active after your trial.
           </p>
 
-          {activeBillingPlan && provider?.subscription_status === 'active' && (
-            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-              <p className="text-sm font-black text-emerald-700">Active: Dabbr {activeBillingPlan.name}</p>
-              {billingRenewalDate && (
-                <p className="mt-1 text-xs font-bold text-emerald-600">Current period ends {billingRenewalDate}</p>
-              )}
+          {activeBillingPlan && (provider as any)?.is_subscribed && (provider as any)?.subscription_status !== 'trial' && (
+            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+              <span className="text-lg shrink-0">✅</span>
+              <div>
+                <p className="text-sm font-black text-emerald-700">Active plan: Dabbr {activeBillingPlan.name}</p>
+                {billingRenewalDate && (
+                  <p className="mt-1 text-xs font-bold text-emerald-600">Renews {billingRenewalDate}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -1490,7 +1506,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           )}
 
           {/* Pending / failed payment state */}
-          {latestTransaction && provider?.subscription_status !== 'active' && (() => {
+          {latestTransaction && !(provider as any)?.is_subscribed && (() => {
             const isPending = latestTransaction.status === 'pending'
             const isFailed  = latestTransaction.status === 'failed'
             const isPaid    = latestTransaction.status === 'paid'
@@ -1534,10 +1550,10 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             {(['starter', 'pro'] as BillingPlanId[]).map(planId => {
               const plan = BILLING_PLANS[planId]
               const p = provider as any
-              const isThisPlanActive = p?.subscription_plan === planId && p?.subscription_status === 'active'
               const isThisPlanTrial  = p?.subscription_plan === planId && p?.subscription_status === 'trial'
+              const isThisPlanActive = p?.subscription_plan === planId && p?.is_subscribed && !isThisPlanTrial
               const isAnyTrial       = p?.subscription_status === 'trial'
-              const isAnyActive      = p?.subscription_status === 'active' && p?.is_subscribed
+              const isAnyActive      = p?.is_subscribed && !isAnyTrial
               const canTrial         = !isAnyTrial && !isAnyActive
               return (
                 <div key={plan.id} className={`rounded-3xl p-4 border ${isThisPlanActive ? 'border-emerald-200 bg-emerald-50' : isThisPlanTrial ? 'border-orange-200 bg-orange-50' : 'border-orange-100 bg-[#FDF8F3]'}`}>
