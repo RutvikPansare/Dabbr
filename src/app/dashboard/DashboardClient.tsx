@@ -1292,7 +1292,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           )}
 
           {/* ── Packing List ───────────────────────────────────────────── */}
-          {deliveryToday.length > 0 && (
+          {!todayHoliday && deliveryToday.length > 0 && (
             <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
 
               {/* Header */}
@@ -1511,7 +1511,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           )}
 
           {/* ── Today's delivery list — everything in one card ── */}
-          <section className="mb-8">
+          {!todayHoliday && <section className="mb-8">
           <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
 
             {/* ── Card header ── */}
@@ -1812,7 +1812,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             )}
 
           </div>
-          </section>
+          </section>}
 
           {/* ── Summary — mobile only (desktop shows in sidebar) ── */}
           <div className="lg:hidden">
