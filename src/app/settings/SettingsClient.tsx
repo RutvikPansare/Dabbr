@@ -116,6 +116,27 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const router = useRouter()
   const supabase = createClient()
   const { startCheckout, loadingPlan, error: billingError } = useBillingCheckout()
+  const [startingTrial, setStartingTrial] = useState<string | null>(null)
+  const [trialError, setTrialError] = useState<string | null>(null)
+
+  async function handleStartTrial(planId: string) {
+    setStartingTrial(planId)
+    setTrialError(null)
+    try {
+      const res = await fetch('/api/start-plan-trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setTrialError(json.error ?? 'Could not start trial'); return }
+      router.refresh()
+    } catch {
+      setTrialError('Something went wrong')
+    } finally {
+      setStartingTrial(null)
+    }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
@@ -1443,6 +1464,31 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             </div>
           )}
 
+          {/* Plan trial status banner */}
+          {(() => {
+            const p = provider as any
+            if (p?.subscription_status !== 'trial' || !p?.plan_trial_ends_at) return null
+            const daysLeft = Math.ceil((new Date(p.plan_trial_ends_at).getTime() - Date.now()) / 86_400_000)
+            const planName = activeBillingPlan?.name ?? p.subscription_plan
+            if (daysLeft <= 0) return null
+            const urgent = daysLeft <= 1
+            const warn   = daysLeft <= 3
+            return (
+              <div className={`mb-4 rounded-2xl px-4 py-3 border ${urgent ? 'bg-red-50 border-red-100' : warn ? 'bg-amber-50 border-amber-100' : 'bg-orange-50 border-orange-100'}`}>
+                <p className={`text-sm font-black ${urgent ? 'text-red-700' : warn ? 'text-amber-800' : 'text-orange-800'}`}>
+                  {urgent ? '⚠️' : '⏱️'} Dabbr {planName} trial — {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                </p>
+                <p className={`text-xs font-semibold mt-0.5 ${urgent ? 'text-red-600' : warn ? 'text-amber-600' : 'text-orange-600'}`}>
+                  Subscribe below to keep your plan active after the trial ends.
+                </p>
+              </div>
+            )
+          })()}
+
+          {trialError && (
+            <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{trialError}</p>
+          )}
+
           {/* Pending / failed payment state */}
           {latestTransaction && provider?.subscription_status !== 'active' && (() => {
             const isPending = latestTransaction.status === 'pending'
@@ -1487,9 +1533,19 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           <div className="grid gap-3 sm:grid-cols-2">
             {(['starter', 'pro'] as BillingPlanId[]).map(planId => {
               const plan = BILLING_PLANS[planId]
+              const p = provider as any
+              const isThisPlanActive = p?.subscription_plan === planId && p?.subscription_status === 'active'
+              const isThisPlanTrial  = p?.subscription_plan === planId && p?.subscription_status === 'trial'
+              const isAnyTrial       = p?.subscription_status === 'trial'
+              const isAnyActive      = p?.subscription_status === 'active' && p?.is_subscribed
+              const canTrial         = !isAnyTrial && !isAnyActive
               return (
-                <div key={plan.id} className="rounded-3xl border border-orange-100 bg-[#FDF8F3] p-4">
-                  <p className="text-sm font-black text-gray-900">Dabbr {plan.name}</p>
+                <div key={plan.id} className={`rounded-3xl p-4 border ${isThisPlanActive ? 'border-emerald-200 bg-emerald-50' : isThisPlanTrial ? 'border-orange-200 bg-orange-50' : 'border-orange-100 bg-[#FDF8F3]'}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-black text-gray-900">Dabbr {plan.name}</p>
+                    {isThisPlanActive && <span className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Active</span>}
+                    {isThisPlanTrial  && <span className="text-[10px] font-black text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">Trial</span>}
+                  </div>
                   <div className="mt-2 flex items-end gap-1">
                     <span className="text-3xl font-black text-gray-900">₹{plan.amount}</span>
                     <span className="mb-1 text-xs font-bold text-gray-400">/ month</span>
@@ -1497,13 +1553,25 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                   <p className="mt-2 text-xs font-semibold text-gray-400">
                     {plan.id === 'starter' ? 'Best for early tiffin businesses.' : 'Best for growing kitchens.'}
                   </p>
+                  {/* Trial button — shown when user is free and hasn't trialed */}
+                  {canTrial && (
+                    <button
+                      type="button"
+                      onClick={() => handleStartTrial(planId)}
+                      disabled={startingTrial !== null}
+                      className="mt-3 w-full rounded-2xl bg-orange-100 py-2.5 text-xs font-black text-orange-700 hover:bg-orange-200 active:scale-95 transition-all disabled:opacity-60"
+                    >
+                      {startingTrial === planId ? 'Starting…' : 'Try free for 7 days'}
+                    </button>
+                  )}
+                  {/* Subscribe button */}
                   <button
                     type="button"
                     onClick={() => startCheckout(plan.id, 'app')}
-                    disabled={loadingPlan !== null}
-                    className="mt-4 w-full rounded-2xl bg-orange-500 py-3 text-xs font-black text-white shadow-sm disabled:bg-gray-300"
+                    disabled={loadingPlan !== null || startingTrial !== null}
+                    className="mt-2 w-full rounded-2xl bg-orange-500 py-2.5 text-xs font-black text-white shadow-sm disabled:bg-gray-300 active:scale-95 transition-all"
                   >
-                    {loadingPlan === plan.id ? 'Opening Razorpay…' : `Subscribe ₹${plan.amount}/mo`}
+                    {loadingPlan === plan.id ? 'Opening Razorpay…' : isThisPlanTrial ? `Subscribe ₹${plan.amount}/mo` : isThisPlanActive ? `Renew ₹${plan.amount}/mo` : `Subscribe ₹${plan.amount}/mo`}
                   </button>
                 </div>
               )

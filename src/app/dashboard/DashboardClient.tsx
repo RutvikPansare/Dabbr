@@ -430,6 +430,39 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(initialData.trial.trialDaysLeft)
   const [isExpired, setIsExpired] = useState(initialData.trial.isExpired)
   const [loading, setLoading] = useState(false)
+
+  // ── Plan trial state ──────────────────────────────────────────────────────
+  const [showTrialEndedModal, setShowTrialEndedModal] = useState(false)
+
+  // Derive plan trial info from provider
+  const planTrialInfo = (() => {
+    const p = provider as any
+    if (p?.subscription_status !== 'trial' || !p?.plan_trial_ends_at) return null
+    const msLeft = new Date(p.plan_trial_ends_at).getTime() - Date.now()
+    const daysLeft = Math.ceil(msLeft / 86_400_000)
+    return { plan: p.subscription_plan as string, daysLeft, expired: daysLeft <= 0 }
+  })()
+
+  // On mount: auto-downgrade if trial expired, then show one-time modal
+  useEffect(() => {
+    const p = provider as any
+    if (p?.subscription_status !== 'trial' || !p?.plan_trial_ends_at) return
+    const expired = new Date(p.plan_trial_ends_at) < new Date()
+    if (!expired) return
+
+    // Auto-downgrade
+    fetch('/api/downgrade-to-free', { method: 'POST' }).then(r => {
+      if (r.ok) router.refresh()
+    })
+
+    // Show one-time modal (keyed by trial end date so a new trial can show again)
+    const key = `dabbr_trial_ended_${userId}_${p.plan_trial_ends_at}`
+    if (!localStorage.getItem(key)) {
+      setShowTrialEndedModal(true)
+      localStorage.setItem(key, '1')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
   const todayMenus: TodayMenu[] = initialData.todayMenus ?? []
@@ -847,6 +880,21 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     return null
   })()
 
+  // Plan trial badge label + colour
+  const trialBadge = (() => {
+    if (!planTrialInfo || planTrialInfo.expired) return null
+    const planName = isBillingPlanId(planTrialInfo.plan) ? BILLING_PLANS[planTrialInfo.plan as BillingPlanId].name : planTrialInfo.plan
+    const d = planTrialInfo.daysLeft
+    const label = d <= 1 ? `Trial ends today` : `Trial: ${d}d left`
+    const cls = d <= 1 ? 'bg-red-500/25 text-red-100 border-red-400/30'
+               : d <= 3 ? 'bg-amber-400/25 text-amber-100 border-amber-400/30'
+               : 'bg-white/15 text-white border-white/20'
+    const clsDesktop = d <= 1 ? 'bg-red-50 text-red-600'
+                      : d <= 3 ? 'bg-amber-50 text-amber-700'
+                      : 'bg-orange-50 text-orange-600'
+    return { planName, label, cls, clsDesktop }
+  })()
+
   // Workspace customers: slot-filtered when in a workspace, all customers in overview
   const workspaceCustomers = slotFilter === 'all'
     ? deliveryToday
@@ -1023,10 +1071,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               {greeting}, {providerName}
               <GreetingIcon className="w-5 h-5 text-yellow-300 shrink-0" strokeWidth={2.5} />
             </h1>
-            {activePlanName && (
+            {activePlanName && !trialBadge && (
               <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border border-white/20 bg-white/15 text-white">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
                 Dabbr {activePlanName}
+              </div>
+            )}
+            {trialBadge && (
+              <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${trialBadge.cls}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                {trialBadge.planName} · {trialBadge.label}
               </div>
             )}
           </div>
@@ -1049,10 +1103,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
           </h1>
         </div>
-        {activePlanName && (
+        {activePlanName && !trialBadge && (
           <span className="chip font-semibold bg-emerald-50 text-emerald-600 flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             Dabbr {activePlanName}
+          </span>
+        )}
+        {trialBadge && (
+          <span className={`chip font-semibold flex items-center gap-1.5 ${trialBadge.clsDesktop}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+            {trialBadge.planName} · {trialBadge.label}
           </span>
         )}
       </div>
@@ -1516,6 +1576,27 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 ))}
               </div>
             </section>
+          )}
+
+          {/* ── Plan trial upgrade banner (3d / 1d warning) ── */}
+          {planTrialInfo && !planTrialInfo.expired && planTrialInfo.daysLeft <= 3 && (
+            <div className={`rounded-2xl px-4 py-4 flex items-center gap-3 mb-2 ${planTrialInfo.daysLeft <= 1 ? 'bg-red-50 border border-red-100' : 'bg-amber-50 border border-amber-100'}`}>
+              <span className="text-2xl shrink-0">{planTrialInfo.daysLeft <= 1 ? '🚨' : '⚠️'}</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-black ${planTrialInfo.daysLeft <= 1 ? 'text-red-800' : 'text-amber-800'}`}>
+                  {planTrialInfo.daysLeft <= 1 ? 'Trial ends today!' : `Trial ends in ${planTrialInfo.daysLeft} days`}
+                </p>
+                <p className={`text-xs font-semibold mt-0.5 ${planTrialInfo.daysLeft <= 1 ? 'text-red-600' : 'text-amber-600'}`}>
+                  Subscribe to keep your {isBillingPlanId(planTrialInfo.plan) ? BILLING_PLANS[planTrialInfo.plan as BillingPlanId].name : planTrialInfo.plan} features.
+                </p>
+              </div>
+              <button
+                onClick={() => router.push('/settings#billing')}
+                className={`shrink-0 rounded-2xl px-4 py-2 text-xs font-black text-white active:scale-95 transition-all ${planTrialInfo.daysLeft <= 1 ? 'bg-red-500' : 'bg-amber-500'}`}
+              >
+                Upgrade
+              </button>
+            </div>
           )}
 
           {/* ── Holiday banner ── */}
@@ -2002,6 +2083,33 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           manageCustomersButton
           blocking
         />
+      )}
+
+      {/* ── Plan trial ended modal (shown once after downgrade) ── */}
+      {showTrialEndedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl p-6">
+            <div className="text-4xl text-center mb-3">⏰</div>
+            <h2 className="text-center text-lg font-black text-gray-900 mb-1">Your trial has ended</h2>
+            <p className="text-center text-sm text-gray-500 mb-6">
+              Your paid plan trial has expired and you&apos;ve been moved back to the free plan. Subscribe to keep all your features.
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => { setShowTrialEndedModal(false); router.push('/settings#billing') }}
+                className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white active:scale-95 transition-all"
+              >
+                See plans & subscribe
+              </button>
+              <button
+                onClick={() => setShowTrialEndedModal(false)}
+                className="w-full rounded-2xl border border-gray-200 py-3.5 text-sm font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+              >
+                Stay on free plan
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Customer quick-view modal ── */}
