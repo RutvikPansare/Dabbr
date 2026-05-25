@@ -15,7 +15,7 @@ import {
   quickTagPlanType,
 } from '@/lib/menu-quick-tags'
 import { DAY_NAMES } from '@/lib/holidays'
-import { BILLING_PLANS, BillingPlanId } from '@/lib/billing'
+import { BILLING_PLANS, BillingPlanId, isBillingPlanId } from '@/lib/billing'
 import { useBillingCheckout } from '@/lib/use-billing-checkout'
 import CalendarPicker from './CalendarPicker'
 import HolidayCalendar from './HolidayCalendar'
@@ -285,10 +285,12 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   // Use live data when available, fall back to server-provided provider
   const subData = liveStatus ?? (provider as any)
 
+  // Show billing plan when: subscription_plan is a known plan AND either status='active' or is_subscribed
   const activeBillingPlan = (() => {
     const plan = subData?.subscription_plan
-    if (plan && BILLING_PLANS[plan as BillingPlanId]) return BILLING_PLANS[plan as BillingPlanId]
-    return null
+    if (!plan || !BILLING_PLANS[plan as BillingPlanId]) return null
+    const isActive = subData?.subscription_status === 'active' || subData?.is_subscribed
+    return isActive ? BILLING_PLANS[plan as BillingPlanId] : null
   })()
   const billingRenewalDate = subData?.subscription_current_period_end
     ? new Date(subData.subscription_current_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -1490,13 +1492,12 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             Subscribe to unlock more customers and features.
           </p>
 
-          {/* Current plan status — driven by is_subscribed, not subscription_status
-              (every new user defaults to subscription_status='trial' in the DB for the
-               old 30-day system; real paid-trial is indicated by plan_trial_ends_at) */}
+          {/* Current plan status */}
           {(() => {
-            const isOnPaidTrial = subData?.is_subscribed && subData?.plan_trial_ends_at
-            const isActive = subData?.is_subscribed && !isOnPaidTrial
-            if (isActive && activeBillingPlan) return (
+            const isOnPaidTrial = !!subData?.plan_trial_ends_at && subData?.subscription_status !== 'active'
+            const hasPaidPlan   = (isBillingPlanId(subData?.subscription_plan) && subData?.subscription_status === 'active')
+                               || (subData?.is_subscribed && !isOnPaidTrial && isBillingPlanId(subData?.subscription_plan))
+            if (hasPaidPlan && activeBillingPlan) return (
               <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
                 <span className="text-lg shrink-0">✅</span>
                 <div>
@@ -1507,7 +1508,8 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                 </div>
               </div>
             )
-            if (!subData?.is_subscribed) return (
+            // Free = not on a paid plan (subscription_plan null or status not active, and not subscribed)
+            if (!hasPaidPlan && !isOnPaidTrial) return (
               <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-3">
                 <span className="text-lg shrink-0">🆓</span>
                 <div>
@@ -1587,13 +1589,14 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           <div className="grid gap-3 sm:grid-cols-2">
             {(['starter', 'pro'] as BillingPlanId[]).map(planId => {
               const plan = BILLING_PLANS[planId]
-              // "On paid trial" = subscribed + plan_trial_ends_at set (subscription_status
-              // defaults to 'trial' in the DB for all new free users — not a reliable gate)
-              const isOnPaidTrial    = subData?.is_subscribed && !!subData?.plan_trial_ends_at
+              const isOnPaidTrial    = !!subData?.plan_trial_ends_at && subData?.subscription_status !== 'active'
               const isThisPlanTrial  = subData?.subscription_plan === planId && isOnPaidTrial
-              const isThisPlanActive = subData?.subscription_plan === planId && subData?.is_subscribed && !isOnPaidTrial
-              const isAnyActive      = subData?.is_subscribed && !isOnPaidTrial
-              const canTrial         = !subData?.is_subscribed // only free users can start a trial
+              // Active = subscription_plan set + status='active', OR is_subscribed with no trial
+              const hasPaidPlan      = (isBillingPlanId(subData?.subscription_plan) && subData?.subscription_status === 'active')
+                                    || (subData?.is_subscribed && !isOnPaidTrial && isBillingPlanId(subData?.subscription_plan))
+              const isThisPlanActive = subData?.subscription_plan === planId && hasPaidPlan
+              const isAnyActive      = hasPaidPlan
+              const canTrial         = !subData?.is_subscribed && !hasPaidPlan
               return (
                 <div key={plan.id} className={`rounded-3xl p-4 border ${isThisPlanActive ? 'border-emerald-200 bg-emerald-50' : isThisPlanTrial ? 'border-orange-200 bg-orange-50' : 'border-orange-100 bg-[#FDF8F3]'}`}>
                   <div className="flex items-center justify-between">

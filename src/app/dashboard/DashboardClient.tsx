@@ -503,6 +503,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? false
   const customerLimitPlan: CustomerLimitPlanId = (() => {
+    if (isBillingPlanId(subData?.subscription_plan) && subData?.subscription_status === 'active') return subData.subscription_plan as BillingPlanId
     if (subData?.is_subscribed && isBillingPlanId(subData?.subscription_plan)) return subData.subscription_plan as BillingPlanId
     return 'free'
   })()
@@ -897,11 +898,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const activePlanName = (() => {
     // During active paid trial: trialBadge handles display
     if (planTrialInfo && !planTrialInfo.expired) return null
-    // Paid plan active
+    // Paid plan: subscription_plan is set to a known plan AND status is active
+    // (use subscription_plan as primary signal — is_subscribed can be stale in some DB rows)
+    if (isBillingPlanId(subData?.subscription_plan) && subData?.subscription_status === 'active') {
+      return BILLING_PLANS[subData.subscription_plan as BillingPlanId].name
+    }
+    // Fallback: is_subscribed=true and plan set (covers edge cases)
     if (subData?.is_subscribed && isBillingPlanId(subData?.subscription_plan)) {
       return BILLING_PLANS[subData.subscription_plan as BillingPlanId].name
     }
-    // Free plan (is_subscribed=false — the default for all new users)
+    // Free plan (default for all new users)
     return 'Free'
   })()
 
