@@ -434,38 +434,54 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // ── Plan trial state ──────────────────────────────────────────────────────
   const [showTrialEndedModal, setShowTrialEndedModal] = useState(false)
 
-  // Derive plan trial info from provider
+  // Fresh subscription status fetched client-side (bypasses Next.js data cache)
+  const [liveStatus, setLiveStatus] = useState<{
+    is_subscribed: boolean | null
+    subscription_plan: string | null
+    subscription_status: string | null
+    plan_trial_ends_at: string | null
+    subscription_current_period_end: string | null
+  } | null>(null)
+
+  // Effective subscription data: live fetch wins over cached server data
+  const subData = liveStatus ?? (provider as any)
+
+  // Derive plan trial info
   const planTrialInfo = (() => {
-    const p = provider as any
-    if (p?.subscription_status !== 'trial' || !p?.plan_trial_ends_at) return null
-    const msLeft = new Date(p.plan_trial_ends_at).getTime() - Date.now()
+    if (subData?.subscription_status !== 'trial' || !subData?.plan_trial_ends_at) return null
+    const msLeft = new Date(subData.plan_trial_ends_at).getTime() - Date.now()
     const daysLeft = Math.ceil(msLeft / 86_400_000)
-    return { plan: p.subscription_plan as string, daysLeft, expired: daysLeft <= 0 }
+    return { plan: subData.subscription_plan as string, daysLeft, expired: daysLeft <= 0 }
   })()
 
-  // On mount: force a fresh data load so subscription state is always current
-  useEffect(() => { router.refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // On mount: auto-downgrade if trial expired, then show one-time modal
+  // On mount: fetch fresh subscription status (bypasses Next.js data-cache)
   useEffect(() => {
-    const p = provider as any
-    if (p?.subscription_status !== 'trial' || !p?.plan_trial_ends_at) return
-    const expired = new Date(p.plan_trial_ends_at) < new Date()
+    fetch('/api/provider-status')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.error) setLiveStatus(d) })
+      .catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When live status arrives: auto-downgrade if trial expired, show one-time modal
+  useEffect(() => {
+    if (!liveStatus) return
+    if (liveStatus.subscription_status !== 'trial' || !liveStatus.plan_trial_ends_at) return
+    const expired = new Date(liveStatus.plan_trial_ends_at) < new Date()
     if (!expired) return
 
     // Auto-downgrade
     fetch('/api/downgrade-to-free', { method: 'POST' }).then(r => {
-      if (r.ok) router.refresh()
+      if (r.ok) fetch('/api/provider-status').then(r2 => r2.ok ? r2.json() : null).then(d => { if (d && !d.error) setLiveStatus(d) })
     })
 
     // Show one-time modal (keyed by trial end date so a new trial can show again)
-    const key = `dabbr_trial_ended_${userId}_${p.plan_trial_ends_at}`
+    const key = `dabbr_trial_ended_${userId}_${liveStatus.plan_trial_ends_at}`
     if (!localStorage.getItem(key)) {
       setShowTrialEndedModal(true)
       localStorage.setItem(key, '1')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [liveStatus])
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
   const todayMenus: TodayMenu[] = initialData.todayMenus ?? []
@@ -486,8 +502,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? false
   const customerLimitPlan: CustomerLimitPlanId = (() => {
-    const p = provider as any
-    if (p?.is_subscribed && isBillingPlanId(p?.subscription_plan)) return p.subscription_plan as BillingPlanId
+    if (subData?.is_subscribed && isBillingPlanId(subData?.subscription_plan)) return subData.subscription_plan as BillingPlanId
     return 'free'
   })()
   const customerLimit = getCustomerLimit(customerLimitPlan)
@@ -877,20 +892,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     : trialDaysLeft > 7  ? 'bg-amber-400/25 text-amber-100'
     : 'bg-red-500/30 text-red-100'
 
-  // Active plan name to show as badge when subscribed (not during trial)
+  // Current plan label — always shown (Free / Starter / Pro), trial handled separately
   const activePlanName = (() => {
-    const p = provider as any
-    // Must be subscribed and not on a trial
-    if (!p?.is_subscribed || p?.subscription_status === 'trial') return null
-    // Primary: explicit 'active' status
-    if (p?.subscription_status === 'active' && isBillingPlanId(p?.subscription_plan)) {
-      return BILLING_PLANS[p.subscription_plan as BillingPlanId].name
+    // During trial: handled by trialBadge, don't show plan name here
+    if (subData?.subscription_status === 'trial') return null
+    // Paid/subscribed: show plan name
+    if (subData?.is_subscribed && isBillingPlanId(subData?.subscription_plan)) {
+      return BILLING_PLANS[subData.subscription_plan as BillingPlanId].name
     }
-    // Fallback: is_subscribed=true and plan is set (handles null/unexpected subscription_status)
-    if (isBillingPlanId(p?.subscription_plan)) {
-      return BILLING_PLANS[p.subscription_plan as BillingPlanId].name
-    }
-    return null
+    // Free plan (default for all users)
+    return 'Free'
   })()
 
   // Plan trial badge label + colour
@@ -1084,9 +1095,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               {greeting}, {providerName}
               <GreetingIcon className="w-5 h-5 text-yellow-300 shrink-0" strokeWidth={2.5} />
             </h1>
-            {activePlanName && !trialBadge && (
-              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border border-white/20 bg-white/15 text-white">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+            {!trialBadge && activePlanName && (
+              <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${activePlanName === 'Free' ? 'border-white/15 bg-white/10 text-white/70' : 'border-white/20 bg-white/15 text-white'}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${activePlanName === 'Free' ? 'bg-white/50' : 'bg-emerald-300'}`} />
                 Dabbr {activePlanName}
               </div>
             )}
@@ -1116,9 +1127,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
           </h1>
         </div>
-        {activePlanName && !trialBadge && (
-          <span className="chip font-semibold bg-emerald-50 text-emerald-600 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        {!trialBadge && activePlanName && (
+          <span className={`chip font-semibold flex items-center gap-1.5 ${activePlanName === 'Free' ? 'bg-gray-50 text-gray-400' : 'bg-emerald-50 text-emerald-600'}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${activePlanName === 'Free' ? 'bg-gray-300' : 'bg-emerald-400'}`} />
             Dabbr {activePlanName}
           </span>
         )}

@@ -180,6 +180,12 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
     fetchBillingData()
 
+    // Fetch fresh subscription status (bypasses Next.js data-cache)
+    fetch('/api/provider-status')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.error) setLiveStatus(d) })
+      .catch(() => {})
+
     // Scroll to hash on mount (handles /settings#billing navigation)
     const hash = window.location.hash
     if (hash) {
@@ -267,9 +273,25 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [trackingSaving, setTrackingSaving] = useState(false)
   const [trackingSaved, setTrackingSaved] = useState(false)
   const [trackingError, setTrackingError] = useState('')
-  const activeBillingPlan = provider?.subscription_plan ? BILLING_PLANS[provider.subscription_plan] : null
-  const billingRenewalDate = provider?.subscription_current_period_end
-    ? new Date(provider.subscription_current_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  // Fresh subscription status fetched client-side (bypasses Next.js data-cache)
+  const [liveStatus, setLiveStatus] = useState<{
+    is_subscribed: boolean | null
+    subscription_plan: string | null
+    subscription_status: string | null
+    plan_trial_ends_at: string | null
+    subscription_current_period_end: string | null
+  } | null>(null)
+
+  // Use live data when available, fall back to server-provided provider
+  const subData = liveStatus ?? (provider as any)
+
+  const activeBillingPlan = (() => {
+    const plan = subData?.subscription_plan
+    if (plan && BILLING_PLANS[plan as BillingPlanId]) return BILLING_PLANS[plan as BillingPlanId]
+    return null
+  })()
+  const billingRenewalDate = subData?.subscription_current_period_end
+    ? new Date(subData.subscription_current_period_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : null
 
   // Holidays & off-days
@@ -1465,10 +1487,11 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             Billing
           </h2>
           <p className="mb-4 text-xs font-semibold text-gray-400">
-            Subscribe through Razorpay to keep Dabbr active after your trial.
+            Subscribe to unlock more customers and features.
           </p>
 
-          {activeBillingPlan && (provider as any)?.is_subscribed && (provider as any)?.subscription_status !== 'trial' && (
+          {/* Current plan status */}
+          {activeBillingPlan && subData?.is_subscribed && subData?.subscription_status !== 'trial' ? (
             <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
               <span className="text-lg shrink-0">✅</span>
               <div>
@@ -1478,14 +1501,21 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                 )}
               </div>
             </div>
+          ) : subData?.subscription_status !== 'trial' && (
+            <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-3">
+              <span className="text-lg shrink-0">🆓</span>
+              <div>
+                <p className="text-sm font-black text-gray-700">Current plan: Dabbr Free</p>
+                <p className="text-xs font-semibold text-gray-400 mt-0.5">Up to 15 customers. Upgrade for more.</p>
+              </div>
+            </div>
           )}
 
           {/* Plan trial status banner */}
           {(() => {
-            const p = provider as any
-            if (p?.subscription_status !== 'trial' || !p?.plan_trial_ends_at) return null
-            const daysLeft = Math.ceil((new Date(p.plan_trial_ends_at).getTime() - Date.now()) / 86_400_000)
-            const planName = activeBillingPlan?.name ?? p.subscription_plan
+            if (subData?.subscription_status !== 'trial' || !subData?.plan_trial_ends_at) return null
+            const daysLeft = Math.ceil((new Date(subData.plan_trial_ends_at).getTime() - Date.now()) / 86_400_000)
+            const planName = activeBillingPlan?.name ?? subData?.subscription_plan
             if (daysLeft <= 0) return null
             const urgent = daysLeft <= 1
             const warn   = daysLeft <= 3
@@ -1506,7 +1536,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           )}
 
           {/* Pending / failed payment state */}
-          {latestTransaction && !(provider as any)?.is_subscribed && (() => {
+          {latestTransaction && !subData?.is_subscribed && (() => {
             const isPending = latestTransaction.status === 'pending'
             const isFailed  = latestTransaction.status === 'failed'
             const isPaid    = latestTransaction.status === 'paid'
@@ -1549,11 +1579,10 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           <div className="grid gap-3 sm:grid-cols-2">
             {(['starter', 'pro'] as BillingPlanId[]).map(planId => {
               const plan = BILLING_PLANS[planId]
-              const p = provider as any
-              const isThisPlanTrial  = p?.subscription_plan === planId && p?.subscription_status === 'trial'
-              const isThisPlanActive = p?.subscription_plan === planId && p?.is_subscribed && !isThisPlanTrial
-              const isAnyTrial       = p?.subscription_status === 'trial'
-              const isAnyActive      = p?.is_subscribed && !isAnyTrial
+              const isThisPlanTrial  = subData?.subscription_plan === planId && subData?.subscription_status === 'trial'
+              const isThisPlanActive = subData?.subscription_plan === planId && subData?.is_subscribed && !isThisPlanTrial
+              const isAnyTrial       = subData?.subscription_status === 'trial'
+              const isAnyActive      = subData?.is_subscribed && !isAnyTrial
               const canTrial         = !isAnyTrial && !isAnyActive
               return (
                 <div key={plan.id} className={`rounded-3xl p-4 border ${isThisPlanActive ? 'border-emerald-200 bg-emerald-50' : isThisPlanTrial ? 'border-orange-200 bg-orange-50' : 'border-orange-100 bg-[#FDF8F3]'}`}>
