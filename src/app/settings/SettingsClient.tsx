@@ -1378,7 +1378,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
         </div>
 
         {/* Billing */}
-        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+        <div id="billing" className="glass-card rounded-[2rem] p-6 shadow-sm scroll-mt-28">
           <h2 className="mb-2 text-sm font-black text-gray-900 flex items-center gap-2">
             <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
               <HandCoins className="w-4 h-4 text-orange-500" />
