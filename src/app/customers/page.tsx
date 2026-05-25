@@ -29,6 +29,7 @@ export default async function CustomersPage({
       providerId={user.id}
       providerDefaultMealRate={provider?.default_meal_rate ?? 120}
       providerDefaultCreditLimit={provider?.default_credit_limit ?? 3000}
+      providerSubscriptionPlan={provider?.subscription_status === 'active' ? provider?.subscription_plan ?? null : null}
       initialShowAdd={params.openAdd === 'true'}
       initialOpenId={params.open ?? null}
     />

@@ -90,6 +90,9 @@ interface Props {
   providerId: string
   onClose: () => void
   onImported: (count: number) => void
+  currentCustomerCount: number
+  customerLimit: number | null
+  onLimitReached: (attemptedCount: number) => void
 }
 
 // ── Sample CSV ────────────────────────────────────────────────────────────────
@@ -127,7 +130,7 @@ async function downloadSample() {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function CsvImport({ providerId, onClose, onImported }: Props) {
+export default function CsvImport({ providerId, onClose, onImported, currentCustomerCount, customerLimit, onLimitReached }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -143,6 +146,8 @@ export default function CsvImport({ providerId, onClose, onImported }: Props) {
 
   const validRows = rows.filter(r => !r.error)
   const errorRows = rows.filter(r => r.error)
+  const wouldExceedLimit = customerLimit != null && currentCustomerCount + validRows.length > customerLimit
+  const remainingSlots = customerLimit == null ? Number.POSITIVE_INFINITY : Math.max(0, customerLimit - currentCustomerCount)
 
   function parseFile(file: File) {
     if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
@@ -215,6 +220,11 @@ export default function CsvImport({ providerId, onClose, onImported }: Props) {
   }
 
   async function handleImport() {
+    if (wouldExceedLimit) {
+      onLimitReached(validRows.length)
+      return
+    }
+
     setStep('importing')
     const errors: string[] = []
     let count = 0
@@ -436,6 +446,18 @@ export default function CsvImport({ providerId, onClose, onImported }: Props) {
                 </div>
               )}
 
+              {wouldExceedLimit && (
+                <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                  <p className="text-xs font-black text-orange-700 mb-1 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Customer limit reached
+                  </p>
+                  <p className="text-[11px] text-orange-700/80 leading-relaxed">
+                    This file has {validRows.length} valid customer{validRows.length !== 1 ? 's' : ''}, but your plan only has {remainingSlots} slot{remainingSlots !== 1 ? 's' : ''} left.
+                  </p>
+                </div>
+              )}
+
               {validRows.length === 0 && (
                 <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-6 text-center">
                   <p className="text-sm font-bold text-amber-700">No valid rows found</p>
@@ -494,7 +516,7 @@ export default function CsvImport({ providerId, onClose, onImported }: Props) {
               onClick={handleImport}
               className="w-full rounded-2xl bg-orange-500 py-4 text-sm font-black text-white shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
-              Import {validRows.length} customers
+              {wouldExceedLimit ? 'Upgrade to import customers' : `Import ${validRows.length} customers`}
               <ArrowRight className="w-4 h-4" />
             </button>
           )}

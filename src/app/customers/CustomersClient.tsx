@@ -17,6 +17,8 @@ import { formatMealSlots } from '@/lib/meals'
 import { computeMonthlyDue, DUE_COLORS, dueStateLabel, fmtRupees, type BillingType } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
 import { invalidateCustomers } from '@/lib/revalidate'
+import { BILLING_PLANS, getCustomerLimit, getNextBillingPlan, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
+import { useBillingCheckout } from '@/lib/use-billing-checkout'
 import CsvImport from './CsvImport'
 import ContactsImport from './ContactsImport'
 
@@ -123,6 +125,7 @@ interface Props {
   providerId: string
   providerDefaultMealRate: number
   providerDefaultCreditLimit: number
+  providerSubscriptionPlan: BillingPlanId | null
   initialShowAdd?: boolean
   initialOpenId?: string | null
 }
@@ -231,14 +234,17 @@ function enrichSubscriptions(customer: any, mealPlansList: MealPlan[]): Customer
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
-export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, providerDefaultMealRate, providerDefaultCreditLimit, initialShowAdd = false, initialOpenId = null }: Props) {
+export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, providerDefaultMealRate, providerDefaultCreditLimit, providerSubscriptionPlan, initialShowAdd = false, initialOpenId = null }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const { startCheckout, loadingPlan: upgradeLoadingPlan, error: upgradeError } = useBillingCheckout()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
+  const initialCustomerLimit = getCustomerLimit(providerSubscriptionPlan ?? 'free')
+  const initialAddWouldExceedLimit = initialShowAdd && initialCustomerLimit != null && initialCustomers.length >= initialCustomerLimit
 
   // ── Navigation state (single source of truth) ──────────────────────────
-  const [screen, setScreen] = useState<Screen>(initialShowAdd ? 'form' : 'list')
+  const [screen, setScreen] = useState<Screen>(initialShowAdd && !initialAddWouldExceedLimit ? 'form' : 'list')
 
   // ── Data state ─────────────────────────────────────────────────────────
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
@@ -301,6 +307,10 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   // Import dropdown
   const [showImportMenu, setShowImportMenu] = useState(false)
 
+  // Customer limit / upgrade modal
+  const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(initialAddWouldExceedLimit)
+  const [limitAttemptCount, setLimitAttemptCount] = useState(1)
+
   // ── Auto-open customer from URL param ─────────────────────────────────
   useEffect(() => {
     if (!initialOpenId) return
@@ -315,6 +325,9 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   // ── Derived ───────────────────────────────────────────────────────────
 
   const activeMealPlans = mealPlans.filter(plan => plan.status === 'active')
+  const customerLimitPlan: CustomerLimitPlanId = providerSubscriptionPlan ?? 'free'
+  const customerLimit = getCustomerLimit(customerLimitPlan)
+  const nextBillingPlan = getNextBillingPlan(customerLimitPlan)
   const allTags = Array.from(new Set(customers.flatMap(c => c.tags ?? []))).sort()
   const allAreas = Array.from(new Set(customers.map(c => c.area).filter(Boolean) as string[])).sort()
 
@@ -359,7 +372,20 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
   // ── Navigation helpers ─────────────────────────────────────────────────
 
+  function wouldExceedCustomerLimit(addCount = 1) {
+    return customerLimit != null && customers.length + addCount > customerLimit
+  }
+
+  function openCustomerLimitModal(addCount = 1) {
+    setLimitAttemptCount(addCount)
+    setShowCustomerLimitModal(true)
+  }
+
   function openAdd() {
+    if (wouldExceedCustomerLimit()) {
+      openCustomerLimitModal()
+      return
+    }
     setFormMode('add')
     setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
     setFormError('')
@@ -583,6 +609,12 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setFormLoading(true)
     setFormError('')
 
+    if (formMode === 'add' && wouldExceedCustomerLimit()) {
+      setFormLoading(false)
+      openCustomerLimitModal()
+      return
+    }
+
     const selectedPlan = mealPlans.find(plan => plan.id === formData.meal_plan_id)
     if (!selectedPlan) {
       setFormError('Please choose an active meal plan before saving this customer.')
@@ -648,7 +680,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         // If there are more contacts queued from a one-by-one import, open
         // the next form; otherwise go back to the list as normal.
         if (contactImportQueue.length > 0) {
-          advanceContactImportQueue()
+          if (customerLimit != null && customers.length + 1 >= customerLimit) {
+            setContactImportQueue([])
+            openCustomerLimitModal()
+            setScreen('list')
+          } else {
+            advanceContactImportQueue()
+          }
         } else {
           setScreen('list')
           setFormData({ ...EMPTY_FORM, meal_plan_id: activeMealPlans[0]?.id ?? mealPlans[0]?.id ?? '' })
@@ -818,6 +856,11 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   ) {
     if (!entries.length) return
 
+    if (wouldExceedCustomerLimit(entries.length)) {
+      openCustomerLimitModal(entries.length)
+      return
+    }
+
     if (mode === 'one-by-one') {
       // Queue all contacts; open the add form for the first one.
       // After each save the queue is advanced automatically.
@@ -891,6 +934,10 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   function advanceContactImportQueue() {
     setContactImportQueue(prev => {
       if (!prev.length) return prev
+      if (wouldExceedCustomerLimit()) {
+        openCustomerLimitModal()
+        return []
+      }
       const [next, ...rest] = prev
       setFormMode('add')
       setFormData({
@@ -903,6 +950,111 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       setScreen('form')
       return rest
     })
+  }
+
+  function renderCustomerLimitModal() {
+    if (!showCustomerLimitModal || customerLimit == null) return null
+
+    const nextPlan = nextBillingPlan ? BILLING_PLANS[nextBillingPlan] : null
+    const planLabel =
+      customerLimitPlan === 'free' ? 'Free plan' :
+      customerLimitPlan === 'starter' ? 'Starter plan' :
+      'Pro plan'
+    const attemptedTotal = customers.length + limitAttemptCount
+
+    return (
+      <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-4">
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => setShowCustomerLimitModal(false)} />
+        <div className="relative z-10 w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] bg-white shadow-2xl border border-orange-100 overflow-hidden">
+          <div className="px-5 pt-5 pb-4 bg-gradient-to-br from-orange-50 to-white border-b border-orange-100">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-black uppercase tracking-wider text-orange-500">Customer limit reached</p>
+                <h2 className="mt-1 text-xl font-black text-gray-900 leading-tight">Upgrade to add more customers</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomerLimitModal(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-gray-400 hover:bg-gray-50 hover:text-gray-600 active:scale-95 transition-all"
+                aria-label="Close"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="px-5 py-5 space-y-4">
+            <p className="text-sm font-medium text-gray-500 leading-relaxed">
+              Your {planLabel} allows <span className="font-black text-gray-900">{customerLimit} total customers</span>, including active, paused, and inactive customers.
+              Adding {limitAttemptCount} more would take you to <span className="font-black text-gray-900">{attemptedTotal}</span>.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl bg-gray-50 border border-gray-100 px-3 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Current</p>
+                <p className="text-2xl font-black text-gray-900">{customers.length}</p>
+              </div>
+              <div className="rounded-2xl bg-orange-50 border border-orange-100 px-3 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-orange-400">Limit</p>
+                <p className="text-2xl font-black text-orange-600">{customerLimit}</p>
+              </div>
+              <div className="rounded-2xl bg-red-50 border border-red-100 px-3 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-red-400">Trying</p>
+                <p className="text-2xl font-black text-red-600">+{limitAttemptCount}</p>
+              </div>
+            </div>
+
+            {nextPlan ? (
+              <div className="rounded-2xl bg-[#160800] px-4 py-4 text-white">
+                <p className="text-xs font-bold text-orange-200/70">Next tier</p>
+                <div className="mt-1 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-black">Dabbr {nextPlan.name}</p>
+                    <p className="text-xs text-orange-100/60">
+                      {nextBillingPlan === 'starter' ? 'Up to 50 customers' : 'Unlimited customers'}
+                    </p>
+                  </div>
+                  <p className="text-xl font-black text-orange-300">₹{nextPlan.amount}<span className="text-xs text-orange-100/50">/mo</span></p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
+                <p className="text-sm font-bold text-gray-700">You are already on the highest plan.</p>
+              </div>
+            )}
+
+            {upgradeError && (
+              <p className="rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm font-semibold text-red-600">
+                {upgradeError}
+              </p>
+            )}
+          </div>
+
+          <div className="px-5 pb-5 pt-1 space-y-2">
+            {nextBillingPlan && (
+              <button
+                type="button"
+                onClick={() => startCheckout(nextBillingPlan, 'app')}
+                disabled={upgradeLoadingPlan === nextBillingPlan}
+                className="w-full rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] py-4 text-sm font-black text-white shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                {upgradeLoadingPlan === nextBillingPlan ? 'Opening checkout…' : `Upgrade to ${BILLING_PLANS[nextBillingPlan].name}`}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowCustomerLimitModal(false)}
+              className="w-full rounded-2xl border border-gray-200 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 active:scale-[0.98] transition-all"
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1220,6 +1372,9 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             providerId={providerId}
             onClose={() => setShowImport(false)}
             onImported={() => router.refresh()}
+            currentCustomerCount={customers.length}
+            customerLimit={customerLimit}
+            onLimitReached={openCustomerLimitModal}
           />
         )}
 
@@ -1232,6 +1387,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             onClose={() => setShowContactsImport(false)}
           />
         )}
+
+        {renderCustomerLimitModal()}
 
         {/* ── Filter panel ──────────────────────────────────────────────── */}
         {showFilterPanel && (
@@ -2316,6 +2473,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </button>
           </form>
         </main>
+
+        {renderCustomerLimitModal()}
       </div>
     )
   }

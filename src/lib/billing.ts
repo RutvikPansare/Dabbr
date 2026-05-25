@@ -1,5 +1,13 @@
 export type BillingPlanId = 'starter' | 'pro'
 
+export type CustomerLimitPlanId = 'free' | BillingPlanId
+
+export const CUSTOMER_LIMITS: Record<CustomerLimitPlanId, number | null> = {
+  free: 15,
+  starter: 50,
+  pro: null,
+}
+
 export const BILLING_PLANS: Record<BillingPlanId, {
   id: BillingPlanId
   name: string
@@ -28,6 +36,16 @@ export const BILLING_PLANS: Record<BillingPlanId, {
 
 export function isBillingPlanId(value: unknown): value is BillingPlanId {
   return value === 'starter' || value === 'pro'
+}
+
+export function getCustomerLimit(plan: CustomerLimitPlanId): number | null {
+  return CUSTOMER_LIMITS[plan]
+}
+
+export function getNextBillingPlan(plan: CustomerLimitPlanId): BillingPlanId | null {
+  if (plan === 'free') return 'starter'
+  if (plan === 'starter') return 'pro'
+  return null
 }
 
 export function nextBillingPeriodEnd(from = new Date()) {
