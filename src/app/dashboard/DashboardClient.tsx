@@ -12,7 +12,9 @@ import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
 import Paywall from '@/components/Paywall'
+import CustomerLimitModal from '@/components/CustomerLimitModal'
 import { getThemeVars } from '@/lib/branding'
+import { getCustomerLimit, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -71,6 +73,8 @@ interface Provider {
   enable_delivery_tracking: boolean
   accent_color: string | null
   logo_url: string | null
+  subscription_plan?: BillingPlanId | null
+  subscription_status?: string | null
 }
 
 interface DeliveryRider {
@@ -445,6 +449,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? false
+  const customerLimitPlan: CustomerLimitPlanId =
+    provider?.subscription_status === 'active' && provider.subscription_plan ? provider.subscription_plan : 'free'
+  const customerLimit = getCustomerLimit(customerLimitPlan)
+  const overCustomerLimit = customerLimit != null && customers.length > customerLimit
+  const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(overCustomerLimit)
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
@@ -510,9 +519,18 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, today])
 
+  useEffect(() => {
+    if (overCustomerLimit) setShowCustomerLimitModal(true)
+  }, [overCustomerLimit])
+
   // ── Delivery mutation ─────────────────────────────────────────────────────
 
   const markDelivery = useCallback(async (customerId: string, slot: MealSlot, newStatus: 'delivered' | 'skipped' | 'pending') => {
+    if (overCustomerLimit) {
+      setShowCustomerLimitModal(true)
+      return
+    }
+
     const key = `${customerId}:${slot}`
     const prevStatus: DeliveryStatus = deliveryStatusesRef.current[key] ?? 'pending'
     if (prevStatus === newStatus) return
@@ -583,7 +601,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       }))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, today])
+  }, [userId, today, overCustomerLimit])
 
   async function handleUndo() {
     if (!undoSnackbar) return
@@ -604,6 +622,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   }
 
   async function bulkMark(newStatus: 'delivered' | 'skipped') {
+    if (overCustomerLimit) {
+      setShowCustomerLimitModal(true)
+      return
+    }
     if (slotFilter === 'all') return  // No bulk marking in overview mode
     const slot = slotFilter as MealSlot
     const ids = Array.from(selectedIds)
@@ -1028,9 +1050,57 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {/* ── Scrollable content (mobile) / Document flow (desktop) ── */}
       <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))] lg:flex-none lg:overflow-visible lg:pb-12">
 
+      {overCustomerLimit && customerLimit != null && (
+        <main className="mx-auto max-w-2xl px-4 pt-6 lg:max-w-3xl lg:pt-10">
+          <div className="rounded-[2rem] bg-white border border-orange-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-br from-orange-50 to-white px-5 py-5 border-b border-orange-100">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-orange-500">Plan action needed</p>
+                  <h2 className="mt-1 text-xl font-black text-gray-900 tracking-tight">Dashboard actions are paused</h2>
+                  <p className="mt-2 text-sm font-medium text-gray-500 leading-relaxed">
+                    You have {customers.length} total customers, but your current plan allows {customerLimit}. Upgrade your plan or delete customers to continue daily delivery actions.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 px-5 py-4">
+              <div className="rounded-2xl bg-gray-50 border border-gray-100 px-3 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Customers</p>
+                <p className="text-2xl font-black text-gray-900">{customers.length}</p>
+              </div>
+              <div className="rounded-2xl bg-orange-50 border border-orange-100 px-3 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-orange-400">Limit</p>
+                <p className="text-2xl font-black text-orange-600">{customerLimit}</p>
+              </div>
+              <div className="rounded-2xl bg-red-50 border border-red-100 px-3 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-red-400">Over</p>
+                <p className="text-2xl font-black text-red-600">+{customers.length - customerLimit}</p>
+              </div>
+            </div>
+            <div className="px-5 pb-5 grid gap-2 sm:grid-cols-2">
+              <button
+                onClick={() => setShowCustomerLimitModal(true)}
+                className="rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] py-3.5 text-sm font-black text-white shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all"
+              >
+                Upgrade plan
+              </button>
+              <button
+                onClick={() => router.push('/customers')}
+                className="rounded-2xl border border-orange-200 bg-orange-50 py-3.5 text-sm font-black text-orange-600 hover:bg-orange-100 active:scale-[0.98] transition-all"
+              >
+                Manage customers
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
 
       {/* ── Desktop stat tiles — above slot tabs, hidden on mobile ── */}
-      {safeCustomers.length > 0 && (
+      {!overCustomerLimit && safeCustomers.length > 0 && (
         <div className="hidden lg:block relative px-8 pt-3 pb-1">
           {/* Stat grid — unaffected by illustration */}
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
@@ -1071,7 +1141,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       )}
 
       {/* ── Cook List + Packing List with shared slot filter ── */}
-      {(todayMenus.length > 0 || deliveryToday.length > 0) && (
+      {!overCustomerLimit && (todayMenus.length > 0 || deliveryToday.length > 0) && (
         <div className="mx-auto max-w-2xl px-4 mt-4 lg:max-w-none lg:px-8 lg:mt-4">
 
           {/* Shared slot filter bar — doubles as workspace selector.
@@ -1355,7 +1425,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       )}
 
       {/* ── Onboarding ── */}
-      {safeCustomers.length === 0 && !isExpired && (
+      {!overCustomerLimit && safeCustomers.length === 0 && !isExpired && (
         <main className="mx-auto mt-8 max-w-2xl px-4">
           <div className="glass-card flex flex-col items-center rounded-[2.5rem] p-10 text-center relative overflow-hidden">
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl" />
@@ -1383,7 +1453,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       )}
 
       {/* ── Main content ── */}
-      {safeCustomers.length > 0 && (
+      {!overCustomerLimit && safeCustomers.length > 0 && (
         <main className="mx-auto mt-5 max-w-2xl px-4 lg:max-w-none lg:px-8 lg:mt-5">
 
           {/* Desktop two-column grid: left = operational, right = status panel */}
@@ -1862,7 +1932,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       )}
 
       {/* ── Bulk action bar ── */}
-      {deliveryTrackingEnabled && bulkMode && selectedIds.size > 0 && (
+      {!overCustomerLimit && deliveryTrackingEnabled && bulkMode && selectedIds.size > 0 && (
         <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4">
           <div className="mx-auto max-w-2xl">
             <div className="flex items-center gap-2 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl">
@@ -1895,7 +1965,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       )}
 
       {/* ── Undo snackbar ── */}
-      {undoSnackbar && !bulkMode && (
+      {!overCustomerLimit && undoSnackbar && !bulkMode && (
         <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 pointer-events-none">
           <div className="mx-auto max-w-2xl">
             <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl pointer-events-auto">
@@ -1913,6 +1983,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             </div>
           </div>
         </div>
+      )}
+
+      {showCustomerLimitModal && overCustomerLimit && (
+        <CustomerLimitModal
+          currentPlan={customerLimitPlan}
+          currentCustomerCount={customers.length}
+          manageCustomersButton
+          blocking
+        />
       )}
 
       {/* ── Customer quick-view modal ── */}

@@ -10,15 +10,15 @@ import {
   Edit2, ChevronRight, ChevronDown, IndianRupee, AlertTriangle, Clock,
   CheckCircle2, XCircle, Sparkles, Tag, StickyNote, X as XIcon,
   Link2, Copy, RefreshCw, FileUp, ClipboardList, BookUser, Check, ExternalLink,
-  SlidersHorizontal, HandCoins,
+  SlidersHorizontal, HandCoins, Trash2,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
 import { formatMealSlots } from '@/lib/meals'
 import { computeMonthlyDue, DUE_COLORS, dueStateLabel, fmtRupees, type BillingType } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
 import { invalidateCustomers } from '@/lib/revalidate'
-import { BILLING_PLANS, getCustomerLimit, getNextBillingPlan, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
-import { useBillingCheckout } from '@/lib/use-billing-checkout'
+import { getCustomerLimit, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
+import CustomerLimitModal from '@/components/CustomerLimitModal'
 import CsvImport from './CsvImport'
 import ContactsImport from './ContactsImport'
 
@@ -237,11 +237,11 @@ function enrichSubscriptions(customer: any, mealPlansList: MealPlan[]): Customer
 export default function CustomersClient({ initialCustomers, initialMealPlans, providerId, providerDefaultMealRate, providerDefaultCreditLimit, providerSubscriptionPlan, initialShowAdd = false, initialOpenId = null }: Props) {
   const router = useRouter()
   const supabase = createClient()
-  const { startCheckout, loadingPlan: upgradeLoadingPlan, error: upgradeError } = useBillingCheckout()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const initialCustomerLimit = getCustomerLimit(providerSubscriptionPlan ?? 'free')
   const initialAddWouldExceedLimit = initialShowAdd && initialCustomerLimit != null && initialCustomers.length >= initialCustomerLimit
+  const initialOverCustomerLimit = initialCustomerLimit != null && initialCustomers.length > initialCustomerLimit
 
   // ── Navigation state (single source of truth) ──────────────────────────
   const [screen, setScreen] = useState<Screen>(initialShowAdd && !initialAddWouldExceedLimit ? 'form' : 'list')
@@ -279,6 +279,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   // Payments (payment history screen)
   const [payments, setPayments] = useState<Payment[]>([])
   const [paymentsLoading, setPaymentsLoading] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   // Notes & Tags
   const [notesValue, setNotesValue] = useState('')
@@ -308,7 +309,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   const [showImportMenu, setShowImportMenu] = useState(false)
 
   // Customer limit / upgrade modal
-  const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(initialAddWouldExceedLimit)
+  const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(initialAddWouldExceedLimit || initialOverCustomerLimit)
   const [limitAttemptCount, setLimitAttemptCount] = useState(1)
 
   // ── Auto-open customer from URL param ─────────────────────────────────
@@ -327,9 +328,17 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   const activeMealPlans = mealPlans.filter(plan => plan.status === 'active')
   const customerLimitPlan: CustomerLimitPlanId = providerSubscriptionPlan ?? 'free'
   const customerLimit = getCustomerLimit(customerLimitPlan)
-  const nextBillingPlan = getNextBillingPlan(customerLimitPlan)
+  const overCustomerLimit = customerLimit != null && customers.length > customerLimit
   const allTags = Array.from(new Set(customers.flatMap(c => c.tags ?? []))).sort()
   const allAreas = Array.from(new Set(customers.map(c => c.area).filter(Boolean) as string[])).sort()
+
+  useEffect(() => {
+    if (overCustomerLimit) {
+      setShowCustomerLimitModal(true)
+    } else if (!initialAddWouldExceedLimit) {
+      setShowCustomerLimitModal(false)
+    }
+  }, [overCustomerLimit, initialAddWouldExceedLimit])
 
   const filtered = customers.filter((c) => {
     const q = search.toLowerCase()
@@ -554,6 +563,50 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       .order('recorded_at', { ascending: false })
     setPayments(data ?? [])
     setPaymentsLoading(false)
+  }
+
+  async function deleteCustomer(c: Customer) {
+    const ok = window.confirm(
+      `Delete ${c.name}? This permanently removes the customer, their subscriptions, pauses, payments, delivery history, and portal links.`
+    )
+    if (!ok) return
+
+    setDeleteLoading(true)
+    setFormError('')
+
+    const cleanupTables = [
+      { name: 'delivery_logs', hasProviderId: true },
+      { name: 'monthly_payments', hasProviderId: true },
+      { name: 'payments', hasProviderId: true },
+      { name: 'customer_access_tokens', hasProviderId: true },
+      { name: 'cancellation_requests', hasProviderId: true },
+      { name: 'pauses', hasProviderId: false },
+    ]
+
+    for (const table of cleanupTables) {
+      let query = db.from(table.name).delete().eq('customer_id', c.id)
+      if (table.hasProviderId) query = query.eq('provider_id', providerId)
+      await query
+    }
+
+    const { error } = await db
+      .from('customers')
+      .delete()
+      .eq('id', c.id)
+      .eq('provider_id', providerId)
+
+    if (error) {
+      window.alert(`Could not delete customer: ${error.message}`)
+      setDeleteLoading(false)
+      return
+    }
+
+    setCustomers(prev => prev.filter(customer => customer.id !== c.id))
+    setSelectedCustomer(null)
+    setScreen('list')
+    setDeleteLoading(false)
+    await invalidateCustomers(providerId)
+    router.refresh()
   }
 
   async function saveNotes() {
@@ -955,105 +1008,13 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   function renderCustomerLimitModal() {
     if (!showCustomerLimitModal || customerLimit == null) return null
 
-    const nextPlan = nextBillingPlan ? BILLING_PLANS[nextBillingPlan] : null
-    const planLabel =
-      customerLimitPlan === 'free' ? 'Free plan' :
-      customerLimitPlan === 'starter' ? 'Starter plan' :
-      'Pro plan'
-    const attemptedTotal = customers.length + limitAttemptCount
-
     return (
-      <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-4">
-        <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => setShowCustomerLimitModal(false)} />
-        <div className="relative z-10 w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] bg-white shadow-2xl border border-orange-100 overflow-hidden">
-          <div className="px-5 pt-5 pb-4 bg-gradient-to-br from-orange-50 to-white border-b border-orange-100">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-black uppercase tracking-wider text-orange-500">Customer limit reached</p>
-                <h2 className="mt-1 text-xl font-black text-gray-900 leading-tight">Upgrade to add more customers</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCustomerLimitModal(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-gray-400 hover:bg-gray-50 hover:text-gray-600 active:scale-95 transition-all"
-                aria-label="Close"
-              >
-                <XIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="px-5 py-5 space-y-4">
-            <p className="text-sm font-medium text-gray-500 leading-relaxed">
-              Your {planLabel} allows <span className="font-black text-gray-900">{customerLimit} total customers</span>, including active, paused, and inactive customers.
-              Adding {limitAttemptCount} more would take you to <span className="font-black text-gray-900">{attemptedTotal}</span>.
-            </p>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-2xl bg-gray-50 border border-gray-100 px-3 py-3 text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Current</p>
-                <p className="text-2xl font-black text-gray-900">{customers.length}</p>
-              </div>
-              <div className="rounded-2xl bg-orange-50 border border-orange-100 px-3 py-3 text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-orange-400">Limit</p>
-                <p className="text-2xl font-black text-orange-600">{customerLimit}</p>
-              </div>
-              <div className="rounded-2xl bg-red-50 border border-red-100 px-3 py-3 text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-red-400">Trying</p>
-                <p className="text-2xl font-black text-red-600">+{limitAttemptCount}</p>
-              </div>
-            </div>
-
-            {nextPlan ? (
-              <div className="rounded-2xl bg-[#160800] px-4 py-4 text-white">
-                <p className="text-xs font-bold text-orange-200/70">Next tier</p>
-                <div className="mt-1 flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-lg font-black">Dabbr {nextPlan.name}</p>
-                    <p className="text-xs text-orange-100/60">
-                      {nextBillingPlan === 'starter' ? 'Up to 50 customers' : 'Unlimited customers'}
-                    </p>
-                  </div>
-                  <p className="text-xl font-black text-orange-300">₹{nextPlan.amount}<span className="text-xs text-orange-100/50">/mo</span></p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
-                <p className="text-sm font-bold text-gray-700">You are already on the highest plan.</p>
-              </div>
-            )}
-
-            {upgradeError && (
-              <p className="rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm font-semibold text-red-600">
-                {upgradeError}
-              </p>
-            )}
-          </div>
-
-          <div className="px-5 pb-5 pt-1 space-y-2">
-            {nextBillingPlan && (
-              <button
-                type="button"
-                onClick={() => startCheckout(nextBillingPlan, 'app')}
-                disabled={upgradeLoadingPlan === nextBillingPlan}
-                className="w-full rounded-2xl bg-gradient-to-br from-[#FF7B3F] to-[#E04F18] py-4 text-sm font-black text-white shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all disabled:opacity-60"
-              >
-                {upgradeLoadingPlan === nextBillingPlan ? 'Opening checkout…' : `Upgrade to ${BILLING_PLANS[nextBillingPlan].name}`}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowCustomerLimitModal(false)}
-              className="w-full rounded-2xl border border-gray-200 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 active:scale-[0.98] transition-all"
-            >
-              Maybe later
-            </button>
-          </div>
-        </div>
-      </div>
+      <CustomerLimitModal
+        currentPlan={customerLimitPlan}
+        currentCustomerCount={customers.length}
+        attemptedAddCount={limitAttemptCount}
+        onClose={() => setShowCustomerLimitModal(false)}
+      />
     )
   }
 
@@ -1868,6 +1829,20 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 <p className="text-xs text-gray-400">View all recorded payments</p>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-300" />
+            </button>
+
+            <button
+              onClick={() => deleteCustomer(c)}
+              disabled={deleteLoading}
+              className="w-full flex items-center gap-3 rounded-2xl bg-white border border-red-100 px-5 py-4 text-left shadow-sm hover:bg-red-50 active:scale-[0.98] transition-all disabled:opacity-60"
+            >
+              <div className="flex w-10 h-10 items-center justify-center rounded-2xl bg-red-50 text-red-600 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-red-700">{deleteLoading ? 'Deleting…' : 'Delete Customer'}</p>
+                <p className="text-xs text-gray-400">Permanently remove this customer</p>
+              </div>
             </button>
           </div>
 
