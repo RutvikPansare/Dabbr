@@ -119,6 +119,22 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
+  // Latest billing transaction — for showing pending/failed state
+  const [latestTransaction, setLatestTransaction] = useState<{
+    status: string; plan: string | null; paid_at: string | null; created_at: string
+  } | null>(null)
+
+  useEffect(() => {
+    db.from('billing_transactions')
+      .select('status, plan, paid_at, created_at')
+      .eq('provider_id', providerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }: any) => { if (data) setLatestTransaction(data) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [name, setName] = useState(provider?.name ?? '')
   const [phone, setPhone] = useState(provider?.phone ?? '')
   const [upiId, setUpiId] = useState(provider?.upi_id ?? '')
@@ -1397,6 +1413,41 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
               )}
             </div>
           )}
+
+          {/* Pending / failed payment state */}
+          {latestTransaction && provider?.subscription_status !== 'active' && (() => {
+            const isPending = latestTransaction.status === 'pending'
+            const isFailed  = latestTransaction.status === 'failed'
+            const isPaid    = latestTransaction.status === 'paid'
+            if (isPending) return (
+              <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg shrink-0">⏳</span>
+                <div>
+                  <p className="text-sm font-black text-amber-800">Payment pending confirmation</p>
+                  <p className="text-xs font-semibold text-amber-600 mt-0.5">Your order was created. Complete the payment to activate your plan.</p>
+                </div>
+              </div>
+            )
+            if (isPaid) return (
+              <div className="mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg shrink-0">🔄</span>
+                <div>
+                  <p className="text-sm font-black text-blue-800">Payment received — activating…</p>
+                  <p className="text-xs font-semibold text-blue-600 mt-0.5">We got your payment. If the plan doesn&apos;t reflect in a minute, refresh the page.</p>
+                </div>
+              </div>
+            )
+            if (isFailed) return (
+              <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg shrink-0">❌</span>
+                <div>
+                  <p className="text-sm font-black text-red-800">Last payment failed</p>
+                  <p className="text-xs font-semibold text-red-600 mt-0.5">Please try subscribing again below.</p>
+                </div>
+              </div>
+            )
+            return null
+          })()}
 
           {billingError && (
             <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
+import { revalidateTag } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isBillingPlanId, nextBillingPeriodEnd } from '@/lib/billing'
 
@@ -77,9 +78,16 @@ export async function POST(request: NextRequest) {
       if (providerError) {
         return NextResponse.json({ error: providerError.message }, { status: 500 })
       }
+
+      // Bust Next.js cache so dashboard + settings reflect the new plan immediately
+      const uid = transaction.provider_id
+      const P = {} as any
+      revalidateTag(`provider-data-${uid}`, P)
+      revalidateTag(`settings-${uid}`, P)
+      revalidateTag(`dashboard-${uid}`, P)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, plan: transaction.plan })
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Payment verification failed' },

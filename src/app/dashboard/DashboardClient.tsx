@@ -14,7 +14,7 @@ import SummarySection from './SummarySection'
 import Paywall from '@/components/Paywall'
 import CustomerLimitModal from '@/components/CustomerLimitModal'
 import { getThemeVars } from '@/lib/branding'
-import { getCustomerLimit, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
+import { getCustomerLimit, BILLING_PLANS, isBillingPlanId, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -838,6 +838,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     : trialDaysLeft > 7  ? 'bg-amber-400/25 text-amber-100'
     : 'bg-red-500/30 text-red-100'
 
+  // Active plan name to show as badge when subscribed
+  const activePlanName = (() => {
+    const p = provider as any
+    if (p?.subscription_status === 'active' && isBillingPlanId(p?.subscription_plan)) {
+      return BILLING_PLANS[p.subscription_plan as BillingPlanId].name
+    }
+    return null
+  })()
+
   // Workspace customers: slot-filtered when in a workspace, all customers in overview
   const workspaceCustomers = slotFilter === 'all'
     ? deliveryToday
@@ -1014,6 +1023,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               {greeting}, {providerName}
               <GreetingIcon className="w-5 h-5 text-yellow-300 shrink-0" strokeWidth={2.5} />
             </h1>
+            {activePlanName && (
+              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border border-white/20 bg-white/15 text-white">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                Dabbr {activePlanName}
+              </div>
+            )}
           </div>
           <button
             onClick={handleSignOut}
@@ -1034,6 +1049,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
           </h1>
         </div>
+        {activePlanName && (
+          <span className="chip font-semibold bg-emerald-50 text-emerald-600 flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Dabbr {activePlanName}
+          </span>
+        )}
       </div>
 
       {/* ── Scrollable content (mobile) / Document flow (desktop) ── */}
