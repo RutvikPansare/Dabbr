@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
 import { formatMealSlots } from '@/lib/meals'
-import { computeMonthlyDue, DUE_COLORS, dueStateLabel, fmtRupees, type BillingType } from '@/lib/udhar'
+import { computeBalance, DUE_COLORS, balanceStateLabel, fmtRupees, fmtDays } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
 import { invalidateCustomers } from '@/lib/revalidate'
 import { getCustomerLimit, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
@@ -43,11 +43,8 @@ interface Customer {
   meal_slots: MealSlot[]
   price_per_month: number
   status: CustomerStatus
-  balance_days: number
-  billing_type: BillingType
-  meal_rate: number | null
-  credit_limit: number | null
-  meals_delivered: number
+  balance: number
+  credit_limit: number
   pauses: Pause[]
   subscriptions?: Subscription[]
   created_at: string
@@ -113,9 +110,7 @@ interface FormState {
   notes: string
   tags: string[]
   meal_plan_id: string
-  balance_days: string
-  billing_type: BillingType
-  meal_rate: string
+  balance: string
   credit_limit: string
 }
 
@@ -149,17 +144,16 @@ const EMPTY_FORM: FormState = {
   notes: '',
   tags: [],
   meal_plan_id: '',
-  balance_days: '',
-  billing_type: 'prepaid',
-  meal_rate: '',
+  balance: '',
   credit_limit: '',
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function balancePillClass(days: number) {
-  if (days > 7) return 'text-green-700 bg-green-50 border border-green-200'
-  if (days >= 3) return 'text-amber-700 bg-amber-50 border border-amber-200'
+function balancePillClass(balance: number, creditLimit: number, monthlyPrice: number) {
+  const { state } = computeBalance({ balance, creditLimit, monthlyPrice })
+  if (state === 'good')     return 'text-green-700 bg-green-50 border border-green-200'
+  if (state === 'low')      return 'text-amber-700 bg-amber-50 border border-amber-200'
   return 'text-red-700 bg-red-50 border border-red-200'
 }
 
@@ -350,11 +344,10 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     const matchStatus = filter === 'all' || c.status === filter
     const matchArea = filterAreas.length === 0 || filterAreas.includes(c.area ?? '')
     const matchPlan = filterPlanIds.length === 0 || filterPlanIds.includes(activeSubscription(c)?.meal_plan_id ?? '')
-    const matchBalance = filterBalances.length === 0 || filterBalances.some(b =>
-      b === 'critical' ? c.balance_days < 3 :
-      b === 'low'      ? c.balance_days >= 3 && c.balance_days <= 7 :
-      /* good */         c.balance_days > 7
-    )
+    const matchBalance = filterBalances.length === 0 || filterBalances.some(b => {
+      const { state } = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: c.price_per_month })
+      return b === state
+    })
     const matchTags = filterTags.length === 0 || filterTags.every(t => (c.tags ?? []).includes(t))
     return matchSearch && matchStatus && matchArea && matchPlan && matchBalance && matchTags
   })
@@ -411,10 +404,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       notes: c.notes ?? '',
       tags: c.tags ?? [],
       meal_plan_id: activeSubscription(c)?.meal_plan_id ?? '',
-      balance_days: String(c.balance_days),
-      billing_type: c.billing_type ?? 'prepaid',
-      meal_rate: c.meal_rate != null ? String(c.meal_rate) : '',
-      credit_limit: c.credit_limit != null ? String(c.credit_limit) : '',
+      balance: String(c.balance ?? 0),
+      credit_limit: String(c.credit_limit ?? 0),
     })
     setFormError('')
     setScreen('form')
@@ -496,7 +487,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     }
 
     // Balance low synthetic event — shown only if currently low
-    if (c.balance_days < 3) {
+    const bs = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: c.price_per_month })
+    if (bs.state !== 'good') {
       events.push({ id: 'balance-low', date: new Date().toISOString(), type: 'balance_low' })
     }
 
@@ -689,11 +681,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         frequency: selectedPlan.frequency,
         meal_slots: selectedPlan.meal_slots,
         price_per_month: Number(selectedPlan.monthly_price),
-        balance_days: formData.billing_type === 'monthly_settlement' ? 0 : Number(formData.balance_days || selectedPlan.active_days),
-        billing_type: formData.billing_type,
-        meal_rate: formData.meal_rate ? Number(formData.meal_rate) : null,
-        credit_limit: formData.credit_limit ? Number(formData.credit_limit) : null,
-        meals_delivered: 0,
+        balance: Number(formData.balance || 0),
+        credit_limit: Number(formData.credit_limit || 0),
         status: 'active',
       }
       const { data, error } = await db
@@ -762,10 +751,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         frequency: selectedPlan.frequency,
         meal_slots: selectedPlan.meal_slots,
         price_per_month: Number(selectedPlan.monthly_price),
-        balance_days: formData.billing_type === 'monthly_settlement' ? 0 : Number(formData.balance_days),
-        billing_type: formData.billing_type,
-        meal_rate: formData.meal_rate ? Number(formData.meal_rate) : null,
-        credit_limit: formData.credit_limit ? Number(formData.credit_limit) : null,
+        balance: Number(formData.balance || 0),
+        credit_limit: Number(formData.credit_limit || 0),
       }
       const { data, error } = await db
         .from('customers')
@@ -945,7 +932,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       frequency: defaultPlan.frequency,
       meal_slots: defaultPlan.meal_slots,
       price_per_month: Number(defaultPlan.monthly_price),
-      balance_days: Number(defaultPlan.active_days),
+      balance: Number(defaultPlan.monthly_price ?? 0),
+      credit_limit: 0,
       status: 'active' as const,
       address: null,
       area: null,
@@ -1276,37 +1264,19 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                         )}
                       </div>
 
-                      {/* ── Right: balance / due ── */}
-                      <div className="shrink-0 flex flex-col items-end gap-1.5">
-                        {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (() => {
-                          const u = computeMonthlyDue({
-                            mealsDelivered: c.meals_delivered ?? 0,
-                            totalPaid: 0,
-                            mealRate: c.meal_rate,
-                            creditLimit: c.credit_limit,
-                            defaultMealRate: providerDefaultMealRate,
-                            defaultCreditLimit: providerDefaultCreditLimit,
-                          })
-                          const col = DUE_COLORS[u.state]
-                          return (
-                            <>
-                              <span className={`rounded-lg px-3 py-1 text-xs font-bold border ${col.bg} ${col.text}`}>
-                                {fmtRupees(u.outstanding)} due
-                              </span>
-                              <span className={`flex items-center gap-1 text-[11px] font-semibold ${col.text}`}>
-                                <HandCoins className="w-3 h-3" /> Monthly
-                              </span>
-                            </>
-                          )
-                        })() : (
-                          <>
-                            <span className={`rounded-lg px-3 py-1 text-xs font-bold border ${balancePillClass(c.balance_days)}`}>
-                              {c.balance_days}d left
+                      {/* ── Right: balance ── */}
+                      {(() => {
+                        const bs = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: plan?.monthly_price ?? c.price_per_month })
+                        const col = DUE_COLORS[bs.state]
+                        return (
+                          <div className="shrink-0 flex flex-col items-end gap-1.5">
+                            <span className={`rounded-lg px-3 py-1 text-xs font-bold border ${col.bg} ${col.text}`}>
+                              {bs.balance >= 0 ? fmtRupees(bs.balance) : `-${fmtRupees(bs.balance)}`}
                             </span>
-                            <p className="text-[11px] font-semibold text-gray-400">₹{plan?.monthly_price ?? c.price_per_month}/mo</p>
-                          </>
-                        )}
-                      </div>
+                            <p className="text-[11px] font-semibold text-gray-400">{fmtDays(bs.daysLeft)} left</p>
+                          </div>
+                        )
+                      })()}
 
                     </div>
                   </button>
@@ -1623,118 +1593,54 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               </div>
             </button>
 
-            {/* Balance / Monthly grid */}
-            {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (() => {
-              const u = computeMonthlyDue({
-                mealsDelivered: c.meals_delivered ?? 0,
-                totalPaid: monthlyTotalPaid,
-                mealRate: c.meal_rate,
-                creditLimit: c.credit_limit,
-                defaultMealRate: providerDefaultMealRate,
-                defaultCreditLimit: providerDefaultCreditLimit,
-              })
-              const col = DUE_COLORS[u.state]
+            {/* Balance grid */}
+            {(() => {
+              const monthlyPrice = plan?.monthly_price ?? c.price_per_month
+              const bs = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice })
+              const col = DUE_COLORS[bs.state]
               return (
-                <div className={`px-5 py-4 border-t border-gray-50 space-y-3 ${col.bg} border`}>
-                  <div className="flex items-center gap-2">
-                    <HandCoins className={`w-4 h-4 ${col.text}`} />
-                    <span className={`text-xs font-bold uppercase tracking-wider ${col.text}`}>Monthly Settlement</span>
-                    <span className={`ml-auto rounded-lg px-2.5 py-0.5 text-[10px] font-bold ${col.pill}`}>{dueStateLabel(u.state)}</span>
+                <div className="grid grid-cols-2 gap-3 px-5 py-4 border-t border-gray-50">
+                  <div className={`rounded-2xl p-4 border ${col.bg}`}>
+                    <p className="text-xs text-gray-400 mb-0.5">Balance</p>
+                    <p className={`text-3xl font-black ${col.text}`}>
+                      {bs.balance < 0 ? '-' : ''}{fmtRupees(bs.balance)}
+                    </p>
+                    <p className={`text-xs font-semibold mt-1 ${col.text}`}>{balanceStateLabel(bs.state)}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-white/70 p-4">
-                      <p className="text-xs text-gray-400 mb-0.5">Outstanding</p>
-                      <p className={`text-2xl font-black ${col.text}`}>{fmtRupees(u.outstanding)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-white/70 p-4">
-                      <p className="text-xs text-gray-400 mb-0.5">Meals Delivered</p>
-                      <p className="text-2xl font-black text-gray-800">{c.meals_delivered ?? 0}</p>
-                    </div>
-                    <div className="rounded-2xl bg-white/70 p-4">
-                      <p className="text-xs text-gray-400 mb-0.5">Total Billed</p>
-                      <p className="text-xl font-black text-gray-700">{fmtRupees((c.meals_delivered ?? 0) * u.effectiveMealRate)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-white/70 p-4">
-                      <p className="text-xs text-gray-400 mb-0.5">Total Paid</p>
-                      <p className="text-xl font-black text-green-600">{fmtRupees(monthlyTotalPaid)}</p>
-                    </div>
+                  <div className="rounded-2xl bg-[#FDF8F3] p-4">
+                    <p className="text-xs text-gray-400 mb-0.5">Days left</p>
+                    <p className="text-3xl font-black text-gray-800">
+                      {Math.max(0, Math.floor(bs.daysLeft))}<span className="text-base font-semibold ml-0.5">d</span>
+                    </p>
+                    <p className="text-xs font-semibold text-gray-400 mt-1">₹{monthlyPrice}/mo</p>
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between text-[10px] font-medium text-gray-500 mb-1">
-                      <span>{u.percentUsed}% of {fmtRupees(u.effectiveLimit)} limit</span>
-                      <span>@{fmtRupees(u.effectiveMealRate)}/meal</span>
+                  {c.credit_limit > 0 && (
+                    <div className="col-span-2 rounded-2xl bg-gray-50 px-4 py-3 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-500">Credit limit</span>
+                      <span className="text-sm font-black text-gray-700">{fmtRupees(c.credit_limit)}</span>
                     </div>
-                    <div className="w-full h-1.5 rounded-full bg-black/10 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${col.dot}`}
-                        style={{ width: `${Math.min(100, u.percentUsed)}%` }}
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
               )
-            })() : (
-              <div className="grid grid-cols-2 gap-3 px-5 py-4 border-t border-gray-50">
-                <div className="rounded-2xl bg-[#FDF8F3] p-4">
-                  <p className="text-xs text-gray-400 mb-0.5">Balance</p>
-                  <p className={`text-3xl font-black ${
-                    c.balance_days > 7 ? 'text-green-600' : c.balance_days >= 3 ? 'text-amber-600' : 'text-red-600'
-                  }`}>
-                    {c.balance_days}<span className="text-base font-semibold ml-0.5">d</span>
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-[#FDF8F3] p-4">
-                  <p className="text-xs text-gray-400 mb-0.5">Monthly</p>
-                  <p className="text-3xl font-black text-gray-800">
-                    ₹{plan?.monthly_price ?? c.price_per_month}
-                  </p>
-                </div>
-              </div>
-            )}
+            })()}
 
-            {/* Billing type info row */}
+            {/* Plan info row */}
             <div className="flex items-center gap-3 px-5 py-3.5 border-t border-gray-50 bg-gray-50/40">
-              {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (
-                <>
-                  <div className="flex w-8 h-8 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0">
-                    <HandCoins className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Monthly Settlement</p>
-                    <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                      ₹{c.meal_rate ?? providerDefaultMealRate}/meal
-                      {c.meal_rate == null && <span className="text-gray-400 font-normal"> (default)</span>}
-                      <span className="mx-1.5 text-gray-300">·</span>
-                      ₹{(c.credit_limit ?? providerDefaultCreditLimit).toLocaleString('en-IN')} limit
-                      {c.credit_limit == null && <span className="text-gray-400 font-normal"> (default)</span>}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => openEdit(c)}
-                    className="shrink-0 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
-                  >
-                    Edit
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="flex w-8 h-8 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shrink-0">
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Prepaid</p>
-                    <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                      ₹{plan?.monthly_price ?? c.price_per_month}/mo · top up to add days
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => openEdit(c)}
-                    className="shrink-0 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
-                  >
-                    Edit
-                  </button>
-                </>
-              )}
+              <div className="flex w-8 h-8 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shrink-0">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Balance Account</p>
+                <p className="text-xs font-semibold text-gray-500 mt-0.5">
+                  ₹{plan?.monthly_price ?? c.price_per_month}/mo · payments top up balance
+                </p>
+              </div>
+              <button
+                onClick={() => openEdit(c)}
+                className="shrink-0 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
+              >
+                Edit
+              </button>
             </div>
           </div>
 
@@ -2095,7 +2001,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                               <p className="text-xs text-gray-400 mt-0.5 truncate">{event.notes}</p>
                             )}
                             {event.type === 'balance_low' && (
-                              <p className="text-xs text-red-400 mt-0.5">{c.balance_days} days remaining — collect payment soon</p>
+                              <p className="text-xs text-red-400 mt-0.5">{fmtRupees(c.balance)} balance · {fmtDays(c.balance / ((c.price_per_month || 1) / 30))} remaining — collect payment soon</p>
                             )}
                           </div>
 
@@ -2297,7 +2203,6 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                           onClick={() => !isInactive && setFormData(f => ({
                             ...f,
                             meal_plan_id: plan.id,
-                            balance_days: f.balance_days || String(plan.active_days ?? ''),
                           }))}
                           className={`w-full flex items-center gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition-all active:scale-[0.98] ${
                             isSelected
@@ -2362,73 +2267,38 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               )}
             </div>
 
-            {/* Billing Type */}
+            {/* Balance */}
             <div className="rounded-2xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Billing Type</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Balance</h3>
 
-              {/* Toggle */}
-              <div className="flex rounded-2xl bg-gray-100 p-1 gap-1">
-                {(['prepaid', 'monthly_settlement'] as const).map(type => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setFormData(f => ({ ...f, billing_type: type }))}
-                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition-all ${
-                      formData.billing_type === type
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {type === 'prepaid' ? (
-                      <><CreditCard className="w-3.5 h-3.5" /> Prepaid</>
-                    ) : (
-                      <><HandCoins className="w-3.5 h-3.5" /> Monthly Settlement</>
-                    )}
-                  </button>
-                ))}
+              <Field label="Opening balance (₹)">
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0"
+                  value={formData.balance}
+                  onChange={(e) => setFormData((f) => ({ ...f, balance: e.target.value }))}
+                  className={inputClass}
+                />
+              </Field>
+
+              <Field label="Credit limit (₹) — how far negative the balance can go">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0  (no credit — must stay positive)"
+                  value={formData.credit_limit}
+                  onChange={(e) => setFormData((f) => ({ ...f, credit_limit: e.target.value }))}
+                  className={inputClass}
+                />
+              </Field>
+
+              <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                <p className="text-xs font-medium text-orange-700 leading-relaxed">
+                  Balance in ₹. Payments top up balance. Each delivery deducts the per-day cost (monthly price ÷ 30). Days left = balance ÷ per-day cost.
+                </p>
               </div>
-
-              {formData.billing_type === 'prepaid' ? (
-                <Field label="Balance (days) *">
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 30"
-                    value={formData.balance_days}
-                    onChange={(e) => setFormData((f) => ({ ...f, balance_days: e.target.value }))}
-                    className={inputClass}
-                  />
-                </Field>
-              ) : (
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3">
-                    <p className="text-xs font-medium text-amber-700 leading-relaxed">
-                      <strong>Monthly Settlement:</strong> Deliveries are tracked and billed at month-end. Amount due = meals delivered × meal rate.
-                    </p>
-                  </div>
-                  <Field label={`Meal Rate (₹/delivery) — leave blank for default (₹${providerDefaultMealRate})`}>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder={`Default: ₹${providerDefaultMealRate}`}
-                      value={formData.meal_rate}
-                      onChange={(e) => setFormData((f) => ({ ...f, meal_rate: e.target.value }))}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field label={`Credit Limit (₹) — leave blank for default (₹${providerDefaultCreditLimit})`}>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder={`Default: ₹${providerDefaultCreditLimit}`}
-                      value={formData.credit_limit}
-                      onChange={(e) => setFormData((f) => ({ ...f, credit_limit: e.target.value }))}
-                      className={inputClass}
-                    />
-                  </Field>
-                </div>
-              )}
             </div>
 
             {formError && (

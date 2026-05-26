@@ -47,11 +47,11 @@ export default async function SummaryPage() {
   const [customersRes, subscriptionsRes, paymentsRes, deliveryRes, providerRes] = await Promise.all([
     supabase
       .from('customers')
-      .select('id, status, balance_days, price_per_month, created_at')
+      .select('id, status, balance, credit_limit, price_per_month, created_at')
       .eq('provider_id', user.id),
     supabase
       .from('subscriptions')
-      .select('status, customers(id, status, balance_days, price_per_month, created_at), meal_plans(status, monthly_price)')
+      .select('status, customers(id, status, balance, credit_limit, price_per_month, created_at), meal_plans(status, monthly_price)')
       .eq('provider_id', user.id)
       .in('status', ['active', 'paused']),
     supabase
@@ -79,7 +79,7 @@ export default async function SummaryPage() {
 
   // ── Typed views (Supabase column-select narrows to never; cast via unknown) ──
 
-  type CRow = { status: string; balance_days: number; price_per_month: number; created_at: string }
+  type CRow = { status: string; balance: number; credit_limit: number; price_per_month: number; created_at: string }
   type SRow = {
     status: string
     customers: CRow | null
@@ -140,8 +140,12 @@ export default async function SummaryPage() {
     ...s.customers!,
     price_per_month: Number(s.meal_plans?.monthly_price ?? s.customers?.price_per_month ?? 0),
   }))
-  const overdueCustomers = activeCustomers.filter(c => c.balance_days <= 0)
-  const pendingCustomers = activeCustomers.filter(c => c.balance_days <= 5)
+  const overdueCustomers = activeCustomers.filter(c => c.balance <= (c.credit_limit ?? 0))
+  const pendingCustomers = activeCustomers.filter(c => {
+    const perDay = c.price_per_month > 0 ? c.price_per_month / 30 : 0
+    const daysLeft = perDay > 0 ? c.balance / perDay : 0
+    return daysLeft <= 5
+  })
 
   const data: SummaryData = {
     activeCustomers: activeCustomers.length,

@@ -1,58 +1,115 @@
-// ── Monthly Settlement billing helpers ────────────────────────────────────────
+// ── Unified balance model ─────────────────────────────────────────────────────
 //
-// Amount Due = (meals_delivered × effective_meal_rate) − total_paid
+// Every customer has:
+//   balance      — rupees in their account (positive = credit, negative = owes)
+//   credit_limit — the minimum balance allowed (default 0 = must stay positive)
+//   price_per_month — from their meal plan / customer record
 //
-// This is always computed — never stored — so it's always accurate.
+// Days left   = balance / (price_per_month / 30)      (can be fractional / negative)
+// Amount due  = max(0, credit_limit - balance)         (how much to reach the limit)
+// State       = based on days left and whether below credit_limit
 
-export type BillingType = 'prepaid' | 'monthly_settlement'
+// ── Balance state ─────────────────────────────────────────────────────────────
 
-export interface MonthlyDueSummary {
-  outstanding:       number   // ₹ currently owed
-  effectiveLimit:    number   // ₹ soft limit (customer override ?? provider default)
-  effectiveMealRate: number   // ₹ per delivery
-  state:             'healthy' | 'due_soon' | 'critical'
-  percentUsed:       number   // 0–150+
+export type BalanceState = 'good' | 'low' | 'critical'
+
+export interface BalanceSummary {
+  balance:       number   // rupees
+  creditLimit:   number   // rupees (min threshold)
+  daysLeft:      number   // computed, can be negative
+  perDayCost:    number   // rupees / day
+  amountDue:     number   // how much customer needs to pay to reach credit_limit
+  state:         BalanceState
 }
 
-export function computeMonthlyDue(params: {
-  mealsDelivered:    number
-  totalPaid:         number
-  mealRate:          number | null   // customer-level override
-  creditLimit:       number | null   // customer-level override
-  defaultMealRate:   number          // provider default
-  defaultCreditLimit: number         // provider default
-}): MonthlyDueSummary {
-  const effectiveMealRate = params.mealRate     ?? params.defaultMealRate
-  const effectiveLimit    = params.creditLimit  ?? params.defaultCreditLimit
+export function computeBalance(params: {
+  balance:      number
+  creditLimit:  number | null
+  monthlyPrice: number
+}): BalanceSummary {
+  const creditLimit  = params.creditLimit ?? 0
+  const perDayCost   = params.monthlyPrice > 0 ? params.monthlyPrice / 30 : 0
+  const daysLeft     = perDayCost > 0 ? params.balance / perDayCost : 0
+  const amountDue    = Math.max(0, creditLimit - params.balance)
 
-  const gross       = params.mealsDelivered * effectiveMealRate
-  const outstanding = Math.max(0, gross - params.totalPaid)
-  const percentUsed = effectiveLimit > 0
-    ? Math.min(150, Math.round((outstanding / effectiveLimit) * 100))
-    : 0
+  const state: BalanceState =
+    params.balance <= creditLimit ? 'critical' :
+    daysLeft <= 5                 ? 'low'      :
+    'good'
 
-  const state: MonthlyDueSummary['state'] =
-    outstanding >= effectiveLimit        ? 'critical'  :
-    outstanding >= effectiveLimit * 0.7  ? 'due_soon'  :
-    'healthy'
-
-  return { outstanding, effectiveLimit, effectiveMealRate, state, percentUsed }
+  return {
+    balance:    params.balance,
+    creditLimit,
+    daysLeft,
+    perDayCost,
+    amountDue,
+    state,
+  }
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────────
 
 export const DUE_COLORS = {
-  healthy:  { text: 'text-green-600', bg: 'bg-green-50 border-green-100',  pill: 'bg-green-100 text-green-700',  dot: 'bg-green-500'  },
-  due_soon: { text: 'text-amber-600', bg: 'bg-amber-50 border-amber-100',  pill: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500'  },
+  good:     { text: 'text-green-600', bg: 'bg-green-50 border-green-100',  pill: 'bg-green-100 text-green-700',  dot: 'bg-green-500'  },
+  low:      { text: 'text-amber-600', bg: 'bg-amber-50 border-amber-100',  pill: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500'  },
   critical: { text: 'text-red-600',   bg: 'bg-red-50   border-red-100',    pill: 'bg-red-100   text-red-700',    dot: 'bg-red-500'    },
 } as const
 
-export function dueStateLabel(state: MonthlyDueSummary['state']): string {
-  return state === 'critical' ? '🚨 Limit exceeded'
-       : state === 'due_soon' ? '⚠️ Due soon'
+export function balanceStateLabel(state: BalanceState): string {
+  return state === 'critical' ? '🚨 Low balance'
+       : state === 'low'      ? '⚠️ Running low'
        : '✓ Healthy'
 }
 
 export function fmtRupees(n: number): string {
-  return '₹' + Math.round(n).toLocaleString('en-IN')
+  return '₹' + Math.round(Math.abs(n)).toLocaleString('en-IN')
+}
+
+export function fmtDays(days: number): string {
+  const d = Math.floor(days)
+  if (d <= 0) return '0d'
+  return `${d}d`
+}
+
+// ── Legacy re-exports (kept so old import sites don't break during migration) ─
+
+/** @deprecated Use computeBalance instead */
+export type BillingType = 'prepaid' | 'monthly_settlement'
+
+/** @deprecated Use BalanceSummary instead */
+export type MonthlyDueSummary = {
+  outstanding: number
+  effectiveLimit: number
+  effectiveMealRate: number
+  state: 'healthy' | 'due_soon' | 'critical'
+  percentUsed: number
+}
+
+/** @deprecated Use computeBalance instead */
+export function computeMonthlyDue(params: {
+  mealsDelivered: number
+  totalPaid: number
+  mealRate: number | null
+  creditLimit: number | null
+  defaultMealRate: number
+  defaultCreditLimit: number
+}): MonthlyDueSummary {
+  const effectiveMealRate = params.mealRate    ?? params.defaultMealRate
+  const effectiveLimit    = params.creditLimit ?? params.defaultCreditLimit
+  const gross             = params.mealsDelivered * effectiveMealRate
+  const outstanding       = Math.max(0, gross - params.totalPaid)
+  const percentUsed       = effectiveLimit > 0
+    ? Math.min(150, Math.round((outstanding / effectiveLimit) * 100))
+    : 0
+  const state = outstanding >= effectiveLimit       ? 'critical'
+              : outstanding >= effectiveLimit * 0.7 ? 'due_soon'
+              : 'healthy'
+  return { outstanding, effectiveLimit, effectiveMealRate, state, percentUsed }
+}
+
+/** @deprecated Use DUE_COLORS with BalanceState keys instead */
+export function dueStateLabel(state: MonthlyDueSummary['state']): string {
+  return state === 'critical' ? '🚨 Limit exceeded'
+       : state === 'due_soon' ? '⚠️ Due soon'
+       : '✓ Healthy'
 }

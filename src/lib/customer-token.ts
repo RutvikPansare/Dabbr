@@ -18,7 +18,9 @@ export interface PortalCustomer {
   id: string
   name: string
   status: 'active' | 'paused' | 'inactive'
-  balance_days: number
+  balance: number
+  credit_limit: number
+  price_per_month: number
   created_at: string
   address: string | null
   notes: string | null
@@ -144,7 +146,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
   const [{ data: customer }, { data: provider }] = await Promise.all([
     db
       .from('customers')
-      .select('id, name, status, balance_days, created_at, address, notes')
+      .select('id, name, status, balance, credit_limit, price_per_month, created_at, address, notes')
       .eq('id', tokenRow.customer_id)
       .single(),
     db

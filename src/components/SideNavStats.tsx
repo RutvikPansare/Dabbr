@@ -33,7 +33,7 @@ export default function SideNavStats() {
       const [custRes, payRes] = await Promise.all([
         supabase
           .from('customers')
-          .select('status, balance_days')
+          .select('status, balance, credit_limit')
           .eq('provider_id', user.id),
         supabase
           .from('payments')
@@ -42,7 +42,7 @@ export default function SideNavStats() {
           .gte('recorded_at', lastStart.toISOString()),
       ])
 
-      const customers = (custRes.data ?? []) as { status: string; balance_days: number }[]
+      const customers = (custRes.data ?? []) as { status: string; balance: number; credit_limit: number }[]
       const payments  = (payRes.data ?? [])  as { amount: number; recorded_at: string }[]
 
       const sum = (from: Date, to: Date) =>
@@ -54,7 +54,7 @@ export default function SideNavStats() {
         revenue:      sum(thisStart, now),
         lastRevenue:  sum(lastStart, thisStart),
         active:       customers.filter(c => c.status === 'active').length,
-        overdue:      customers.filter(c => c.status === 'active' && c.balance_days <= 0).length,
+        overdue:      customers.filter(c => c.status === 'active' && c.balance <= (c.credit_limit ?? 0)).length,
       })
     }
     load()

@@ -73,7 +73,7 @@ export default function SummarySection({ userId, deliveryTrackingEnabled }: {
     const [customersRes, paymentsRes, deliveryRes] = await Promise.all([
       supabase
         .from('customers')
-        .select('id, status, balance_days')
+        .select('id, status, balance, credit_limit, price_per_month')
         .eq('provider_id', userId),
       supabase
         .from('payments')
@@ -87,12 +87,12 @@ export default function SummarySection({ userId, deliveryTrackingEnabled }: {
         .gte('date', lastMonthStart.toISOString().split('T')[0]),
     ])
 
-    const customers = (customersRes.data ?? []) as { status: string; balance_days: number }[]
+    const customers = (customersRes.data ?? []) as { status: string; balance: number; credit_limit: number; price_per_month: number }[]
     const payments  = (paymentsRes.data ?? [])  as { amount: number; recorded_at: string }[]
     const logs      = (deliveryRes.data ?? [])   as { date: string; status: string }[]
 
-    const activeCustomers = customers.filter(c => c.status === 'active').length
-    const overdueCustomers = customers.filter(c => c.status === 'active' && c.balance_days <= 0)
+    const activeCustomers  = customers.filter(c => c.status === 'active').length
+    const overdueCustomers = customers.filter(c => c.status === 'active' && c.balance <= (c.credit_limit ?? 0))
 
     function sumRevenue(from: Date, to: Date) {
       return payments

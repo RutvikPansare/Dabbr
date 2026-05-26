@@ -178,7 +178,8 @@ export interface Database {
           meal_slots: MealSlot[]
           price_per_month: number
           status: CustomerStatus
-          balance_days: number
+          balance: number
+          credit_limit: number
           created_at: string
           notes: string | null
           tags: string[]
@@ -195,7 +196,8 @@ export interface Database {
           meal_slots?: MealSlot[]
           price_per_month?: number
           status?: CustomerStatus
-          balance_days?: number
+          balance?: number
+          credit_limit?: number
           created_at?: string
           notes?: string | null
           tags?: string[]
@@ -212,7 +214,8 @@ export interface Database {
           meal_slots?: MealSlot[]
           price_per_month?: number
           status?: CustomerStatus
-          balance_days?: number
+          balance?: number
+          credit_limit?: number
           created_at?: string
           notes?: string | null
           tags?: string[]

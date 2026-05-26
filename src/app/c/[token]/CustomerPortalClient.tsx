@@ -26,15 +26,15 @@ function addDays(dateStr: string, n: number) {
   return d.toISOString().split('T')[0]
 }
 
-function balanceColor(days: number) {
-  if (days > 10) return 'text-green-600'
-  if (days >= 4) return 'text-amber-600'
+function balanceColor(daysLeft: number) {
+  if (daysLeft > 10) return 'text-green-600'
+  if (daysLeft >= 4) return 'text-amber-600'
   return 'text-red-600'
 }
 
-function balanceBarColor(days: number) {
-  if (days > 10) return 'bg-green-400'
-  if (days >= 4) return 'bg-amber-400'
+function balanceBarColor(daysLeft: number) {
+  if (daysLeft > 10) return 'bg-green-400'
+  if (daysLeft >= 4) return 'bg-amber-400'
   return 'bg-red-400'
 }
 
@@ -308,23 +308,31 @@ export default function CustomerPortalClient({
 
               {/* Balance + price strip */}
               <div className="border-t border-gray-50 px-5 py-4 grid grid-cols-2 gap-4">
+                {(() => {
+                  const monthlyPrice = plan.monthly_price || customer.price_per_month || 0
+                  const perDay   = monthlyPrice > 0 ? monthlyPrice / 30 : 0
+                  const daysLeft = perDay > 0 ? Math.floor(customer.balance / perDay) : 0
+                  return (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Balance</p>
-                  <p className={`text-2xl font-black ${balanceColor(customer.balance_days)}`}>
-                    {Math.floor(customer.balance_days)}<span className="text-sm font-semibold"> days</span>
+                  <p className={`text-2xl font-black ${balanceColor(daysLeft)}`}>
+                    {daysLeft <= 0 ? '0' : daysLeft}<span className="text-sm font-semibold"> days</span>
                   </p>
-                  {customer.balance_days < 5 && (
+                  <p className="text-xs text-gray-400 mt-0.5">₹{Math.round(Math.max(0, customer.balance))} remaining</p>
+                  {daysLeft < 5 && (
                     <p className="text-xs text-red-500 font-semibold mt-0.5 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" /> Running low
                     </p>
                   )}
                   <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${balanceBarColor(customer.balance_days)}`}
-                      style={{ width: `${Math.min((customer.balance_days / 30) * 100, 100)}%` }}
+                      className={`h-full rounded-full transition-all ${balanceBarColor(daysLeft)}`}
+                      style={{ width: `${Math.min((daysLeft / 30) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
+                  )
+                })()}
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Monthly</p>
                   <p className="text-2xl font-black text-gray-800">₹{plan.monthly_price.toLocaleString('en-IN')}</p>

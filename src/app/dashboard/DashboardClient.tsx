@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, HandCoins, ChevronRight, UtensilsCrossed,
+  MapPin, ChevronRight, UtensilsCrossed,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
+import { computeBalance, fmtRupees, fmtDays } from '@/lib/udhar'
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
 import Paywall from '@/components/Paywall'
@@ -37,9 +38,9 @@ interface Customer {
   frequency: Frequency
   meal_slots: MealSlot[]
   status: 'active' | 'paused' | 'inactive'
-  balance_days: number
-  billing_type: 'prepaid' | 'monthly_settlement'
-  meals_delivered: number
+  balance: number
+  credit_limit: number
+  price_per_month: number
   created_at: string
   pauses: Pause[]
   subscriptions?: Subscription[]
@@ -161,9 +162,9 @@ function formatTodayShort(today: string): string {
 
 const PLAN_EMOJI: Record<PlanType, string> = { veg: '🥦', nonveg: '🍗' }
 
-function balancePill(days: number): string {
-  if (days > 7)  return 'bg-green-100 text-green-700 border border-green-200'
-  if (days >= 3) return 'bg-amber-100 text-amber-700 border border-amber-200'
+function balancePillClass(state: 'good' | 'low' | 'critical'): string {
+  if (state === 'good')     return 'bg-green-100 text-green-700 border border-green-200'
+  if (state === 'low')      return 'bg-amber-100 text-amber-700 border border-amber-200'
   return 'bg-red-100 text-red-700 border border-red-200'
 }
 
@@ -177,8 +178,12 @@ function customerMealSlots(c: Customer | null | undefined): MealSlot[] {
 }
 
 function reminderLink(c: Customer): string {
+  const price = customerPlan(c)?.monthly_price ?? c.price_per_month
+  const bs    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
   const msg = encodeURIComponent(
-    `Hi ${c.name} 🙏, your tiffin balance is running low — only *${c.balance_days} days* remaining. Please recharge soon to keep your deliveries going. Thank you! 🍱`
+    bs.daysLeft <= 0
+      ? `Hi ${c.name} 🙏, your tiffin balance has run out. Please recharge to continue receiving meals. Thank you! 🍱`
+      : `Hi ${c.name} 🙏, your tiffin balance is running low — only *${fmtDays(bs.daysLeft)}* remaining (₹${Math.round(c.balance)} left). Please recharge soon. Thank you! 🍱`
   )
   return `https://wa.me/91${c.whatsapp_number.replace(/\D/g, '')}?text=${msg}`
 }
@@ -192,10 +197,11 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
   hideArea?: boolean
   onOpen?: () => void
 }) {
-  const plan = customerPlan(c)
-  const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
+  const plan     = customerPlan(c)
+  const slots    = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
   const planType = plan?.plan_type ?? c.plan_type
-  const isMonthly = (c.billing_type ?? 'prepaid') === 'monthly_settlement'
+  const price    = plan?.monthly_price ?? c.price_per_month
+  const bs       = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
 
   return (
     <div onClick={onOpen} className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/40 cursor-pointer ${!isLast ? 'border-b border-gray-100' : ''}`}>
@@ -227,15 +233,9 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
 
       {/* Right: balance badge + diet icon */}
       <div className="shrink-0 flex flex-col items-end gap-1.5 mt-0.5">
-        {isMonthly ? (
-          <span className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-            <HandCoins className="w-3 h-3" /> Monthly
-          </span>
-        ) : (
-          <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePill(c.balance_days)}`}>
-            {c.balance_days}d left
-          </span>
-        )}
+        <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePillClass(bs.state)}`}>
+          {bs.daysLeft <= 0 ? 'Overdue' : `${fmtDays(bs.daysLeft)} left`}
+        </span>
         {planType === 'veg'
           ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
           : <Drumstick className="w-3.5 h-3.5 text-orange-300" />}
@@ -385,20 +385,20 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         </div>
 
         {/* Right: balance badge + diet icon */}
-        <div className={`shrink-0 flex flex-col items-end gap-1.5 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
-          {(c.billing_type ?? 'prepaid') === 'monthly_settlement' ? (
-            <span className="inline-flex items-center gap-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-              <HandCoins className="w-3 h-3" /> Monthly
-            </span>
-          ) : (
-            <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePill(c.balance_days)}`}>
-              {c.balance_days}d left
-            </span>
-          )}
-          {planType === 'veg'
-            ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-            : <Drumstick className="w-3.5 h-3.5 text-orange-300" />}
-        </div>
+        {(() => {
+          const swipePrice = plan?.monthly_price ?? c.price_per_month
+          const swipeBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: swipePrice })
+          return (
+            <div className={`shrink-0 flex flex-col items-end gap-1.5 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
+              <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePillClass(swipeBS.state)}`}>
+                {swipeBS.daysLeft <= 0 ? 'Overdue' : `${fmtDays(swipeBS.daysLeft)} left`}
+              </span>
+              {planType === 'veg'
+                ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
+                : <Drumstick className="w-3.5 h-3.5 text-orange-300" />}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
@@ -592,7 +592,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     if (prevStatus === newStatus) return
 
     const customer = customersRef.current.find(c => c.id === customerId)
-    const isMonthly = (customer?.billing_type ?? 'prepaid') === 'monthly_settlement'
 
     // ── Optimistic delivery status update ────────────────────────────────────
     setDeliveryStatuses(prev => {
@@ -645,15 +644,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
     // ── Apply server-returned balance delta to local state (UI stays live) ──
     // The server computed the correct delta atomically; we just mirror it here.
+    // balanceDelta is in rupees (negative = delivery deducted, positive = undo restored).
     const balanceDelta: number = (data as any)?.balance_delta ?? 0
     if (balanceDelta !== 0) {
       setCustomers(prev => prev.map(c => {
         if (c.id !== customerId) return c
-        if (isMonthly) {
-          return { ...c, meals_delivered: Math.max(0, (c.meals_delivered ?? 0) - balanceDelta) }
-        } else {
-          return { ...c, balance_days: Math.max(0, c.balance_days + balanceDelta) }
-        }
+        return { ...c, balance: c.balance + balanceDelta }
       }))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -814,8 +810,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   })
 
   const paymentAlerts = safeCustomers
-    .reduce((acc, c) => { if (c.status === 'active' && c.balance_days < 5) acc.push(c); return acc }, [] as Customer[])
-    .sort((a, b) => a.balance_days - b.balance_days)
+    .reduce((acc, c) => {
+      if (c.status !== 'active') return acc
+      const price = customerPlan(c)?.monthly_price ?? c.price_per_month
+      const bs    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
+      if (bs.state !== 'good') acc.push(c)
+      return acc
+    }, [] as Customer[])
+    .sort((a, b) => a.balance - b.balance)
 
   // ── Cook list — show every slot that has a menu saved, regardless of customer slots ─
   const cookList = MEAL_SLOTS.map(slot => {
@@ -1586,14 +1588,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <div className="absolute top-0 right-0 p-8 bg-red-500/5 rounded-bl-full" />
                     <div className="relative z-10">
                       <p className="text-sm font-bold text-gray-900 group-hover:text-red-700 transition-colors">{c.name}</p>
-                      <p className="mt-1.5 flex items-center gap-2 text-xs">
-                        <span className={`rounded-lg px-2.5 py-1 font-bold ${
-                          c.balance_days <= 2 ? 'bg-red-200 text-red-900 shadow-sm' : 'bg-amber-200 text-amber-900 shadow-sm'
-                        }`}>
-                          {c.balance_days}d left
-                        </span>
-                        {c.area && <span className="text-gray-500 font-medium">{c.area}</span>}
-                      </p>
+                      {(() => {
+                        const alertPrice = customerPlan(c)?.monthly_price ?? c.price_per_month
+                        const alertBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: alertPrice })
+                        return (
+                          <p className="mt-1.5 flex items-center gap-2 text-xs">
+                            <span className={`rounded-lg px-2.5 py-1 font-bold ${
+                              alertBS.state === 'critical' ? 'bg-red-200 text-red-900 shadow-sm' : 'bg-amber-200 text-amber-900 shadow-sm'
+                            }`}>
+                              {alertBS.daysLeft <= 0 ? 'Overdue' : `${fmtDays(alertBS.daysLeft)} left`}
+                            </span>
+                            {c.area && <span className="text-gray-500 font-medium">{c.area}</span>}
+                          </p>
+                        )
+                      })()}
                     </div>
                     <a
                       href={reminderLink(c)}
@@ -2004,7 +2012,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-gray-800 truncate">{c.name}</p>
-                        <p className="text-[11px] text-gray-400">{c.balance_days}d left</p>
+                        <p className="text-[11px] text-gray-400">
+                          {(() => {
+                            const dp = customerPlan(c)?.monthly_price ?? c.price_per_month
+                            const db = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: dp })
+                            return db.daysLeft <= 0 ? 'Overdue' : `${fmtDays(db.daysLeft)} left`
+                          })()}
+                        </p>
                       </div>
                       <a
                         href={reminderLink(c)}
@@ -2146,10 +2160,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       {/* ── Customer quick-view modal ── */}
       {customerModal && (() => {
         const c = customerModal
-        const plan = customerPlan(c)
-        const balanceClass = c.balance_days > 7
+        const plan       = customerPlan(c)
+        const modalPrice = plan?.monthly_price ?? c.price_per_month
+        const modalBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: modalPrice })
+        const balanceClass = modalBS.state === 'good'
           ? 'bg-green-50 text-green-700 border-green-200'
-          : c.balance_days >= 3
+          : modalBS.state === 'low'
           ? 'bg-amber-50 text-amber-700 border-amber-200'
           : 'bg-red-50 text-red-700 border-red-200'
         return (
@@ -2223,8 +2239,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     </p>
                   </div>
                   <div className={`rounded-xl border px-3 py-1.5 text-center shrink-0 ${balanceClass}`}>
-                    <p className="text-base font-black leading-none">{c.balance_days}</p>
-                    <p className="text-[10px] font-bold mt-0.5">days left</p>
+                    <p className="text-base font-black leading-none">{fmtRupees(c.balance)}</p>
+                    <p className="text-[10px] font-bold mt-0.5">
+                      {modalBS.daysLeft > 0 ? `${fmtDays(modalBS.daysLeft)} left` : 'overdue'}
+                    </p>
                   </div>
                 </div>
 
