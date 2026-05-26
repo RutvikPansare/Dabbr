@@ -660,6 +660,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   )
   const deliveryStatusesRef = useRef<Record<string, DeliveryStatus>>({})
   deliveryStatusesRef.current = deliveryStatuses
+  // Tracks whether any local mark has been made since mount.
+  // Used to skip the initial full-fetch overwrite after an optimistic update.
+  const hasMarkedAny = useRef(false)
 
   const [undoSnackbar, setUndoSnackbar] = useState<{ id: string; slot: MealSlot; prevStatus: DeliveryStatus; name: string; action: string } | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -695,13 +698,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       return m
     }
 
-    // Initial full fetch — brings client in sync regardless of cache age
+    // Initial full fetch — brings client in sync regardless of cache age.
+    // Skip the overwrite if the user has already made optimistic updates so we
+    // don't race-revert their click (the RPC + realtime subscription keeps us live).
     db.from('delivery_logs')
       .select('customer_id, meal_slot, status')
       .eq('provider_id', userId)
       .eq('date', today)
       .then(({ data }: { data: { customer_id: string; meal_slot: string; status: string }[] | null }) => {
-        if (data) setDeliveryStatuses(buildStatusMap(data))
+        if (data && !hasMarkedAny.current) setDeliveryStatuses(buildStatusMap(data))
       })
 
     // Realtime subscription — incremental updates from other devices/tabs.
@@ -759,6 +764,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     const customer = customersRef.current.find(c => c.id === customerId)
 
     // ── Optimistic delivery status update ────────────────────────────────────
+    hasMarkedAny.current = true  // prevent initial full-fetch from reverting this
     setDeliveryStatuses(prev => {
       const next = { ...prev }
       if (newStatus === 'pending') delete next[key]
@@ -806,6 +812,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       console.error('[Dabbr] markDelivery RPC failed:', error.message)
       return
     }
+
+    // ── Re-assert the confirmed status (belt-and-suspenders) ─────────────────
+    // The optimistic update already did this, but if a concurrent state overwrite
+    // (e.g. initial fetch race) reverted it, this ensures the correct status sticks.
+    setDeliveryStatuses(prev => {
+      const next = { ...prev }
+      if (newStatus === 'pending') delete next[key]
+      else next[key] = newStatus
+      return next
+    })
 
     // ── Apply server-returned balance delta to local state (UI stays live) ──
     // The server computed the correct delta atomically; we just mirror it here.
