@@ -424,9 +424,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           ].filter(Boolean)
           setAddress(parts.join(', ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`)
         } catch {
-          // Geocoding failed — at least fill coordinates so field isn't empty
-          setAddress(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`)
-          setLocateError('Could not resolve address — coordinates filled in. Edit as needed.')
+          setLocateError('Could not resolve address. Type it in manually.')
         } finally {
           setLocating(false)
         }
