@@ -23,22 +23,24 @@ export interface BalanceSummary {
 }
 
 export function computeBalance(params: {
-  balance:      number
-  creditLimit:  number | null
-  monthlyPrice: number
+  balance:      number | null | undefined
+  creditLimit:  number | null | undefined
+  monthlyPrice: number | null | undefined
 }): BalanceSummary {
-  const creditLimit  = params.creditLimit ?? 0
-  const perDayCost   = params.monthlyPrice > 0 ? params.monthlyPrice / 30 : 0
-  const daysLeft     = perDayCost > 0 ? params.balance / perDayCost : 0
-  const amountDue    = Math.max(0, creditLimit - params.balance)
+  const balance      = params.balance      ?? 0
+  const creditLimit  = params.creditLimit  ?? 0
+  const monthlyPrice = params.monthlyPrice ?? 0
+  const perDayCost   = monthlyPrice > 0 ? monthlyPrice / 30 : 0
+  const daysLeft     = perDayCost > 0 ? balance / perDayCost : 0
+  const amountDue    = Math.max(0, creditLimit - balance)
 
   const state: BalanceState =
-    params.balance <= creditLimit ? 'critical' :
-    daysLeft <= 5                 ? 'low'      :
+    balance <= creditLimit ? 'critical' :
+    daysLeft <= 5          ? 'low'      :
     'good'
 
   return {
-    balance:    params.balance,
+    balance,
     creditLimit,
     daysLeft,
     perDayCost,
@@ -61,11 +63,13 @@ export function balanceStateLabel(state: BalanceState): string {
        : '✓ Healthy'
 }
 
-export function fmtRupees(n: number): string {
+export function fmtRupees(n: number | null | undefined): string {
+  if (n == null || isNaN(n)) return '₹0'
   return '₹' + Math.round(Math.abs(n)).toLocaleString('en-IN')
 }
 
-export function fmtDays(days: number): string {
+export function fmtDays(days: number | null | undefined): string {
+  if (days == null || isNaN(days)) return '0d'
   const d = Math.floor(days)
   if (d <= 0) return '0d'
   return `${d}d`
