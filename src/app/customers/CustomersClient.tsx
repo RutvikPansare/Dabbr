@@ -303,6 +303,14 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   // Import dropdown
   const [showImportMenu, setShowImportMenu] = useState(false)
 
+  // Record payment modal (from customer detail)
+  const [showPayModal, setShowPayModal]   = useState(false)
+  const [payAmount, setPayAmount]         = useState('')
+  const [payNote, setPayNote]             = useState('')
+  const [payLoading, setPayLoading]       = useState(false)
+  const [payError, setPayError]           = useState('')
+  const [payReceiptUrl, setPayReceiptUrl] = useState<string | null>(null)
+
   // Customer limit / upgrade modal
   const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(initialAddWouldExceedLimit || initialOverCustomerLimit)
   const [limitAttemptCount, setLimitAttemptCount] = useState(1)
@@ -556,6 +564,75 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
       .order('recorded_at', { ascending: false })
     setPayments(data ?? [])
     setPaymentsLoading(false)
+  }
+
+  function openPayModal(c: Customer) {
+    const price = c.subscriptions?.find(s => s.status === 'active')?.meal_plans?.monthly_price ?? c.price_per_month
+    setPayAmount(String(price || ''))
+    setPayNote('')
+    setPayError('')
+    setPayReceiptUrl(null)
+    setShowPayModal(true)
+  }
+
+  async function handleRecordPayment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedCustomer) return
+    setPayLoading(true)
+    setPayError('')
+
+    const amountNum = Number(payAmount)
+    const res = await fetch('/api/record-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: selectedCustomer.id,
+        amount: amountNum,
+        notes: payNote.trim() || null,
+      }),
+    })
+
+    const json = await res.json()
+    if (!res.ok) {
+      setPayError(json.error ?? 'Failed to record payment.')
+      setPayLoading(false)
+      return
+    }
+
+    const { newBalance } = json
+
+    // Update local state so balance card reflects immediately
+    setSelectedCustomer(prev => prev ? { ...prev, balance: newBalance } : prev)
+    setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, balance: newBalance } : c))
+
+    // Add event to ledger
+    setLedgerEvents(prev => [{
+      id: `pay-${Date.now()}`,
+      date: new Date().toISOString(),
+      type: 'payment',
+      amount: amountNum,
+      notes: payNote.trim() || null,
+    } as LedgerEvent, ...prev])
+
+    // Build WhatsApp receipt link
+    const providerName = 'Your tiffin provider'
+    const daysLeft = selectedCustomer.price_per_month > 0
+      ? Math.floor(newBalance / (selectedCustomer.price_per_month / 30))
+      : 0
+    const msg = [
+      `Hi ${selectedCustomer.name},`,
+      `Payment received: ₹${amountNum} ✅`,
+      newBalance >= 0
+        ? `Your balance is ₹${Math.round(newBalance)} — good for ${daysLeft} more days.`
+        : `Your balance is -₹${Math.abs(Math.round(newBalance))} — please recharge soon.`,
+      `Thank you! 🙏`,
+      `— ${providerName}`,
+    ].join('\n')
+    setPayReceiptUrl(`https://wa.me/91${selectedCustomer.whatsapp_number.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`)
+
+    setPayLoading(false)
+    await invalidateCustomers(providerId)
+    router.refresh()
   }
 
   async function deleteCustomer(c: Customer) {
@@ -1636,12 +1713,20 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   ₹{plan?.monthly_price ?? c.price_per_month}/mo · payments top up balance
                 </p>
               </div>
-              <button
-                onClick={() => openEdit(c)}
-                className="shrink-0 text-[10px] font-bold text-orange-500 hover:text-orange-700 transition-colors"
-              >
-                Edit
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => openPayModal(c)}
+                  className="flex items-center gap-1 rounded-xl bg-orange-500 px-3 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all"
+                >
+                  <Plus className="w-3 h-3" /> Add Payment
+                </button>
+                <button
+                  onClick={() => openEdit(c)}
+                  className="text-[10px] font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Edit
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2055,6 +2140,154 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
         </main>
         <BottomNav />
+
+        {/* ── Record Payment Modal ── */}
+        {showPayModal && selectedCustomer && (() => {
+          const price = selectedCustomer.subscriptions?.find(s => s.status === 'active')?.meal_plans?.monthly_price ?? selectedCustomer.price_per_month
+          const base = [500, 1000, 2000, 3000]
+          const chips = price > 0 && !base.includes(price) ? [...base, price].sort((a, b) => a - b) : base
+          const previewBalance = payAmount ? selectedCustomer.balance + Number(payAmount) : null
+          const previewDays = previewBalance !== null && price > 0 ? Math.floor(previewBalance / (price / 30)) : null
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+              onClick={() => { if (!payReceiptUrl) setShowPayModal(false) }}
+            >
+              <div
+                className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+                  <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                    <IndianRupee className="w-5 h-5 text-orange-500" /> Record Payment
+                  </h2>
+                  <button
+                    onClick={() => setShowPayModal(false)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 active:bg-gray-200 transition-colors"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="px-5 py-4">
+                  {payReceiptUrl ? (
+                    /* Post-payment receipt state */
+                    <div className="text-center py-4 space-y-4">
+                      <div className="w-16 h-16 rounded-3xl bg-green-100 flex items-center justify-center text-green-600 mx-auto">
+                        <CheckCircle2 className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <p className="font-black text-gray-900">₹{payAmount} recorded!</p>
+                        <p className="text-sm text-gray-500 mt-1">New balance: ₹{Math.round(selectedCustomer.balance)}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={payReceiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-green-500 py-3 text-sm font-bold text-white active:scale-95 transition-all"
+                        >
+                          <MessageCircle className="w-4 h-4" /> Send receipt
+                        </a>
+                        <button
+                          onClick={() => setShowPayModal(false)}
+                          className="flex-1 rounded-2xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-500 active:scale-95 transition-all"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleRecordPayment} className="space-y-4">
+                      {/* Customer info */}
+                      <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                        <p className="text-xs font-bold text-gray-700">{selectedCustomer.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Current balance: <span className="font-bold text-orange-600">₹{Math.round(selectedCustomer.balance)}</span>
+                          {price > 0 && <> · {Math.max(0, Math.floor(selectedCustomer.balance / (price / 30)))}d left</>}
+                        </p>
+                      </div>
+
+                      {/* Quick chips */}
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Amount (₹)</p>
+                        <div className="flex gap-1.5 flex-wrap mb-2.5">
+                          {chips.map(v => {
+                            const isActive = payAmount === String(v)
+                            const isPlan = v === price && price > 0
+                            return (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={() => setPayAmount(String(v))}
+                                className={`rounded-xl px-3 py-1.5 text-xs font-black border transition-all active:scale-95 ${
+                                  isActive
+                                    ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
+                                    : isPlan
+                                      ? 'bg-orange-50 border-orange-300 text-orange-600'
+                                      : 'bg-gray-50 border-gray-200 text-gray-600'
+                                }`}
+                              >
+                                ₹{v.toLocaleString('en-IN')}
+                                {isPlan && !isActive && <span className="ml-1 opacity-60 text-[10px]">plan</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          placeholder="or enter custom amount"
+                          value={payAmount}
+                          onChange={e => setPayAmount(e.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                        />
+                        {previewBalance !== null && payAmount && (
+                          <p className="mt-1.5 text-xs text-gray-400">
+                            New balance:{' '}
+                            <span className={`font-bold ${previewBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              ₹{Math.round(previewBalance)}
+                            </span>
+                            {previewDays !== null && previewDays > 0 && (
+                              <> · <span className="font-bold text-gray-700">+{previewDays}d</span></>
+                            )}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Note */}
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Note (optional)</p>
+                        <input
+                          type="text"
+                          placeholder="e.g. Cash, UPI ref…"
+                          value={payNote}
+                          onChange={e => setPayNote(e.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                        />
+                      </div>
+
+                      {payError && (
+                        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{payError}</p>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={payLoading || !payAmount}
+                        className="w-full rounded-2xl bg-[#F4622A] py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition active:scale-[0.98] disabled:opacity-60"
+                      >
+                        {payLoading ? 'Recording…' : 'Record Payment'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
       </div>
     )
   }
