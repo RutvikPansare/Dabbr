@@ -2006,42 +2006,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
-            {/* Payment alerts — desktop compact */}
-            {paymentAlerts.length > 0 && (
-              <div className="card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Payment alerts</p>
-                  <span className="chip-sm bg-red-50 text-red-600 font-bold">{paymentAlerts.length}</span>
-                </div>
-                <div className="space-y-2">
-                  {paymentAlerts.slice(0, 5).map(c => (
-                    <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-gray-800 truncate">{c.name}</p>
-                        <p className="text-[11px] text-gray-400">
-                          {(() => {
-                            const dp = customerPlan(c)?.monthly_price ?? c.price_per_month
-                            const db = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: dp })
-                            return db.daysLeft <= 0 ? 'Overdue' : `${fmtDays(db.daysLeft)} left`
-                          })()}
-                        </p>
-                      </div>
-                      <a
-                        href={reminderLink(c)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-500 text-white ml-2 shrink-0 hover:bg-green-600 transition-colors"
-                      >
-                        <MessageSquare className="w-3 h-3" fill="currentColor" />
-                      </a>
-                    </div>
-                  ))}
-                  {paymentAlerts.length > 5 && (
-                    <p className="text-[11px] text-gray-400 text-center pt-1">+{paymentAlerts.length - 5} more</p>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Today's summary stats */}
             {deliveryToday.length > 0 && (
