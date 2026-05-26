@@ -408,26 +408,25 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        const { latitude, longitude } = pos.coords
         try {
-          const { latitude, longitude } = pos.coords
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            { headers: { 'Accept-Language': 'en' } }
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
           )
           if (!res.ok) throw new Error('Reverse geocode failed')
           const data = await res.json()
           // Build a readable address from components
-          const a = data.address ?? {}
           const parts = [
-            a.road ?? a.pedestrian ?? a.footway,
-            a.neighbourhood ?? a.suburb ?? a.quarter,
-            a.city ?? a.town ?? a.village ?? a.county,
-            a.state,
-            a.postcode,
+            data.locality,
+            data.city ?? data.principalSubdivision,
+            data.postcode,
+            data.countryName,
           ].filter(Boolean)
-          setAddress(parts.join(', ') || data.display_name || '')
+          setAddress(parts.join(', ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`)
         } catch {
-          setLocateError('Could not fetch address. Try again or type it manually.')
+          // Geocoding failed — at least fill coordinates so field isn't empty
+          setAddress(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`)
+          setLocateError('Could not resolve address — coordinates filled in. Edit as needed.')
         } finally {
           setLocating(false)
         }
