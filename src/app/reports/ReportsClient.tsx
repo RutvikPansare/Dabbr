@@ -201,13 +201,12 @@ export default function ReportsClient() {
     <div className="min-h-screen bg-[#FDF8F3]">
 
       {/* ── Header ── */}
-      <header className="fixed inset-x-0 top-0 z-30 lg:left-[220px] bg-white/90 backdrop-blur-xl border-b border-orange-100/50 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
-        <div className="mx-auto max-w-3xl px-4 h-14 flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-orange-50">
-            <BarChart2 className="w-4 h-4 text-orange-500" />
+      <header className="fixed inset-x-0 top-0 z-30 lg:left-[220px] bg-[#FDF8F3]/90 backdrop-blur-sm py-3">
+        <div className="mx-auto max-w-3xl px-4 lg:px-8 flex items-center gap-3">
+          <div className="flex-1">
+            <h1 className="text-xl font-black text-gray-900 tracking-tight">Reports</h1>
+            <p className="text-xs font-semibold text-orange-600/80">Download CSV reports for your tiffin business</p>
           </div>
-          <h1 className="text-base font-black text-gray-900">Reports</h1>
-          <p className="ml-1 text-xs font-semibold text-gray-400 hidden sm:block">Download CSV reports for your tiffin business</p>
         </div>
       </header>
 
