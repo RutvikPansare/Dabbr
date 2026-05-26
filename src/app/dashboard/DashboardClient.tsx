@@ -1564,58 +1564,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           {/* ── Left column ── */}
           <div className="space-y-5">
 
-          {/* ── Payment alerts — mobile/Android only (hidden on desktop, desktop has right panel) ── */}
-          {paymentAlerts.length > 0 && (
-            <section className="mt-8 lg:hidden">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
-                  <span className="flex items-center justify-center p-1.5 bg-red-100 rounded-xl">
-                    <AlertTriangle className="w-4 h-4 text-red-600" />
-                  </span>
-                  Payment Alerts
-                </h2>
-                <span className="rounded-xl bg-red-500 px-2.5 py-1 text-xs font-black text-white shadow-sm">
-                  {paymentAlerts.length}
-                </span>
-              </div>
-              <div className="space-y-3">
-                {paymentAlerts.map((c) => (
-                  <div
-                    key={c.id}
-                    className="group relative overflow-hidden flex items-center justify-between rounded-[1.5rem] bg-gradient-to-r from-red-50 to-orange-50 border border-red-100 p-4 shadow-[0_4px_20px_rgba(239,68,68,0.05)] transition-all duration-300 hover:shadow-[0_4px_20px_rgba(239,68,68,0.15)] hover:-translate-y-0.5"
-                  >
-                    <div className="absolute top-0 right-0 p-8 bg-red-500/5 rounded-bl-full" />
-                    <div className="relative z-10">
-                      <p className="text-sm font-bold text-gray-900 group-hover:text-red-700 transition-colors">{c.name}</p>
-                      {(() => {
-                        const alertPrice = customerPlan(c)?.monthly_price ?? c.price_per_month
-                        const alertBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: alertPrice })
-                        return (
-                          <p className="mt-1.5 flex items-center gap-2 text-xs">
-                            <span className={`rounded-lg px-2.5 py-1 font-bold ${
-                              alertBS.state === 'critical' ? 'bg-red-200 text-red-900 shadow-sm' : 'bg-amber-200 text-amber-900 shadow-sm'
-                            }`}>
-                              {alertBS.daysLeft <= 0 ? 'Overdue' : `${fmtDays(alertBS.daysLeft)} left`}
-                            </span>
-                            {c.area && <span className="text-gray-500 font-medium">{c.area}</span>}
-                          </p>
-                        )
-                      })()}
-                    </div>
-                    <a
-                      href={reminderLink(c)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="relative z-10 flex h-10 w-10 items-center justify-center rounded-2xl bg-green-500 text-white shadow-[0_4px_15px_rgba(34,197,94,0.3)] transition-all duration-300 hover:bg-green-600 hover:scale-110 active:scale-95 group/btn"
-                    >
-                      <MessageSquare className="w-4 h-4 group-hover/btn:-rotate-12 transition-transform" fill="currentColor" />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* ── Plan trial upgrade banner (3d / 1d warning) ── */}
           {planTrialInfo && !planTrialInfo.expired && planTrialInfo.daysLeft <= 3 && (
             <div className={`rounded-2xl px-4 py-4 flex items-center gap-3 mb-2 ${planTrialInfo.daysLeft <= 1 ? 'bg-red-50 border border-red-100' : 'bg-amber-50 border border-amber-100'}`}>
@@ -1999,6 +1947,48 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
 
+
+            {/* ── Payment alerts — desktop right panel only ── */}
+            {paymentAlerts.length > 0 && (
+              <div className="card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                    Payment Alerts
+                  </p>
+                  <span className="rounded-lg bg-red-500 px-2 py-0.5 text-[10px] font-black text-white">
+                    {paymentAlerts.length}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {paymentAlerts.map((c) => {
+                    const alertPrice = c.price_per_month
+                    const alertBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: alertPrice })
+                    return (
+                      <div key={c.id} className="flex items-center justify-between gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-800 truncate">{c.name}</p>
+                          <p className="text-[11px] font-semibold mt-0.5">
+                            <span className={`${alertBS.state === 'critical' ? 'text-red-600' : 'text-amber-600'}`}>
+                              {alertBS.daysLeft <= 0 ? 'Overdue' : `${fmtDays(alertBS.daysLeft)} left`}
+                            </span>
+                            {c.area && <span className="text-gray-400 ml-1">· {c.area}</span>}
+                          </p>
+                        </div>
+                        <a
+                          href={reminderLink(c)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 flex h-8 w-8 items-center justify-center rounded-xl bg-green-500 text-white shadow-sm hover:bg-green-600 transition-colors"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" fill="currentColor" />
+                        </a>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Today's summary stats */}
             {deliveryToday.length > 0 && (
