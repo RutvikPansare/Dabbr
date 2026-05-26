@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown, Sparkles } from 'lucide-react'
+import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown, Sparkles, FileDown } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: Home,        label: 'Home'      },
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/menu',      icon: CalendarDays, label: 'Menu'      },
   { href: '/payments',  icon: CreditCard,  label: 'Payments'  },
   { href: '/summary',   icon: BarChart2,   label: 'Summary'   },
+  { href: '/reports',   icon: FileDown,    label: 'Reports'   },
   { href: '/settings',  icon: Settings,    label: 'Settings'  },
 ]
 
