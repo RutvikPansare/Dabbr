@@ -727,19 +727,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         'postgres_changes',
         { event: '*', schema: 'public', table: 'delivery_logs', filter: `provider_id=eq.${userId}` },
         (payload) => {
+          console.log('[realtime] delivery_logs event:', payload.eventType, payload)
           if (payload.eventType === 'DELETE') {
-            // old record has all columns because of REPLICA IDENTITY FULL
             const old = payload.old as { customer_id?: string; meal_slot?: string; date?: string }
             if (!old.customer_id || !old.meal_slot || old.date !== today) return
+            console.log(`[realtime] DELETE → clearing ${old.customer_id}:${old.meal_slot}`)
             setDeliveryStatuses(prev => {
               const next = { ...prev }
               delete next[`${old.customer_id}:${old.meal_slot}`]
               return next
             })
           } else {
-            // INSERT or UPDATE
             const row = payload.new as { customer_id: string; meal_slot: string; status: string; date: string }
             if (row.date !== today) return
+            console.log(`[realtime] ${payload.eventType} → ${row.customer_id}:${row.meal_slot} = ${row.status}`)
             setDeliveryStatuses(prev => ({
               ...prev,
               [`${row.customer_id}:${row.meal_slot}`]: row.status as DeliveryStatus,
@@ -760,25 +761,34 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // ── Delivery mutation ─────────────────────────────────────────────────────
 
   const markDelivery = useCallback(async (customerId: string, slot: MealSlot, newStatus: 'delivered' | 'skipped' | 'pending') => {
+    console.log(`[mark] called — customer=${customerId} slot=${slot} newStatus=${newStatus} overLimit=${overCustomerLimit}`)
+
     if (overCustomerLimit) {
+      console.warn('[mark] BLOCKED — over customer limit')
       setShowCustomerLimitModal(true)
       return
     }
 
     const key = `${customerId}:${slot}`
     const prevStatus: DeliveryStatus = deliveryStatusesRef.current[key] ?? 'pending'
-    if (prevStatus === newStatus) return
+    console.log(`[mark] prevStatus=${prevStatus}`)
+
+    if (prevStatus === newStatus) {
+      console.log('[mark] no-op — same status, returning')
+      return
+    }
 
     const customer = customersRef.current.find(c => c.id === customerId)
 
-    // ── Optimistic delivery status update ────────────────────────────────────
-    hasMarkedAny.current = true  // prevent initial full-fetch from reverting this
+    // ── Optimistic update ────────────────────────────────────────────────────
+    hasMarkedAny.current = true
     setDeliveryStatuses(prev => {
       const next = { ...prev }
       if (newStatus === 'pending') delete next[key]
       else next[key] = newStatus
       return next
     })
+    console.log(`[mark] optimistic UI → ${newStatus}`)
 
     // Undo snackbar (single-action only, not for resets)
     if (newStatus !== 'pending') {
@@ -793,16 +803,18 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       undoTimerRef.current = setTimeout(() => setUndoSnackbar(null), 4000)
     }
 
-    // ── Server write: delivery_logs + balance update ──────────────────────
+    // ── Server write ─────────────────────────────────────────────────────────
+    console.log(`[mark] POST /api/mark-delivery date=${today}`)
     const res = await fetch('/api/mark-delivery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customer_id: customerId, date: today, meal_slot: slot, status: newStatus }),
     })
+    console.log(`[mark] response status=${res.status}`)
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}))
-      // ── Rollback optimistic delivery status ───────────────────────────────
+      console.error(`[mark] FAILED — rolling back to ${prevStatus}. Server error:`, json.error)
       setDeliveryStatuses(prev => {
         const next = { ...prev }
         if (prevStatus === 'pending') delete next[key]
@@ -810,13 +822,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         return next
       })
       setUndoSnackbar(prev => (prev?.id === customerId && prev?.slot === slot ? null : prev))
-      console.error('[Dabbr] markDelivery failed:', json.error)
       return
     }
 
     const json = await res.json().catch(() => ({}))
+    console.log(`[mark] SUCCESS — balance_delta=${json.balance_delta}`)
 
-    // ── Re-assert confirmed status so any concurrent overwrites don't stick ──
+    // Re-assert confirmed status
     setDeliveryStatuses(prev => {
       const next = { ...prev }
       if (newStatus === 'pending') delete next[key]
@@ -824,7 +836,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       return next
     })
 
-    // ── Apply server-returned balance delta ───────────────────────────────
     const balanceDelta: number = json.balance_delta ?? 0
     if (balanceDelta !== 0) {
       setCustomers(prev => prev.map(c => {
@@ -833,7 +844,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       }))
     }
 
-    // ── Bill any pending extras when delivery is marked as delivered ──────
     if (newStatus === 'delivered' && pendingExtras[customerId]?.length) {
       billExtrasForCustomer(customerId)
     }
@@ -842,6 +852,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   async function handleUndo() {
     if (!undoSnackbar) return
+    console.log(`[undo] UNDO clicked — reverting ${undoSnackbar.name} ${undoSnackbar.slot} to ${undoSnackbar.prevStatus}`)
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     const { id, slot, prevStatus } = undoSnackbar
     setUndoSnackbar(null)
