@@ -1228,13 +1228,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               <p className="text-3xl font-black text-orange-500 leading-none">{pendingCount}</p>
               <p className="text-[11px] text-gray-400 mt-1.5">{slotFilter === 'all' ? 'untouched' : 'this slot'}</p>
             </div>
-            {paymentAlerts.length > 0 && (
-              <div className="stat-tile border-red-100 bg-red-50/60">
-                <p className="text-[11px] font-semibold text-red-400 mb-1.5">Pay alerts</p>
-                <p className="text-3xl font-black text-red-600 leading-none">{paymentAlerts.length}</p>
-                <p className="text-[11px] text-red-400 mt-1.5">customers</p>
-              </div>
-            )}
           </div>
 
           {/* Tiffin illustration — absolutely positioned, never affects tile layout */}
