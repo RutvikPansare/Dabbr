@@ -379,6 +379,57 @@ function HowItWorks() {
 function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
   const { signIn, loading } = useSignIn()
   const { startCheckout, loadingPlan, error } = useBillingCheckout()
+  const [providerStatus, setProviderStatus] = useState<any>(null)
+  const [startingTrial, setStartingTrial] = useState<BillingPlanId | null>(null)
+  const [trialError, setTrialError] = useState<string | null>(null)
+  const [trialSuccess, setTrialSuccess] = useState<BillingPlanId | null>(null)
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    fetch('/api/provider-status')
+      .then(r => r.json())
+      .then(d => { if (d && !d.error) setProviderStatus(d) })
+      .catch(() => {})
+  }, [isLoggedIn])
+
+  const isOnPaidTrial = !!(providerStatus?.is_subscribed && providerStatus?.plan_trial_ends_at)
+  const hasActivePlan = !!(
+    providerStatus?.subscription_plan &&
+    providerStatus?.subscription_status === 'active'
+  )
+  const canTrial = isLoggedIn && !isOnPaidTrial && !hasActivePlan
+
+  async function handleStartTrial(planId: BillingPlanId) {
+    if (!isLoggedIn) {
+      window.location.href = '/login'
+      return
+    }
+    setStartingTrial(planId)
+    setTrialError(null)
+    try {
+      const res = await fetch('/api/start-plan-trial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setTrialError(data.error ?? 'Could not start trial. Please try again.')
+      } else {
+        setTrialSuccess(planId)
+        // Refresh provider status
+        fetch('/api/provider-status')
+          .then(r => r.json())
+          .then(d => { if (d && !d.error) setProviderStatus(d) })
+          .catch(() => {})
+      }
+    } catch {
+      setTrialError('Could not start trial. Please try again.')
+    } finally {
+      setStartingTrial(null)
+    }
+  }
+
   const trialFeatures = [
     'Up to 15 customers',
     'Daily delivery tracking',
@@ -390,20 +441,17 @@ function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
   const paidPlans: Array<{
     id: BillingPlanId
     badge: string
-    features: string[]
     featured?: boolean
     cta: string
   }> = [
     {
       id: 'starter',
       badge: 'Starter',
-      features: ['Up to 50 customers', 'Daily delivery tracking', 'Payments and reminders', 'Menu planner'],
       cta: 'Get Starter Plan',
     },
     {
       id: 'pro',
       badge: 'Best for growing kitchens',
-      features: ['Everything in Starter', 'Unlimited customers', 'Meal plans and subscriptions', 'Priority support'],
       featured: true,
       cta: 'Get Pro Plan',
     },
@@ -468,28 +516,67 @@ function Pricing({ isLoggedIn }: { isLoggedIn: boolean }) {
                   <span className="text-orange-200/50 mb-2">/ month</span>
                 </div>
                 <ul className="flex-1 space-y-3 mb-8">
-                  {planConfig.features.map(f => (
+                  {plan.features.map(f => (
                     <li key={f} className="flex items-center gap-3 text-orange-100/70 text-sm">
                       <span className="text-orange-400 text-base">✦</span>
                       {f}
                     </li>
                   ))}
                 </ul>
-                <button
-                  onClick={() => startCheckout(plan.id, 'landing')}
-                  disabled={loadingPlan !== null}
-                  className="w-full py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] hover:-translate-y-0.5 transition-all shadow-lg shadow-orange-900/40 disabled:opacity-60"
-                >
-                  {loadingPlan === plan.id ? 'Opening Razorpay…' : planConfig.cta}
-                </button>
+                <div className="space-y-2.5">
+                  {/* Trial CTA */}
+                  {isOnPaidTrial && providerStatus?.subscription_plan === plan.id ? (
+                    <div className="w-full py-3 rounded-2xl text-center text-sm font-bold text-orange-300 border border-orange-400/30 bg-orange-400/10">
+                      ✦ Trial active — {Math.max(0, Math.ceil((new Date(providerStatus.plan_trial_ends_at).getTime() - Date.now()) / 86400000))} days left
+                    </div>
+                  ) : hasActivePlan && providerStatus?.subscription_plan === plan.id ? (
+                    <div className="w-full py-3 rounded-2xl text-center text-sm font-bold text-green-300 border border-green-400/30 bg-green-400/10">
+                      ✓ Your current plan
+                    </div>
+                  ) : trialSuccess === plan.id ? (
+                    <div className="w-full py-3 rounded-2xl text-center text-sm font-bold text-green-300 border border-green-400/30 bg-green-400/10">
+                      ✓ Trial started! Go to your dashboard →
+                    </div>
+                  ) : canTrial ? (
+                    <button
+                      onClick={() => handleStartTrial(plan.id)}
+                      disabled={startingTrial !== null || loadingPlan !== null}
+                      className="w-full py-3 rounded-2xl font-bold text-white border border-white/20 hover:bg-white/10 transition-colors disabled:opacity-60 text-sm"
+                    >
+                      {startingTrial === plan.id ? 'Starting trial…' : 'Try free for 7 days'}
+                    </button>
+                  ) : !isLoggedIn ? (
+                    <button
+                      onClick={() => handleStartTrial(plan.id)}
+                      className="w-full py-3 rounded-2xl font-bold text-white border border-white/20 hover:bg-white/10 transition-colors text-sm"
+                    >
+                      Try free for 7 days
+                    </button>
+                  ) : null}
+
+                  {/* Subscribe CTA */}
+                  <button
+                    onClick={() => startCheckout(plan.id, 'landing')}
+                    disabled={loadingPlan !== null || startingTrial !== null}
+                    className="w-full py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-[#FF7B3F] to-[#E04F18] hover:-translate-y-0.5 transition-all shadow-lg shadow-orange-900/40 disabled:opacity-60"
+                  >
+                    {loadingPlan === plan.id ? 'Opening Razorpay…' : planConfig.cta}
+                  </button>
+                </div>
               </div>
             )
           })}
         </div>
-        {error && (
+        {(error || trialError) && (
           <p className="mx-auto mt-5 max-w-lg rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-center text-sm font-semibold text-red-100">
-            {error}
+            {error || trialError}
           </p>
+        )}
+        {trialSuccess && (
+          <div className="mx-auto mt-5 max-w-lg rounded-2xl border border-green-400/30 bg-green-500/10 px-4 py-3 text-center text-sm font-semibold text-green-200 flex items-center justify-center gap-3">
+            <span>🎉 Your 7-day trial has started!</span>
+            <Link href="/dashboard" className="underline underline-offset-2 font-black">Go to dashboard →</Link>
+          </div>
         )}
       </div>
     </section>

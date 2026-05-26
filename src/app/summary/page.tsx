@@ -149,7 +149,7 @@ export default async function SummaryPage() {
     overdueAmount: overdueCustomers.reduce((s, c) => s + Number(c.price_per_month), 0),
     pendingAmount: pendingCustomers.reduce((s, c) => s + Number(c.price_per_month), 0),
     pendingCount: pendingCustomers.length,
-    deliveryTrackingEnabled: prov?.enable_delivery_tracking ?? false,
+    deliveryTrackingEnabled: prov?.enable_delivery_tracking ?? true,
     providerName: prov?.name ?? '',
 
     thisWeek: buildPeriodStats(thisWeekStart, now),

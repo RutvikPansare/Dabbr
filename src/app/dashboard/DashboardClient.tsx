@@ -501,7 +501,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [bulkMode, setBulkMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? false
+  const deliveryTrackingEnabled = provider?.enable_delivery_tracking ?? true
   const customerLimitPlan: CustomerLimitPlanId = (() => {
     if (isBillingPlanId(subData?.subscription_plan) && subData?.subscription_status === 'active') return subData.subscription_plan as BillingPlanId
     if (subData?.is_subscribed && isBillingPlanId(subData?.subscription_plan)) return subData.subscription_plan as BillingPlanId

@@ -15,6 +15,8 @@ export const BILLING_PLANS: Record<BillingPlanId, {
   amountPaise: number
   intervalLabel: string
   description: string
+  highlight: string
+  features: string[]
 }> = {
   starter: {
     id: 'starter',
@@ -23,6 +25,13 @@ export const BILLING_PLANS: Record<BillingPlanId, {
     amountPaise: 20_000,
     intervalLabel: 'month',
     description: 'Dabbr Starter monthly subscription',
+    highlight: 'Best for early tiffin businesses.',
+    features: [
+      'Up to 50 customers',
+      'Daily delivery tracking',
+      'Payments and reminders',
+      'Menu planner',
+    ],
   },
   pro: {
     id: 'pro',
@@ -31,6 +40,13 @@ export const BILLING_PLANS: Record<BillingPlanId, {
     amountPaise: 50_000,
     intervalLabel: 'month',
     description: 'Dabbr Pro monthly subscription',
+    highlight: 'Best for growing kitchens.',
+    features: [
+      'Everything in Starter',
+      'Unlimited customers',
+      'Meal plans and subscriptions',
+      'Priority support',
+    ],
   },
 }
 

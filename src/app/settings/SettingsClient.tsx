@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX } from 'lucide-react'
+import { User, Users, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX, Info } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { invalidateSettings, invalidateCustomers } from '@/lib/revalidate'
@@ -19,6 +19,7 @@ import { BILLING_PLANS, BillingPlanId, isBillingPlanId } from '@/lib/billing'
 import { useBillingCheckout } from '@/lib/use-billing-checkout'
 import CalendarPicker from './CalendarPicker'
 import HolidayCalendar from './HolidayCalendar'
+import RiderContactsImport from './RiderContactsImport'
 
 interface Provider {
   id: string
@@ -118,6 +119,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const { startCheckout, loadingPlan, error: billingError } = useBillingCheckout()
   const [startingTrial, setStartingTrial] = useState<string | null>(null)
   const [trialError, setTrialError] = useState<string | null>(null)
+  const [planInfoSheet, setPlanInfoSheet] = useState<BillingPlanId | null>(null)
 
   async function handleStartTrial(planId: string) {
     setStartingTrial(planId)
@@ -272,7 +274,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [brandingError, setBrandingError] = useState('')
 
   // Delivery tracking saves instantly on toggle
-  const [deliveryTracking, setDeliveryTracking] = useState(provider?.enable_delivery_tracking ?? false)
+  const [deliveryTracking, setDeliveryTracking] = useState(provider?.enable_delivery_tracking ?? true)
   const [trackingSaving, setTrackingSaving] = useState(false)
   const [trackingSaved, setTrackingSaved] = useState(false)
   const [trackingError, setTrackingError] = useState('')
@@ -324,6 +326,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [newRiderPhone, setNewRiderPhone] = useState('')
   const [riderSaving, setRiderSaving] = useState(false)
   const [riderError, setRiderError] = useState('')
+  const [showRiderContactImport, setShowRiderContactImport] = useState(false)
 
   async function handleToggleTracking() {
     const next = !deliveryTracking
@@ -630,6 +633,23 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     router.refresh()
   }
 
+  async function handleImportRidersFromContacts(contacts: { name: string; phone: string }[]) {
+    const inserts = contacts.map(c => ({
+      provider_id: providerId,
+      name: c.name.trim(),
+      whatsapp_number: c.phone.replace(/^(91|0)(\d{10})$/, '$2'),
+    }))
+    const { data, error } = await db
+      .from('delivery_riders')
+      .insert(inserts)
+      .select()
+    if (!error && data) {
+      setRiders(prev => [...prev, ...data])
+      await invalidateSettings(providerId)
+      router.refresh()
+    }
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -782,11 +802,11 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
-              <p className="text-sm font-bold text-gray-900">Delivery Tracking</p>
+              <p className="text-sm font-bold text-gray-900">Auto delivery tracking</p>
               <p className="text-xs font-medium text-gray-400 mt-0.5">
-                {deliveryTracking
-                  ? <>On — swipe each customer to mark delivered or skipped. <span className="text-orange-500 font-semibold">Only delivered customers consume a balance day.</span> Skipped ones don&apos;t.</>
-                  : <>Off — every active customer is assumed delivered each day and <span className="text-orange-500 font-semibold">balance deducts automatically.</span> No manual marking needed.</>
+                {!deliveryTracking
+                  ? <>On — every active customer is assumed delivered each day and <span className="text-orange-500 font-semibold">balance deducts automatically.</span> No manual marking needed.</>
+                  : <>Off — deliveries start as pending. <span className="text-orange-500 font-semibold">Swipe each customer to mark delivered or skipped.</span> Only delivered ones consume a balance day.</>
                 }
               </p>
               {trackingError && (
@@ -810,18 +830,18 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                 type="button"
                 disabled={trackingSaving}
                 onClick={handleToggleTracking}
-                aria-pressed={deliveryTracking}
+                aria-pressed={!deliveryTracking}
                 style={{
                   width: 52,
                   height: 30,
                   borderRadius: 999,
                   padding: 3,
-                  backgroundColor: deliveryTracking ? '#f97316' : '#d1d5db',
+                  backgroundColor: !deliveryTracking ? '#f97316' : '#d1d5db',
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: deliveryTracking ? 'flex-end' : 'flex-start',
+                  justifyContent: !deliveryTracking ? 'flex-end' : 'flex-start',
                   transition: 'background-color 0.2s, opacity 0.2s',
                   opacity: trackingSaving ? 0.6 : 1,
                   flexShrink: 0,
@@ -1419,12 +1439,22 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
         {/* Delivery Riders */}
         <div className="glass-card rounded-[2rem] p-6 shadow-sm">
-          <h2 className="mb-1 text-sm font-black text-gray-900 flex items-center gap-2">
-            <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
-              <Bike className="w-4 h-4 text-orange-500" />
-            </span>
-            Delivery Riders
-          </h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-black text-gray-900 flex items-center gap-2">
+              <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+                <Bike className="w-4 h-4 text-orange-500" />
+              </span>
+              Delivery Riders
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowRiderContactImport(true)}
+              className="flex items-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
+            >
+              <Users className="w-3.5 h-3.5" />
+              Import
+            </button>
+          </div>
           <p className="mb-5 text-xs font-semibold text-gray-400 leading-relaxed">
             Add your delivery riders so you can send area-wise lists directly to their WhatsApp from the home page.
           </p>
@@ -1606,16 +1636,28 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
               return (
                 <div key={plan.id} className={`rounded-3xl p-4 border ${isThisPlanActive ? 'border-emerald-200 bg-emerald-50' : isThisPlanTrial ? 'border-orange-200 bg-orange-50' : 'border-orange-100 bg-[#FDF8F3]'}`}>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-black text-gray-900">Dabbr {plan.name}</p>
-                    {isThisPlanActive && <span className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Active</span>}
-                    {isThisPlanTrial  && <span className="text-[10px] font-black text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">Trial</span>}
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-black text-gray-900">Dabbr {plan.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => setPlanInfoSheet(planId)}
+                        className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-400 hover:bg-orange-200 hover:text-orange-600 transition-colors shrink-0"
+                        aria-label={`Dabbr ${plan.name} plan details`}
+                      >
+                        <Info className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {isThisPlanActive && <span className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Active</span>}
+                      {isThisPlanTrial  && <span className="text-[10px] font-black text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">Trial</span>}
+                    </div>
                   </div>
                   <div className="mt-2 flex items-end gap-1">
                     <span className="text-3xl font-black text-gray-900">₹{plan.amount}</span>
                     <span className="mb-1 text-xs font-bold text-gray-400">/ month</span>
                   </div>
                   <p className="mt-2 text-xs font-semibold text-gray-400">
-                    {plan.id === 'starter' ? 'Best for early tiffin businesses.' : 'Best for growing kitchens.'}
+                    {plan.highlight}
                   </p>
                   {/* Trial button — shown when user is free and hasn't trialed */}
                   {canTrial && (
@@ -1704,29 +1746,38 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           </div>
         </div>
 
-        {/* Danger zone */}
+        {/* Sign out */}
         <div className="glass-card rounded-[2rem] p-6 shadow-sm mt-6">
-          <h2 className="mb-4 text-sm font-black text-red-600 flex items-center gap-2">
-            <span className="flex items-center justify-center p-1.5 bg-red-50 rounded-xl">
-              <AlertTriangle className="w-4 h-4 text-red-500" />
+          <h2 className="mb-4 text-sm font-black text-gray-700 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-gray-100 rounded-xl">
+              <User className="w-4 h-4 text-gray-500" />
             </span>
             Account
           </h2>
-          <div className="space-y-3">
-            <button
-              onClick={handleSignOut}
-              className="w-full rounded-2xl border-2 border-red-200 py-3.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50 hover:border-red-300 active:scale-95"
-            >
-              Sign out
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="w-full rounded-2xl border-2 border-red-100 py-3.5 text-sm font-bold text-red-400 transition-all hover:bg-red-50 hover:border-red-200 active:scale-95 flex items-center justify-center gap-2"
-            >
-              <UserX className="w-4 h-4" />
-              Delete account
-            </button>
-          </div>
+          <button
+            onClick={handleSignOut}
+            className="w-full rounded-2xl border-2 border-gray-200 py-3.5 text-sm font-bold text-gray-600 transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-95"
+          >
+            Sign out
+          </button>
+        </div>
+
+        {/* Delete account */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm mt-4">
+          <h2 className="mb-1 text-sm font-black text-red-600 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-red-50 rounded-xl">
+              <AlertTriangle className="w-4 h-4 text-red-500" />
+            </span>
+            Danger zone
+          </h2>
+          <p className="mb-4 text-xs font-semibold text-gray-400">Permanently delete your account and all data.</p>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full rounded-2xl border-2 border-red-200 py-3.5 text-sm font-bold text-red-500 transition-all hover:bg-red-50 hover:border-red-300 active:scale-95 flex items-center justify-center gap-2"
+          >
+            <UserX className="w-4 h-4" />
+            Delete account
+          </button>
         </div>
 
         {/* App version */}
@@ -1736,6 +1787,74 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       </main>
 
       <BottomNav />
+
+      {/* Plan info bottom sheet */}
+      {planInfoSheet && (() => {
+        const plan = BILLING_PLANS[planInfoSheet]
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setPlanInfoSheet(null)}>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <div
+              className="relative rounded-t-3xl bg-white px-6 pt-5 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Handle */}
+              <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-gray-200" />
+
+              {/* Header */}
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-orange-500 mb-0.5">Plan details</p>
+                  <h3 className="text-xl font-black text-gray-900">Dabbr {plan.name}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPlanInfoSheet(null)}
+                  className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors mt-0.5"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Price */}
+              <div className="flex items-end gap-1 mb-4">
+                <span className="text-4xl font-black text-gray-900">₹{plan.amount}</span>
+                <span className="mb-1 text-sm font-bold text-gray-400">/ month</span>
+              </div>
+
+              <p className="text-xs font-semibold text-gray-400 mb-5">{plan.highlight}</p>
+
+              {/* Features */}
+              <ul className="space-y-3 mb-6">
+                {plan.features.map(f => (
+                  <li key={f} className="flex items-center gap-3 text-sm font-semibold text-gray-700">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-50 shrink-0">
+                      <Check className="w-3 h-3 text-orange-500" />
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                onClick={() => setPlanInfoSheet(null)}
+                className="w-full rounded-2xl border border-gray-200 py-3.5 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Rider contacts import modal */}
+      {showRiderContactImport && (
+        <RiderContactsImport
+          onImport={handleImportRidersFromContacts}
+          onClose={() => setShowRiderContactImport(false)}
+        />
+      )}
 
       {/* Holiday calendar overview modal */}
       {showHolidayCalendar && (
