@@ -567,7 +567,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   }
 
   function openPayModal(c: Customer) {
-    const price = c.subscriptions?.find(s => s.status === 'active')?.meal_plans?.monthly_price ?? c.price_per_month
+    // Use customer's own rate (may be on old plan price)
+    const price = c.price_per_month
     setPayAmount(String(price || ''))
     setPayNote('')
     setPayError('')
@@ -1343,7 +1344,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
                       {/* ── Right: balance ── */}
                       {(() => {
-                        const bs = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: plan?.monthly_price ?? c.price_per_month })
+                        const bs = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: c.price_per_month })
                         const col = DUE_COLORS[bs.state]
                         return (
                           <div className="shrink-0 flex flex-col items-end gap-1.5">
@@ -1661,7 +1662,12 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   {plan?.name ?? PLAN_LABEL[c.plan_type]}
                 </p>
                 <p className="text-xs font-medium text-gray-500 mt-0.5">
-                  {formatMealSlots(plan?.meal_slots ?? c.meal_slots)} · {FREQ_LABEL[plan?.frequency ?? c.frequency]} · ₹{plan?.monthly_price ?? c.price_per_month}/mo
+                  {formatMealSlots(plan?.meal_slots ?? c.meal_slots)} · {FREQ_LABEL[plan?.frequency ?? c.frequency]} · ₹{c.price_per_month}/mo
+                  {plan && plan.monthly_price !== c.price_per_month && (
+                    <span className="ml-1.5 inline-flex items-center rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                      old rate · plan now ₹{plan.monthly_price}
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-1 text-xs font-bold text-orange-500 group-hover:text-orange-600 shrink-0">
@@ -1672,7 +1678,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
             {/* Balance grid */}
             {(() => {
-              const monthlyPrice = plan?.monthly_price ?? c.price_per_month
+              // Always use customer's own price_per_month — they may be on an old rate
+              const monthlyPrice = c.price_per_month
               const bs = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice })
               const col = DUE_COLORS[bs.state]
               return (
@@ -1689,7 +1696,12 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                     <p className="text-3xl font-black text-gray-800">
                       {Math.max(0, Math.floor(bs.daysLeft))}<span className="text-base font-semibold ml-0.5">d</span>
                     </p>
-                    <p className="text-xs font-semibold text-gray-400 mt-1">₹{monthlyPrice}/mo</p>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <p className="text-xs font-semibold text-gray-400">₹{monthlyPrice}/mo</p>
+                      {plan && plan.monthly_price !== c.price_per_month && (
+                        <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">old rate</span>
+                      )}
+                    </div>
                   </div>
                   {c.credit_limit > 0 && (
                     <div className="col-span-2 rounded-2xl bg-gray-50 px-4 py-3 flex items-center justify-between">
@@ -1708,8 +1720,11 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Balance Account</p>
-                <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                  ₹{plan?.monthly_price ?? c.price_per_month}/mo · payments top up balance
+                <p className="text-xs font-semibold text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  ₹{c.price_per_month}/mo · payments top up balance
+                  {plan && plan.monthly_price !== c.price_per_month && (
+                    <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">old rate</span>
+                  )}
                 </p>
               </div>
               <button

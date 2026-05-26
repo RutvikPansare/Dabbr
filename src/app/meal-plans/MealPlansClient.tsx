@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowLeft, ClipboardList, Drumstick, Leaf, Plus, Save, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, ChevronDown, ChevronUp, ClipboardList, Drumstick, History, Leaf, Plus, Save, Users, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { invalidateMealPlans } from '@/lib/revalidate'
@@ -20,6 +20,13 @@ interface MealPlan {
   active_days: number
   description: string | null
   status: MealPlanStatus
+}
+
+interface PriceHistoryEntry {
+  id: string
+  old_price: number
+  new_price: number
+  changed_at: string
 }
 
 interface Props {
@@ -60,11 +67,64 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
   const [mealPlans, setMealPlans] = useState<MealPlan[]>(initialMealPlans)
   const [showForm, setShowForm] = useState(initialMealPlans.length === 0)
   const [form, setForm] = useState<PlanForm>(EMPTY_FORM)
+  // Track the original price when editing so we can detect a change
+  const [originalPrice, setOriginalPrice] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Price-change dialog state
+  const [priceDialog, setPriceDialog] = useState<{
+    planId: string
+    planName: string
+    payload: Record<string, unknown>
+    oldPrice: number
+    newPrice: number
+    affectedCount: number
+  } | null>(null)
+  const [dialogSaving, setDialogSaving] = useState(false)
+
+  // Price history per plan
+  const [priceHistory, setPriceHistory] = useState<Record<string, PriceHistoryEntry[]>>({})
+  const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set())
+
+  // Fetch price history for all plans on mount
+  useEffect(() => {
+    async function fetchHistory() {
+      if (initialMealPlans.length === 0) return
+      const planIds = initialMealPlans.map(p => p.id)
+      const { data } = await db
+        .from('meal_plan_price_history')
+        .select('id, meal_plan_id, old_price, new_price, changed_at')
+        .in('meal_plan_id', planIds)
+        .order('changed_at', { ascending: false })
+
+      if (data) {
+        const grouped: Record<string, PriceHistoryEntry[]> = {}
+        for (const row of data) {
+          if (!grouped[row.meal_plan_id]) grouped[row.meal_plan_id] = []
+          grouped[row.meal_plan_id].push(row)
+        }
+        setPriceHistory(grouped)
+      }
+    }
+    fetchHistory()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Fetch affected customer count for a plan (for dialog info)
+  async function fetchAffectedCount(planId: string): Promise<number> {
+    const { data, error } = await db
+      .from('subscriptions')
+      .select('id', { count: 'exact' })
+      .eq('meal_plan_id', planId)
+      .eq('status', 'active')
+    if (error) return 0
+    return data?.length ?? 0
+  }
+
   function startCreate() {
     setForm(EMPTY_FORM)
+    setOriginalPrice(null)
     setError('')
     setShowForm(true)
   }
@@ -81,6 +141,7 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
       description: plan.description ?? '',
       status: plan.status,
     })
+    setOriginalPrice(plan.monthly_price)
     setError('')
     setShowForm(true)
   }
@@ -91,6 +152,15 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
         ? current.meal_slots.filter(s => s !== slot)
         : [...current.meal_slots, slot]
       return { ...current, meal_slots: next.length ? next : current.meal_slots }
+    })
+  }
+
+  function toggleHistory(planId: string) {
+    setExpandedHistory(prev => {
+      const next = new Set(prev)
+      if (next.has(planId)) next.delete(planId)
+      else next.add(planId)
+      return next
     })
   }
 
@@ -105,39 +175,118 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
       return
     }
 
+    const newPrice = Number(form.monthly_price || 0)
+
     const payload = {
       provider_id: providerId,
       name: form.name.trim(),
       meal_slots: form.meal_slots,
       plan_type: form.plan_type,
       frequency: form.frequency,
-      monthly_price: Number(form.monthly_price || 0),
+      monthly_price: newPrice,
       active_days: Number(form.active_days || 30),
       description: form.description.trim() || null,
       status: form.status,
-      updated_at: new Date().toISOString(),
     }
 
-    const query = form.id
-      ? db.from('meal_plans').update(payload).eq('id', form.id)
-      : db.from('meal_plans').insert(payload)
-
-    const { data, error: saveError } = await query.select('*').single()
-    setSaving(false)
-
-    if (saveError) {
-      setError(saveError.message ?? 'Failed to save meal plan.')
+    // --- CREATE ---
+    if (!form.id) {
+      const { data, error: saveError } = await db
+        .from('meal_plans')
+        .insert(payload)
+        .select('*')
+        .single()
+      setSaving(false)
+      if (saveError) {
+        setError(saveError.message ?? 'Failed to save meal plan.')
+        return
+      }
+      setMealPlans(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setShowForm(false)
+      setForm(EMPTY_FORM)
+      await invalidateMealPlans(providerId)
+      router.refresh()
       return
     }
 
-    setMealPlans(prev => {
-      const without = prev.filter(plan => plan.id !== data.id)
-      return [...without, data].sort((a, b) => a.name.localeCompare(b.name))
+    // --- EDIT: detect price change ---
+    const priceChanged = originalPrice !== null && newPrice !== originalPrice
+
+    if (priceChanged) {
+      // Show dialog before committing
+      setSaving(false)
+      const count = await fetchAffectedCount(form.id)
+      setPriceDialog({
+        planId: form.id,
+        planName: form.name.trim(),
+        payload,
+        oldPrice: originalPrice!,
+        newPrice,
+        affectedCount: count,
+      })
+      return
+    }
+
+    // Edit with no price change — use API route (keeps consistent + admin client)
+    await commitPlanUpdate(form.id, payload, false, originalPrice ?? newPrice, newPrice)
+    setSaving(false)
+  }
+
+  async function commitPlanUpdate(
+    planId: string,
+    payload: Record<string, unknown>,
+    applyToCustomers: boolean,
+    oldPrice: number,
+    newPrice: number,
+  ) {
+    const res = await fetch('/api/update-meal-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planId, payload, applyToCustomers, oldPrice, newPrice }),
     })
+    const json = await res.json()
+    if (!res.ok) {
+      setError(json.error ?? 'Failed to save meal plan.')
+      return false
+    }
+    const updatedPlan: MealPlan = json.plan
+    setMealPlans(prev =>
+      prev.map(p => p.id === updatedPlan.id ? updatedPlan : p)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    )
     setShowForm(false)
     setForm(EMPTY_FORM)
+    setOriginalPrice(null)
     await invalidateMealPlans(providerId)
     router.refresh()
+    return true
+  }
+
+  async function handlePriceDialogChoice(applyToCustomers: boolean) {
+    if (!priceDialog) return
+    setDialogSaving(true)
+    const ok = await commitPlanUpdate(
+      priceDialog.planId,
+      priceDialog.payload,
+      applyToCustomers,
+      priceDialog.oldPrice,
+      priceDialog.newPrice,
+    )
+    setDialogSaving(false)
+    if (ok) {
+      // Append to local price history
+      const entry: PriceHistoryEntry = {
+        id: Date.now().toString(),
+        old_price: priceDialog.oldPrice,
+        new_price: priceDialog.newPrice,
+        changed_at: new Date().toISOString(),
+      }
+      setPriceHistory(prev => ({
+        ...prev,
+        [priceDialog.planId]: [entry, ...(prev[priceDialog.planId] ?? [])],
+      }))
+      setPriceDialog(null)
+    }
   }
 
   async function toggleStatus(plan: MealPlan) {
@@ -154,6 +303,10 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
       await invalidateMealPlans(providerId)
       router.refresh()
     }
+  }
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   return (
@@ -178,7 +331,7 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
           <form onSubmit={handleSave} className="rounded-2xl bg-white p-5 shadow-sm border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black text-gray-900">{form.id ? 'Edit plan' : 'New plan'}</h2>
-              <button type="button" onClick={() => setShowForm(false)} className="rounded-xl p-2 text-gray-400 hover:bg-gray-50">
+              <button type="button" onClick={() => { setShowForm(false); setOriginalPrice(null) }} className="rounded-xl p-2 text-gray-400 hover:bg-gray-50">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -234,7 +387,20 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Monthly price *">
-                <input required type="number" min="0" value={form.monthly_price} onChange={(e) => setForm(f => ({ ...f, monthly_price: e.target.value }))} placeholder="2500" className={inputClass} />
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  value={form.monthly_price}
+                  onChange={(e) => setForm(f => ({ ...f, monthly_price: e.target.value }))}
+                  placeholder="2500"
+                  className={inputClass}
+                />
+                {form.id && originalPrice !== null && Number(form.monthly_price) !== originalPrice && (
+                  <p className="mt-1 text-[11px] font-semibold text-amber-600">
+                    Was ₹{originalPrice} — you&apos;ll be asked how to apply the new rate
+                  </p>
+                )}
               </Field>
               <Field label="Active days">
                 <input required type="number" min="1" value={form.active_days} onChange={(e) => setForm(f => ({ ...f, active_days: e.target.value }))} className={inputClass} />
@@ -268,38 +434,154 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
           </div>
         ) : (
           <div className="space-y-3">
-            {mealPlans.map(plan => (
-              <div key={plan.id} className="rounded-2xl bg-white p-5 shadow-sm border border-gray-100">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="font-black text-gray-900">{plan.name}</h2>
-                      <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase ${plan.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {plan.status}
-                      </span>
+            {mealPlans.map(plan => {
+              const history = priceHistory[plan.id] ?? []
+              const historyExpanded = expandedHistory.has(plan.id)
+
+              return (
+                <div key={plan.id} className="rounded-2xl bg-white shadow-sm border border-gray-100">
+                  {/* Plan header */}
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="font-black text-gray-900">{plan.name}</h2>
+                          <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase ${plan.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {plan.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs font-semibold text-gray-500">
+                          {formatMealSlots(plan.meal_slots)} · {PLAN_TYPE_LABEL[plan.plan_type]} · {FREQUENCY_LABEL[plan.frequency]}
+                        </p>
+                        {plan.description && <p className="mt-2 text-xs text-gray-400">{plan.description}</p>}
+                      </div>
+                      <p className="shrink-0 text-right text-lg font-black text-gray-900">₹{plan.monthly_price}<span className="text-xs font-semibold text-gray-400">/mo</span></p>
                     </div>
-                    <p className="mt-1 text-xs font-semibold text-gray-500">
-                      {formatMealSlots(plan.meal_slots)} · {PLAN_TYPE_LABEL[plan.plan_type]} · {FREQUENCY_LABEL[plan.frequency]}
-                    </p>
-                    {plan.description && <p className="mt-2 text-xs text-gray-400">{plan.description}</p>}
+                    <div className="mt-4 flex gap-2">
+                      <button onClick={() => startEdit(plan)} className="flex-1 rounded-2xl border border-gray-200 py-2.5 text-xs font-bold text-gray-600">
+                        Edit
+                      </button>
+                      <button onClick={() => toggleStatus(plan)} className="flex-1 rounded-2xl bg-orange-50 py-2.5 text-xs font-bold text-orange-600">
+                        {plan.status === 'active' ? 'Mark inactive' : 'Reactivate'}
+                      </button>
+                    </div>
                   </div>
-                  <p className="shrink-0 text-right text-lg font-black text-gray-900">₹{plan.monthly_price}</p>
+
+                  {/* Price history */}
+                  {history.length > 0 && (
+                    <div className="border-t border-gray-100">
+                      <button
+                        onClick={() => toggleHistory(plan.id)}
+                        className="flex w-full items-center justify-between px-5 py-3 text-xs font-bold text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <History className="w-3.5 h-3.5 text-gray-400" />
+                          Price history · {history.length} {history.length === 1 ? 'change' : 'changes'}
+                        </span>
+                        {historyExpanded
+                          ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
+                          : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                        }
+                      </button>
+                      {historyExpanded && (
+                        <div className="px-5 pb-4 space-y-2">
+                          {history.map((entry) => (
+                            <div key={entry.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-2.5">
+                              <div>
+                                <p className="text-xs font-black text-gray-700">
+                                  ₹{entry.old_price} → ₹{entry.new_price}
+                                </p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">{fmtDate(entry.changed_at)}</p>
+                              </div>
+                              <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold ${
+                                entry.new_price > entry.old_price
+                                  ? 'bg-red-50 text-red-500'
+                                  : 'bg-green-50 text-green-600'
+                              }`}>
+                                {entry.new_price > entry.old_price ? '↑' : '↓'} ₹{Math.abs(entry.new_price - entry.old_price)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <button onClick={() => startEdit(plan)} className="flex-1 rounded-2xl border border-gray-200 py-2.5 text-xs font-bold text-gray-600">
-                    Edit
-                  </button>
-                  <button onClick={() => toggleStatus(plan)} className="flex-1 rounded-2xl bg-orange-50 py-2.5 text-xs font-bold text-orange-600">
-                    {plan.status === 'active' ? 'Mark inactive' : 'Reactivate'}
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </main>
 
       <BottomNav />
+
+      {/* ── Price-change dialog ── */}
+      {priceDialog && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl p-6 space-y-5">
+            {/* Header */}
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-orange-500 mb-1">Price change</p>
+              <h2 className="text-lg font-black text-gray-900 leading-tight">{priceDialog.planName}</h2>
+              <div className="flex items-center gap-3 mt-3">
+                <span className="rounded-xl bg-gray-100 px-3 py-2 text-sm font-black text-gray-400 line-through">₹{priceDialog.oldPrice}/mo</span>
+                <span className="text-gray-400 text-sm">→</span>
+                <span className="rounded-xl bg-orange-500 px-3 py-2 text-sm font-black text-white">₹{priceDialog.newPrice}/mo</span>
+              </div>
+            </div>
+
+            {/* Question */}
+            <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-4">
+              <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                <Users className="w-4 h-4 shrink-0" />
+                {priceDialog.affectedCount > 0
+                  ? `${priceDialog.affectedCount} existing customer${priceDialog.affectedCount > 1 ? 's are' : ' is'} on this plan`
+                  : 'No active customers on this plan yet'}
+              </p>
+              <p className="text-xs text-amber-700 mt-1.5">
+                Should the new ₹{priceDialog.newPrice}/mo rate apply to them, or should they stay on the old ₹{priceDialog.oldPrice}/mo rate?
+              </p>
+            </div>
+
+            {/* Choices */}
+            <div className="space-y-2.5">
+              <button
+                disabled={dialogSaving}
+                onClick={() => handlePriceDialogChoice(true)}
+                className="flex w-full flex-col rounded-2xl border-2 border-orange-500 bg-orange-50 px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50"
+              >
+                <p className="text-sm font-black text-orange-700">Apply to everyone</p>
+                <p className="text-xs text-orange-500 mt-0.5">
+                  Update all {priceDialog.affectedCount} existing customers to ₹{priceDialog.newPrice}/mo
+                </p>
+              </button>
+
+              <button
+                disabled={dialogSaving}
+                onClick={() => handlePriceDialogChoice(false)}
+                className="flex w-full flex-col rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50"
+              >
+                <p className="text-sm font-black text-gray-700">Keep old rate for existing customers</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  They stay on ₹{priceDialog.oldPrice}/mo — new customers get ₹{priceDialog.newPrice}/mo
+                </p>
+              </button>
+            </div>
+
+            {dialogSaving && (
+              <p className="text-center text-xs text-gray-400 animate-pulse">Saving…</p>
+            )}
+
+            <button
+              disabled={dialogSaving}
+              onClick={() => setPriceDialog(null)}
+              className="w-full rounded-2xl border border-gray-200 py-3 text-sm font-bold text-gray-500 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
