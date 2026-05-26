@@ -102,48 +102,25 @@ export async function GET(req: NextRequest) {
 
   // ── 3. Revenue Report ────────────────────────────────────────────────────────
   if (type === 'revenue') {
-    const [{ data: prepaid }, { data: monthly }, { data: customers }] = await Promise.all([
+    const [{ data: payments }, { data: customers }] = await Promise.all([
       db.from('payments')
         .select('recorded_at, customer_id, amount, notes')
         .eq('provider_id', uid)
         .gte('recorded_at', from)
         .lte('recorded_at', to + 'T23:59:59')
         .order('recorded_at', { ascending: true }),
-      db.from('monthly_payments')
-        .select('created_at, customer_id, amount, note')
-        .eq('provider_id', uid)
-        .gte('created_at', from)
-        .lte('created_at', to + 'T23:59:59')
-        .order('created_at', { ascending: true }),
       db.from('customers')
-        .select('id, name, area, whatsapp_number, billing_type')
+        .select('id, name, area, whatsapp_number')
         .eq('provider_id', uid),
     ])
 
     const custMap: Record<string, any> = {}
     for (const c of (customers ?? [])) custMap[c.id] = c
 
-    const allPayments = [
-      ...(prepaid ?? []).map((p: any) => ({
-        date: p.recorded_at,
-        custId: p.customer_id,
-        amount: p.amount,
-        type: 'Prepaid',
-        notes: p.notes ?? '',
-      })),
-      ...(monthly ?? []).map((p: any) => ({
-        date: p.created_at,
-        custId: p.customer_id,
-        amount: p.amount,
-        type: 'Monthly Settlement',
-        notes: p.note ?? '',
-      })),
-    ].sort((a, b) => a.date.localeCompare(b.date))
-
-    const header = ['Date', 'Customer Name', 'Phone', 'Area', 'Billing Type', 'Amount (₹)', 'Notes']
-    const rows = allPayments.map(p => {
-      const c = custMap[p.custId] ?? {}
-      return [fmtDate(p.date), c.name ?? '', c.whatsapp_number ?? '', c.area ?? '', p.type, p.amount, p.notes]
+    const header = ['Date', 'Customer Name', 'Phone', 'Area', 'Amount (₹)', 'Notes']
+    const rows = (payments ?? []).map((p: any) => {
+      const c = custMap[p.customer_id] ?? {}
+      return [fmtDate(p.recorded_at), c.name ?? '', c.whatsapp_number ?? '', c.area ?? '', p.amount, p.notes ?? '']
     })
 
     return csvResponse([header, ...rows], `revenue-${from}-to-${to}`)
@@ -153,7 +130,7 @@ export async function GET(req: NextRequest) {
   if (type === 'customer-snapshot') {
     const [{ data: customers }, { data: mealPlans }, { data: subscriptions }] = await Promise.all([
       db.from('customers')
-        .select('id, name, whatsapp_number, area, billing_type, balance_days, meals_delivered, price_per_month, status, created_at')
+        .select('id, name, whatsapp_number, area, balance, credit_limit, price_per_month, status, created_at')
         .eq('provider_id', uid)
         .order('name'),
       db.from('meal_plans').select('id, name, meal_slots, monthly_price').eq('provider_id', uid),
@@ -168,18 +145,20 @@ export async function GET(req: NextRequest) {
       if (s.status === 'active') activeSub[s.customer_id] = s.meal_plan_id
     }
 
-    const header = ['Customer Name', 'Phone', 'Area', 'Billing Type', 'Active Meal Plan', 'Price/Month (₹)', 'Balance Days', 'Meals Delivered', 'Status', 'Joined']
+    const header = ['Customer Name', 'Phone', 'Area', 'Active Meal Plan', 'Price/Month (₹)', 'Balance (₹)', 'Days Left', 'Status', 'Joined']
     const rows = (customers ?? []).map((c: any) => {
       const mp = mpMap[activeSub[c.id]] ?? null
+      const balance = c.balance ?? 0
+      const price   = c.price_per_month ?? 0
+      const daysLeft = price > 0 ? Math.floor(balance / (price / 30)) : 0
       return [
         c.name,
         c.whatsapp_number,
         c.area ?? '',
-        c.billing_type === 'monthly_settlement' ? 'Monthly Settlement' : 'Prepaid',
         mp?.name ?? '',
-        c.price_per_month ?? 0,
-        c.billing_type === 'prepaid' ? (c.balance_days ?? 0) : '',
-        c.billing_type === 'monthly_settlement' ? (c.meals_delivered ?? 0) : '',
+        price,
+        balance,
+        daysLeft,
         c.status ?? 'active',
         fmtDate(c.created_at),
       ]
@@ -190,46 +169,31 @@ export async function GET(req: NextRequest) {
 
   // ── 5. GST Revenue Summary ───────────────────────────────────────────────────
   if (type === 'gst-summary') {
-    const [{ data: prepaid }, { data: monthly }] = await Promise.all([
-      db.from('payments')
-        .select('recorded_at, amount')
-        .eq('provider_id', uid)
-        .gte('recorded_at', from)
-        .lte('recorded_at', to + 'T23:59:59'),
-      db.from('monthly_payments')
-        .select('created_at, amount')
-        .eq('provider_id', uid)
-        .gte('created_at', from)
-        .lte('created_at', to + 'T23:59:59'),
-    ])
+    const { data: payments } = await db
+      .from('payments')
+      .select('recorded_at, amount')
+      .eq('provider_id', uid)
+      .gte('recorded_at', from)
+      .lte('recorded_at', to + 'T23:59:59')
 
     // Group by YYYY-MM
-    const byMonth: Record<string, { prepaid: number; monthly: number }> = {}
-    for (const p of (prepaid ?? [])) {
+    const byMonth: Record<string, number> = {}
+    for (const p of (payments ?? [])) {
       const mo = p.recorded_at.slice(0, 7)
-      if (!byMonth[mo]) byMonth[mo] = { prepaid: 0, monthly: 0 }
-      byMonth[mo].prepaid += p.amount
-    }
-    for (const p of (monthly ?? [])) {
-      const mo = p.created_at.slice(0, 7)
-      if (!byMonth[mo]) byMonth[mo] = { prepaid: 0, monthly: 0 }
-      byMonth[mo].monthly += p.amount
+      byMonth[mo] = (byMonth[mo] ?? 0) + p.amount
     }
 
     const header = [
       'Month',
-      'Prepaid Collections (₹)',
-      'Monthly Settlement Collections (₹)',
-      'Total Revenue (₹)',
+      'Total Collections (₹)',
       'GST @ 5% Composition (₹)',
       'Net Revenue after GST (₹)',
     ]
     const rows = Object.entries(byMonth)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([mo, v]) => {
-        const total = v.prepaid + v.monthly
-        const gst   = Math.round(total * 0.05 * 100) / 100
-        return [monthLabel(mo + '-01'), v.prepaid, v.monthly, total, gst, Math.round((total - gst) * 100) / 100]
+      .map(([mo, total]) => {
+        const gst = Math.round(total * 0.05 * 100) / 100
+        return [monthLabel(mo + '-01'), total, gst, Math.round((total - gst) * 100) / 100]
       })
 
     // Totals row
@@ -238,10 +202,8 @@ export async function GET(req: NextRequest) {
         acc[1] = (acc[1] as number) + (r[1] as number)
         acc[2] = (acc[2] as number) + (r[2] as number)
         acc[3] = (acc[3] as number) + (r[3] as number)
-        acc[4] = (acc[4] as number) + (r[4] as number)
-        acc[5] = (acc[5] as number) + (r[5] as number)
         return acc
-      }, ['TOTAL', 0, 0, 0, 0, 0])
+      }, ['TOTAL', 0, 0, 0])
       rows.push(totals)
     }
 

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import {
   ArrowLeft, Leaf, Drumstick, CheckCircle2, PauseCircle, XCircle,
   AlertTriangle, MessageCircle, ChevronRight, Utensils,
-  BadgeCheck, Clock, RotateCcw,
+  BadgeCheck, Clock, RotateCcw, MapPin,
 } from 'lucide-react'
 import type { CustomerPortalData, MenuSlot, DayMenu } from '@/lib/customer-token'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, PLAN_TYPE_LABEL } from '@/lib/meals'
@@ -449,6 +449,24 @@ export default function CustomerPortalClient({
                     <div className="flex-1">
                       <p className="text-sm font-bold text-gray-900">Contact Provider</p>
                       <p className="text-xs text-gray-400">Message on WhatsApp</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300" />
+                  </a>
+                )}
+
+                {/* Provider address */}
+                {provider.address && (
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(provider.address)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center gap-3 rounded-2xl bg-white border border-gray-100 px-5 py-4 text-left hover:bg-gray-50 active:scale-[0.98] transition-all shadow-sm"
+                  >
+                    <div className="w-10 h-10 flex items-center justify-center rounded-2xl bg-blue-50 text-blue-500 shrink-0">
+                      <MapPin className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900">View Location</p>
+                      <p className="text-xs text-gray-400 truncate">{provider.address}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300" />
                   </a>

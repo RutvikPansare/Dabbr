@@ -39,6 +39,7 @@ export interface PortalProvider {
   upi_id: string | null
   phone: string | null
   off_days: number[]
+  address: string | null
 }
 
 export interface PortalMealPlan {
@@ -151,7 +152,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .single(),
     db
       .from('providers')
-      .select('id, name, slug, logo_url, accent_color, tagline, support_whatsapp, cutoff_hour, cutoff_tz, upi_id, phone, off_days')
+      .select('id, name, slug, logo_url, accent_color, tagline, support_whatsapp, cutoff_hour, cutoff_tz, upi_id, phone, off_days, address')
       .eq('id', tokenRow.provider_id)
       .single(),
   ])

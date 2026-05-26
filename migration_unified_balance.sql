@@ -150,3 +150,8 @@ $$;
 --   DROP COLUMN IF EXISTS meal_rate;
 
 -- DROP TABLE IF EXISTS monthly_payments;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Provider address column
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE providers ADD COLUMN IF NOT EXISTS address text;

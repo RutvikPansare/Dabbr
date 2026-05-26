@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, Users, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX, Info } from 'lucide-react'
+import { User, Users, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX, Info, MapPin, Navigation, Loader2 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { invalidateSettings, invalidateCustomers } from '@/lib/revalidate'
@@ -26,6 +26,7 @@ interface Provider {
   name: string
   phone: string | null
   upi_id: string | null
+  address: string | null
   enable_delivery_tracking: boolean
   slug: string | null
   logo_url: string | null
@@ -212,6 +213,9 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [name, setName] = useState(provider?.name ?? '')
   const [phone, setPhone] = useState(provider?.phone ?? '')
   const [upiId, setUpiId] = useState(provider?.upi_id ?? '')
+  const [address, setAddress] = useState(provider?.address ?? '')
+  const [locating, setLocating] = useState(false)
+  const [locateError, setLocateError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -392,6 +396,56 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
   }
 
+  async function handleLocate() {
+    setLocating(true)
+    setLocateError('')
+
+    if (!navigator.geolocation) {
+      setLocateError('Geolocation is not supported on this device.')
+      setLocating(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+          if (!res.ok) throw new Error('Reverse geocode failed')
+          const data = await res.json()
+          // Build a readable address from components
+          const a = data.address ?? {}
+          const parts = [
+            a.road ?? a.pedestrian ?? a.footway,
+            a.neighbourhood ?? a.suburb ?? a.quarter,
+            a.city ?? a.town ?? a.village ?? a.county,
+            a.state,
+            a.postcode,
+          ].filter(Boolean)
+          setAddress(parts.join(', ') || data.display_name || '')
+        } catch {
+          setLocateError('Could not fetch address. Try again or type it manually.')
+        } finally {
+          setLocating(false)
+        }
+      },
+      (err) => {
+        if (err.code === 1) {
+          setLocateError('Location permission denied. Please allow location access and try again.')
+        } else if (err.code === 2) {
+          setLocateError('Location unavailable. Make sure GPS is on.')
+        } else {
+          setLocateError('Could not get location. Try again.')
+        }
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -404,6 +458,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
         name: name.trim(),
         phone: phone.trim() || null,
         upi_id: upiId.trim() || null,
+        address: address.trim() || null,
       })
       .eq('id', providerId)
 
@@ -730,7 +785,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             </div>
 
             {/* UPI ID */}
-            <div>
+            <div className="mb-4">
               <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
                 UPI ID
               </p>
@@ -742,6 +797,38 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
               />
               <p className="mt-1.5 text-xs font-medium text-gray-400">
                 Included in payment receipts and renewal reminders
+              </p>
+            </div>
+
+            {/* Address */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5" /> Address / Location
+                </p>
+                <button
+                  type="button"
+                  onClick={handleLocate}
+                  disabled={locating}
+                  className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-600 active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {locating
+                    ? <><Loader2 className="w-3 h-3 animate-spin" /> Locating…</>
+                    : <><Navigation className="w-3 h-3" /> Use my location</>}
+                </button>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="e.g. Shop 4, Shivaji Nagar, Pune 411005"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="input-modern resize-none"
+              />
+              {locateError && (
+                <p className="mt-1.5 text-xs text-red-500 font-medium">{locateError}</p>
+              )}
+              <p className="mt-1.5 text-xs font-medium text-gray-400">
+                Shown on your customer portal so customers know where you are
               </p>
             </div>
 
