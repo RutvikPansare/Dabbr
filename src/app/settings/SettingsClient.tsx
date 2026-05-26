@@ -784,7 +784,10 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             <div className="flex-1">
               <p className="text-sm font-bold text-gray-900">Delivery Tracking</p>
               <p className="text-xs font-medium text-gray-400 mt-0.5">
-                Swipe to mark delivered or skipped. Only delivered customers use a balance day.
+                {deliveryTracking
+                  ? <>On — swipe each customer to mark delivered or skipped. <span className="text-orange-500 font-semibold">Only delivered customers consume a balance day.</span> Skipped ones don&apos;t.</>
+                  : <>Off — every active customer is assumed delivered each day and <span className="text-orange-500 font-semibold">balance deducts automatically.</span> No manual marking needed.</>
+                }
               </p>
               {trackingError && (
                 <p className="text-xs font-medium text-red-500 mt-1">{trackingError}</p>
