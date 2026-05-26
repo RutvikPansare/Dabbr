@@ -231,10 +231,13 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
         )}
       </div>
 
-      {/* Right: balance badge + diet icon */}
-      <div className="shrink-0 flex flex-col items-end gap-1.5 mt-0.5">
+      {/* Right: balance badge + rupees + diet icon */}
+      <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5">
         <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePillClass(bs.state)}`}>
           {bs.daysLeft <= 0 ? 'Overdue' : `${fmtDays(bs.daysLeft)} left`}
+        </span>
+        <span className={`text-[11px] font-semibold ${bs.state === 'critical' ? 'text-red-400' : bs.state === 'low' ? 'text-amber-400' : 'text-gray-400'}`}>
+          {fmtRupees(c.balance)}
         </span>
         {planType === 'veg'
           ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
@@ -389,9 +392,12 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           const swipePrice = plan?.monthly_price ?? c.price_per_month
           const swipeBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: swipePrice })
           return (
-            <div className={`shrink-0 flex flex-col items-end gap-1.5 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
+            <div className={`shrink-0 flex flex-col items-end gap-1 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
               <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePillClass(swipeBS.state)}`}>
                 {swipeBS.daysLeft <= 0 ? 'Overdue' : `${fmtDays(swipeBS.daysLeft)} left`}
+              </span>
+              <span className={`text-[11px] font-semibold ${swipeBS.state === 'critical' ? 'text-red-400' : swipeBS.state === 'low' ? 'text-amber-400' : 'text-gray-400'}`}>
+                {fmtRupees(c.balance)}
               </span>
               {planType === 'veg'
                 ? <Leaf className="w-3.5 h-3.5 text-emerald-400" />
