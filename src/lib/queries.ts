@@ -17,6 +17,7 @@
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from './supabase/admin'
 import { getTrialStatus } from './trial'
+import { isProviderHoliday } from './holidays'
 
 // ── Tag helpers ───────────────────────────────────────────────────────────────
 
@@ -208,13 +209,22 @@ export function getCachedDashboardData(userId: string, today: string) {
         deliveryStatuses[`${log.customer_id}:${log.meal_slot}`] = log.status
       }
 
+      // Also treat provider's recurring off_days as a holiday
+      const offDays: number[] = provider?.off_days ?? []
+      const isOffDay = offDays.length > 0 && isProviderHoliday(today, offDays, [])
+      const todayHoliday = holidayData
+        ? { label: holidayData.label ?? null }
+        : isOffDay
+          ? { label: 'Weekly off day' }
+          : null
+
       return {
         customers: enrichedCustomers,
         provider: provider ?? null,
         riders: riders ?? [],
         trial,
         deliveryStatuses,
-        todayHoliday: holidayData ? { label: holidayData.label ?? null } : null,
+        todayHoliday,
       }
     },
     [`dashboard-data-${userId}-${today}`],
