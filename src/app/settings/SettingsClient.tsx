@@ -1449,7 +1449,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             <button
               type="button"
               onClick={() => setShowRiderContactImport(true)}
-              className="flex items-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all"
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-600 transition-all active:scale-95"
             >
               <Users className="w-3.5 h-3.5" />
               Import
