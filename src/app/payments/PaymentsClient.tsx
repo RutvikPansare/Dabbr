@@ -168,6 +168,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
   const [chargeError, setChargeError]       = useState('')
   const [chargeSuccess, setChargeSuccess]   = useState(false)
   const [chargePresets, setChargePresets]   = useState<{ id: string; name: string; amount: number }[]>([])
+  const [chargePresetsLoading, setChargePresetsLoading] = useState(false)
 
   // History toggle
   const [showHistory, setShowHistory] = useState(false)
@@ -316,8 +317,8 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     await invalidateCustomers(providerId)
   }
 
-  async function openCharge(customerId: string) {
-    setChargeCustomerId(customerId)
+  function openCharge() {
+    setChargeCustomerId('')
     setChargeItem('')
     setChargeAmt('')
     setChargeNote('')
@@ -325,12 +326,22 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setChargeSuccess(false)
     setChargePresets([])
     setShowCharge(true)
+  }
+
+  async function onChargeCustomerChange(customerId: string) {
+    setChargeCustomerId(customerId)
+    setChargeItem('')
+    setChargeAmt('')
+    setChargePresets([])
+    if (!customerId) return
+    setChargePresetsLoading(true)
     const { data } = await db
       .from('extra_presets')
       .select('id, name, amount')
       .eq('provider_id', providerId)
       .order('sort_order')
       .order('created_at')
+    setChargePresetsLoading(false)
     if (data) setChargePresets(data)
   }
 
@@ -504,7 +515,6 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   selected={selectedIds.has(c.id)}
                   onToggle={() => toggleSelect(c.id)}
                   onRecord={() => openRecord(c.id)}
-                  onCharge={() => openCharge(c.id)}
                 />
               ))}
             </div>
@@ -548,12 +558,26 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   selected={selectedIds.has(c.id)}
                   onToggle={() => toggleSelect(c.id)}
                   onRecord={() => openRecord(c.id)}
-                  onCharge={() => openCharge(c.id)}
                 />
               ))}
             </div>
           </div>
         )}
+
+        {/* ── Charge Extra action card ── */}
+        <button
+          onClick={openCharge}
+          className="w-full flex items-center gap-4 rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-4 text-left hover:border-orange-200 hover:bg-orange-50/30 active:scale-[0.99] transition-all"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-500">
+            <HandCoins className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-gray-900">Charge Extra</p>
+            <p className="text-xs text-gray-400 mt-0.5">Add a one-time charge to any customer&apos;s account</p>
+          </div>
+          <ChevronDown className="w-4 h-4 text-gray-300 -rotate-90 shrink-0" />
+        </button>
 
         {/* ── Payment history (collapsible) ── */}
         <div>
@@ -840,9 +864,8 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
           Charge Extra Modal
       ════════════════════════════════════════════════ */}
       {showCharge && (() => {
-        const c = customers.find(x => x.id === chargeCustomerId)
-        if (!c) return null
-        const price = activePlan(c)?.monthly_price ?? c.price_per_month
+        const chargeCustomer = customers.find(x => x.id === chargeCustomerId) ?? null
+        const chargePrice = chargeCustomer ? (activePlan(chargeCustomer)?.monthly_price ?? chargeCustomer.price_per_month) : 0
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -852,20 +875,20 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
               className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-orange-500">Charge Extra</p>
-                  <h2 className="text-lg font-black text-gray-900 leading-tight mt-0.5">{c.name}</h2>
-                </div>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                  <HandCoins className="w-5 h-5 text-orange-500" /> Charge Extra
+                </h2>
                 <button
                   onClick={() => setShowCharge(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gray-100 text-gray-500 active:bg-gray-200 transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 active:bg-gray-200 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="px-6 py-5">
+              <div className="max-h-[75vh] overflow-y-auto px-5 py-4">
                 {chargeSuccess ? (
                   <div className="text-center py-4 space-y-4">
                     <div className="w-16 h-16 rounded-3xl bg-orange-100 flex items-center justify-center text-orange-500 mx-auto">
@@ -886,42 +909,60 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   </div>
                 ) : (
                   <form onSubmit={handleCharge} className="space-y-4">
-                    <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
-                      <p className="text-xs font-semibold text-gray-600">
-                        Balance: <span className="font-black text-orange-600">₹{Math.round(c.balance)}</span>
-                        {chargeAmt && Number(chargeAmt) > 0 && (
-                          <> → <span className={`font-black ${c.balance - Number(chargeAmt) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            ₹{Math.round(c.balance - Number(chargeAmt))}
-                          </span></>
-                        )}
-                        {price > 0 && <span className="text-gray-400"> · ₹{price}/mo</span>}
-                      </p>
+
+                    {/* Customer picker */}
+                    <div>
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Customer *</p>
+                      <select
+                        required
+                        value={chargeCustomerId}
+                        onChange={e => onChargeCustomerChange(e.target.value)}
+                        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100"
+                      >
+                        <option value="">Select a customer…</option>
+                        {customers.filter(c => c.status === 'active').map(c => (
+                          <option key={c.id} value={c.id}>{c.name}{c.area ? ` — ${c.area}` : ''}</option>
+                        ))}
+                      </select>
+                      {chargeCustomer && (
+                        <p className="mt-1.5 text-xs font-semibold text-gray-400">
+                          Balance: <span className="text-orange-600 font-black">₹{Math.round(chargeCustomer.balance)}</span>
+                          {chargePrice > 0 && <span className="text-gray-400"> · ₹{chargePrice}/mo</span>}
+                        </p>
+                      )}
                     </div>
 
+                    {/* Preset chips — shown once customer is picked */}
+                    {chargePresetsLoading && (
+                      <p className="text-xs text-gray-400">Loading presets…</p>
+                    )}
                     {chargePresets.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {chargePresets.map(preset => (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => { setChargeItem(preset.name); setChargeAmt(String(preset.amount || '')) }}
-                            className={`rounded-2xl border px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
-                              chargeItem === preset.name
-                                ? 'bg-orange-500 border-orange-500 text-white'
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300'
-                            }`}
-                          >
-                            {preset.name}{preset.amount ? ` · ₹${preset.amount}` : ''}
-                          </button>
-                        ))}
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Quick select</p>
+                        <div className="flex flex-wrap gap-2">
+                          {chargePresets.map(preset => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => { setChargeItem(preset.name); setChargeAmt(String(preset.amount || '')) }}
+                              className={`rounded-2xl border px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                                chargeItem === preset.name
+                                  ? 'bg-orange-500 border-orange-500 text-white'
+                                  : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300'
+                              }`}
+                            >
+                              {preset.name}{preset.amount ? ` · ₹${preset.amount}` : ''}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
 
+                    {/* Item */}
                     <div>
                       <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Item *</label>
                       <input
                         required
-                        autoFocus
                         value={chargeItem}
                         onChange={e => setChargeItem(e.target.value)}
                         placeholder="e.g. Extra chapati, Paneer, Delivery fee…"
@@ -929,6 +970,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                       />
                     </div>
 
+                    {/* Amount */}
                     <div>
                       <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Amount (₹) — optional</label>
                       <input
@@ -939,8 +981,17 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                         placeholder="0"
                         className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                       />
+                      {chargeCustomer && chargeAmt && Number(chargeAmt) > 0 && (
+                        <p className="mt-1.5 text-xs text-gray-400">
+                          New balance:{' '}
+                          <span className={`font-bold ${chargeCustomer.balance - Number(chargeAmt) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            ₹{Math.round(chargeCustomer.balance - Number(chargeAmt))}
+                          </span>
+                        </p>
+                      )}
                     </div>
 
+                    {/* Note */}
                     <div>
                       <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Note — optional</label>
                       <input
@@ -963,7 +1014,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                       </button>
                       <button
                         type="submit"
-                        disabled={chargeSaving || !chargeItem.trim()}
+                        disabled={chargeSaving || !chargeCustomerId || !chargeItem.trim()}
                         className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-sm disabled:opacity-50 active:scale-95 transition-all"
                       >
                         {chargeSaving ? 'Charging…' : 'Charge Now'}
@@ -991,10 +1042,9 @@ interface CustomerRowProps {
   selected: boolean
   onToggle: () => void
   onRecord: () => void
-  onCharge: () => void
 }
 
-function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRecord, onCharge }: CustomerRowProps) {
+function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRecord }: CustomerRowProps) {
   const plan   = activePlan(c)
   const price  = plan?.monthly_price ?? c.price_per_month
   const bs     = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
@@ -1065,13 +1115,6 @@ function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRe
                 className="flex items-center gap-1.5 flex-1 justify-center rounded-xl bg-orange-50 border border-orange-200 py-2 text-xs font-bold text-orange-600 active:scale-95 transition-all"
               >
                 <IndianRupee className="w-3.5 h-3.5" /> Record
-              </button>
-              <button
-                onClick={onCharge}
-                className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-500 active:scale-95 transition-all shrink-0"
-                title="Charge extra"
-              >
-                <HandCoins className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
