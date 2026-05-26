@@ -201,7 +201,7 @@ export default function ReportsClient() {
     <div className="min-h-screen bg-[#FDF8F3]">
 
       {/* ── Header ── */}
-      <header className="fixed inset-x-0 top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-orange-100/50 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
+      <header className="fixed inset-x-0 top-0 z-30 lg:left-[220px] bg-white/90 backdrop-blur-xl border-b border-orange-100/50 shadow-[0_4px_30px_rgba(244,98,42,0.05)]">
         <div className="mx-auto max-w-3xl px-4 h-14 flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-orange-50">
             <BarChart2 className="w-4 h-4 text-orange-500" />
