@@ -190,28 +190,33 @@ function reminderLink(c: Customer): string {
 
 // ── Static DeliveryRow (delivery tracking OFF) ─────────────────────────────
 
-function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
+function DeliveryRow({ c, index, isLast, hideArea, onOpen, onAddExtra, pendingExtraCount }: {
   c: Customer
   index: number
   isLast: boolean
   hideArea?: boolean
   onOpen?: () => void
+  onAddExtra?: () => void
+  pendingExtraCount?: number
 }) {
   const plan     = customerPlan(c)
   const slots    = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
   const planType = plan?.plan_type ?? c.plan_type
-  const price    = plan?.monthly_price ?? c.price_per_month
+  const price    = c.price_per_month
   const bs       = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
 
   return (
-    <div onClick={onOpen} className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/40 cursor-pointer ${!isLast ? 'border-b border-gray-100' : ''}`}>
-      {/* Index circle */}
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500 mt-0.5">
+    <div className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/40 ${!isLast ? 'border-b border-gray-100' : ''}`}>
+      {/* Index circle — tappable to open detail */}
+      <span
+        onClick={onOpen}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500 mt-0.5 cursor-pointer"
+      >
         {index + 1}
       </span>
 
-      {/* Main info */}
-      <div className="min-w-0 flex-1">
+      {/* Main info — tappable to open detail */}
+      <div className="min-w-0 flex-1 cursor-pointer" onClick={onOpen}>
         <p className="truncate text-[15px] font-black text-gray-900 leading-snug">
           {c.name}
         </p>
@@ -229,10 +234,24 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
         {c.notes && (
           <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
         )}
+        {/* Add Extra chip */}
+        {onAddExtra && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddExtra() }}
+            className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition-colors ${
+              pendingExtraCount
+                ? 'bg-orange-100 border border-orange-300 text-orange-600'
+                : 'bg-gray-100 text-gray-500 hover:bg-orange-50 hover:text-orange-500'
+            }`}
+          >
+            <Plus className="w-2.5 h-2.5" />
+            {pendingExtraCount ? `${pendingExtraCount} extra${pendingExtraCount > 1 ? 's' : ''}` : 'Extra'}
+          </button>
+        )}
       </div>
 
       {/* Right: balance badge + rupees + diet icon */}
-      <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5">
+      <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5 cursor-pointer" onClick={onOpen}>
         <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePillClass(bs.state)}`}>
           {bs.daysLeft <= 0 ? 'Overdue' : `${fmtDays(bs.daysLeft)} left`}
         </span>
@@ -1874,7 +1893,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               /* Overview: all customers */
               <div>
                 {deliveryToday.map((c, i) => (
-                  <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => setCustomerModal(c)} />
+                  <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={pendingExtras[c.id] ?? 0} />
                 ))}
               </div>
 
@@ -1896,7 +1915,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         pendingExtraCount={pendingExtras[c.id] ?? 0}
                       />
                     ) : (
-                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} onOpen={() => setCustomerModal(c)} />
+                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={pendingExtras[c.id] ?? 0} />
                     )
                   )
                 ) : deliveryTrackingEnabled ? (
@@ -1997,7 +2016,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                               pendingExtraCount={pendingExtras[c.id] ?? 0}
                             />
                           ) : (
-                            <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
+                            <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={pendingExtras[c.id] ?? 0} />
                           )
                         )}
                       </div>
