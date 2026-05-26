@@ -225,28 +225,31 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen, onAddExtra, pendingEx
             <MapPin className="w-3 h-3 shrink-0" />{c.area}
           </p>
         )}
-        <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-gray-100/80 px-2 py-0.5">
-          <span className="text-[11px]">{PLAN_EMOJI[planType]}</span>
-          <span className="text-[11px] font-semibold text-gray-600 truncate max-w-[80px]">{plan?.name ?? planType}</span>
-          <span className="text-gray-300 text-xs">·</span>
-          <span className="text-[11px] text-gray-400">{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {/* Plan chip */}
+          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100/80 px-2 py-0.5">
+            <span className="text-[11px]">{PLAN_EMOJI[planType]}</span>
+            <span className="text-[11px] font-semibold text-gray-600 truncate max-w-[80px]">{plan?.name ?? planType}</span>
+            <span className="text-gray-300 text-xs">·</span>
+            <span className="text-[11px] text-gray-400">{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
+          </div>
+          {/* Extra chip */}
+          {onAddExtra && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onAddExtra() }}
+              className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                pendingExtraCount
+                  ? 'bg-orange-100 text-orange-600'
+                  : 'bg-gray-100/80 text-gray-500 hover:bg-orange-50 hover:text-orange-500'
+              }`}
+            >
+              <Plus className="w-2.5 h-2.5" />
+              {pendingExtraCount ? `${pendingExtraCount} extra${pendingExtraCount > 1 ? 's' : ''}` : 'Extra'}
+            </button>
+          )}
         </div>
         {c.notes && (
           <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
-        )}
-        {/* Add Extra chip */}
-        {onAddExtra && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onAddExtra() }}
-            className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition-colors ${
-              pendingExtraCount
-                ? 'bg-orange-100 border border-orange-300 text-orange-600'
-                : 'bg-gray-100 text-gray-500 hover:bg-orange-50 hover:text-orange-500'
-            }`}
-          >
-            <Plus className="w-2.5 h-2.5" />
-            {pendingExtraCount ? `${pendingExtraCount} extra${pendingExtraCount > 1 ? 's' : ''}` : 'Extra'}
-          </button>
         )}
       </div>
 
@@ -400,39 +403,39 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
                   <MapPin className="w-3 h-3 shrink-0" />{c.area}
                 </p>
               )}
-              <div className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${
-                isDelivered ? 'bg-gray-100/50' : 'bg-gray-100/80'
-              }`}>
-                <span className={`text-[11px] ${isDelivered ? 'opacity-40' : ''}`}>{PLAN_EMOJI[planType]}</span>
-                <span className={`text-[11px] font-semibold truncate max-w-[80px] ${isDelivered ? 'text-gray-300' : 'text-gray-600'}`}>{plan?.name ?? planType}</span>
-                <span className={`text-xs ${isDelivered ? 'text-gray-200' : 'text-gray-300'}`}>·</span>
-                <span className={`text-[11px] ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {/* Plan chip */}
+                <div className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${
+                  isDelivered ? 'bg-gray-100/50' : 'bg-gray-100/80'
+                }`}>
+                  <span className={`text-[11px] ${isDelivered ? 'opacity-40' : ''}`}>{PLAN_EMOJI[planType]}</span>
+                  <span className={`text-[11px] font-semibold truncate max-w-[80px] ${isDelivered ? 'text-gray-300' : 'text-gray-600'}`}>{plan?.name ?? planType}</span>
+                  <span className={`text-xs ${isDelivered ? 'text-gray-200' : 'text-gray-300'}`}>·</span>
+                  <span className={`text-[11px] ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
+                </div>
+                {/* Extra chip */}
+                {!bulkMode && onAddExtra && (
+                  <button
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onAddExtra() }}
+                    onClick={(e) => { e.stopPropagation(); onAddExtra() }}
+                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                      isDelivered
+                        ? pendingExtraCount
+                          ? 'bg-green-100 text-green-600'
+                          : 'opacity-0 pointer-events-none'
+                        : pendingExtraCount
+                          ? 'bg-orange-100 text-orange-600'
+                          : 'bg-gray-100/80 text-gray-500 hover:bg-orange-50 hover:text-orange-500'
+                    }`}
+                  >
+                    {isDelivered && pendingExtraCount
+                      ? <><Sparkles className="w-2.5 h-2.5 mr-0.5" />{pendingExtraCount} extra{pendingExtraCount > 1 ? 's' : ''} billed</>
+                      : <><Plus className="w-2.5 h-2.5" />{pendingExtraCount ? `${pendingExtraCount} extra${pendingExtraCount > 1 ? 's' : ''}` : 'Extra'}</>
+                    }
+                  </button>
+                )}
               </div>
-              {c.notes && !isDelivered && (
-                <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
-              )}
-              {/* Add Extra button */}
-              {!bulkMode && onAddExtra && (
-                <button
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onAddExtra() }}
-                  onClick={(e) => { e.stopPropagation(); onAddExtra() }}
-                  className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition-colors ${
-                    isDelivered
-                      ? pendingExtraCount
-                        ? 'bg-green-100 text-green-600'
-                        : 'opacity-0 pointer-events-none'
-                      : pendingExtraCount
-                        ? 'bg-orange-100 border border-orange-300 text-orange-600'
-                        : 'bg-gray-100 text-gray-500 hover:bg-orange-50 hover:text-orange-500'
-                  }`}
-                >
-                  {isDelivered && pendingExtraCount
-                    ? <><Sparkles className="w-2.5 h-2.5" /> {pendingExtraCount} extra{pendingExtraCount > 1 ? 's' : ''} billed</>
-                    : <><Plus className="w-2.5 h-2.5" /> {pendingExtraCount ? `${pendingExtraCount} extra${pendingExtraCount > 1 ? 's' : ''}` : 'Extra'}</>
-                  }
-                </button>
-              )}
             </>
           )}
         </div>
