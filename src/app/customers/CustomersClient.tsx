@@ -465,8 +465,9 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         .order('created_at', { ascending: false }),
       db
         .from('delivery_extras')
-        .select('id, item, amount, note, delivery_date, status, created_at')
+        .select('id, item, amount, note, delivery_date, status, billed_at, created_at')
         .eq('customer_id', c.id)
+        .eq('status', 'billed')
         .gte('delivery_date', cutoff.toISOString().split('T')[0])
         .order('created_at', { ascending: false }),
     ])
@@ -512,7 +513,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     for (const ex of ((extrasData ?? []) as any[])) {
       events.push({
         id: `ex-${ex.id}`,
-        date: `${ex.delivery_date}T13:00:00`,
+        date: ex.billed_at ?? ex.created_at ?? `${ex.delivery_date}T13:00:00`,
         type: 'delivery_extra',
         amount: ex.amount,
         notes: [ex.item, ex.note].filter(Boolean).join(' · '),
