@@ -151,6 +151,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     | { kind: 'refund';  id: string; amount: number; reason: string | null; date: string; razorpay_refund_id: string | null }
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([])
+  const [ledgerLoading, setLedgerLoading] = useState(true)
 
   useEffect(() => {
     async function fetchBillingData() {
@@ -176,6 +177,8 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
         setLedger(entries)
       } catch {
         // silently ignore — non-critical
+      } finally {
+        setLedgerLoading(false)
       }
     }
     fetchBillingData()
@@ -1636,10 +1639,17 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             })}
           </div>
 
-          {/* ── Billing Ledger ── */}
-          {ledger.length > 0 && (
-            <div className="mt-6">
-              <p className="text-xs font-black text-gray-500 uppercase tracking-wide mb-3">Payment History</p>
+          {/* ── Billing Ledger ── always visible ── */}
+          <div className="mt-6">
+            <p className="text-xs font-black text-gray-500 uppercase tracking-wide mb-3">Payment History</p>
+            {ledgerLoading ? (
+              <p className="text-xs font-semibold text-gray-400 px-1">Loading…</p>
+            ) : ledger.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-5 text-center">
+                <p className="text-sm font-bold text-gray-400">No payments yet</p>
+                <p className="text-xs font-semibold text-gray-300 mt-0.5">Your Razorpay transactions will appear here.</p>
+              </div>
+            ) : (
               <div className="rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
                 {ledger.map(entry => {
                   const dateStr = new Date(entry.date).toLocaleDateString('en-IN', {
@@ -1687,8 +1697,8 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                   }
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Danger zone */}
