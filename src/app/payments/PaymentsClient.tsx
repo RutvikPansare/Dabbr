@@ -250,24 +250,29 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setRecording(true)
     setRecordError('')
 
-    const amountNum  = Number(amount)
-    const newBalance = selectedCustomer.balance + amountNum
+    const amountNum = Number(amount)
 
-    const { data: newPayment, error: payErr } = await db
-      .from('payments')
-      .insert({
+    const res = await fetch('/api/record-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         customer_id: selectedCustomer.id,
-        provider_id: providerId,
         amount: amountNum,
         notes: note.trim() || null,
-      })
-      .select()
-      .single()
+      }),
+    })
 
-    if (payErr) { setRecordError(`Failed: ${payErr.message}`); setRecording(false); return }
+    const json = await res.json()
 
-    await db.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id)
+    if (!res.ok) {
+      setRecordError(json.error ?? 'Failed to record payment.')
+      setRecording(false)
+      return
+    }
 
+    const { payment: newPayment, newBalance } = json
+
+    // Update local state so UI reflects immediately without waiting for refresh
     setCustomers(prev =>
       prev.map(c => c.id === selectedCustomer.id ? { ...c, balance: newBalance } : c)
     )
