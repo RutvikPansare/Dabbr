@@ -53,8 +53,25 @@ export async function POST(req: NextRequest) {
     .eq('id', customer_id)
 
   if (balErr) {
+    console.error('[record-payment] balance update failed:', balErr)
     return NextResponse.json({ error: `Payment recorded but balance update failed: ${balErr.message}` }, { status: 500 })
   }
 
-  return NextResponse.json({ payment, newBalance })
+  // Re-fetch to confirm the write actually persisted
+  const { data: confirmed } = await db
+    .from('customers')
+    .select('balance')
+    .eq('id', customer_id)
+    .single()
+
+  const confirmedBalance = confirmed?.balance ?? newBalance
+
+  if (confirmedBalance !== newBalance) {
+    console.error('[record-payment] balance mismatch — expected', newBalance, 'got', confirmedBalance)
+    return NextResponse.json({
+      error: `Balance update did not persist (DB shows ${confirmedBalance}, expected ${newBalance}). Have you run the migration_unified_balance.sql in Supabase?`,
+    }, { status: 500 })
+  }
+
+  return NextResponse.json({ payment, newBalance: confirmedBalance })
 }
