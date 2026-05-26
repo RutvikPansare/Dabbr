@@ -209,6 +209,7 @@ function DeliveryRow({ c, index, isLast, hideArea, status, onMark, onOpen, onAdd
   const bs       = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
   const isDelivered = status === 'delivered'
   const isSkipped   = status === 'skipped'
+  const lastCircleTouchMs = useRef(0)
 
   function cycleStatus() {
     if (!onMark) return
@@ -221,9 +222,9 @@ function DeliveryRow({ c, index, isLast, hideArea, status, onMark, onOpen, onAdd
     <div className={`group flex items-start gap-3 px-5 py-4 transition-colors ${isDelivered ? 'bg-green-50/30' : isSkipped ? 'bg-amber-50/20' : 'hover:bg-gray-50/40'} ${!isLast ? 'border-b border-gray-100' : ''}`}>
       {/* Index / status circle — click/tap to cycle when onMark is provided */}
       <span
-        onTouchStart={onMark ? (e) => e.stopPropagation() : undefined}
-        onTouchEnd={onMark ? (e) => { e.stopPropagation(); e.preventDefault(); cycleStatus() } : undefined}
-        onClick={onMark ? (e) => { e.stopPropagation(); cycleStatus() } : onOpen}
+        onTouchStart={onMark ? (e) => { lastCircleTouchMs.current = Date.now(); e.stopPropagation() } : undefined}
+        onTouchEnd={onMark ? (e) => { lastCircleTouchMs.current = Date.now(); e.stopPropagation(); e.preventDefault(); cycleStatus() } : undefined}
+        onClick={onMark ? (e) => { if (Date.now() - lastCircleTouchMs.current < 600) return; e.stopPropagation(); cycleStatus() } : onOpen}
         title={onMark ? (isDelivered ? 'Mark skipped' : isSkipped ? 'Reset to pending' : 'Mark delivered') : undefined}
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5 transition-transform ${
           onMark ? 'cursor-pointer hover:scale-110 active:scale-95' : 'cursor-pointer'
@@ -339,6 +340,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   const [deltaX, setDeltaX] = useState(0)
   const [deltaY, setDeltaY] = useState(0)
   const [tracking, setTracking] = useState(false)
+  const lastCircleTouchMs = useRef(0)
 
   const plan = customerPlan(c)
   const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
@@ -418,8 +420,12 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
 
         {/* Index / status circle — click/tap to cycle pending → delivered → skipped → pending */}
         <span
-          onTouchStart={(e) => e.stopPropagation()}
+          onTouchStart={(e) => {
+            lastCircleTouchMs.current = Date.now()
+            e.stopPropagation()
+          }}
           onTouchEnd={(e) => {
+            lastCircleTouchMs.current = Date.now()
             e.stopPropagation()
             e.preventDefault()
             if (bulkMode) return
@@ -428,6 +434,8 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
             else onMark('pending')
           }}
           onClick={(e) => {
+            // Suppress ghost click that fires ~300ms after touch on Android WebView
+            if (Date.now() - lastCircleTouchMs.current < 600) return
             e.stopPropagation()
             if (bulkMode) return
             if (status === 'pending') onMark('delivered')
@@ -785,21 +793,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       undoTimerRef.current = setTimeout(() => setUndoSnackbar(null), 4000)
     }
 
-    // ── Server RPC: delivery_logs write + balance update in ONE transaction ──
-    // Fixes two critical bugs:
-    //   1. Race condition: balance delta is computed server-side from DB counts,
-    //      not from stale React state. Two concurrent calls can't both deduct.
-    //   2. Two-phase commit: both writes happen atomically. A network failure
-    //      can't leave delivery logged but balance unchanged.
-    const { data, error } = await db.rpc('mark_slot_delivery', {
-      p_customer_id: customerId,
-      p_provider_id: userId,
-      p_date:        today,
-      p_meal_slot:   slot,
-      p_status:      newStatus,
+    // ── Server write: delivery_logs + balance update ──────────────────────
+    const res = await fetch('/api/mark-delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: customerId, date: today, meal_slot: slot, status: newStatus }),
     })
 
-    if (error) {
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
       // ── Rollback optimistic delivery status ───────────────────────────────
       setDeliveryStatuses(prev => {
         const next = { ...prev }
@@ -807,15 +809,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         else next[key] = prevStatus
         return next
       })
-      // Dismiss the undo snackbar for this failed action
       setUndoSnackbar(prev => (prev?.id === customerId && prev?.slot === slot ? null : prev))
-      console.error('[Dabbr] markDelivery RPC failed:', error.message)
+      console.error('[Dabbr] markDelivery failed:', json.error)
       return
     }
 
-    // ── Re-assert the confirmed status (belt-and-suspenders) ─────────────────
-    // The optimistic update already did this, but if a concurrent state overwrite
-    // (e.g. initial fetch race) reverted it, this ensures the correct status sticks.
+    const json = await res.json().catch(() => ({}))
+
+    // ── Re-assert confirmed status so any concurrent overwrites don't stick ──
     setDeliveryStatuses(prev => {
       const next = { ...prev }
       if (newStatus === 'pending') delete next[key]
@@ -823,10 +824,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       return next
     })
 
-    // ── Apply server-returned balance delta to local state (UI stays live) ──
-    // The server computed the correct delta atomically; we just mirror it here.
-    // balanceDelta is in rupees (negative = delivery deducted, positive = undo restored).
-    const balanceDelta: number = (data as any)?.balance_delta ?? 0
+    // ── Apply server-returned balance delta ───────────────────────────────
+    const balanceDelta: number = json.balance_delta ?? 0
     if (balanceDelta !== 0) {
       setCustomers(prev => prev.map(c => {
         if (c.id !== customerId) return c
