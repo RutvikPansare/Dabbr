@@ -2273,17 +2273,18 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Undo snackbar ── */}
       {!overCustomerLimit && undoSnackbar && !bulkMode && (
-        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 pointer-events-none">
-          <div className="mx-auto max-w-2xl">
-            <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl pointer-events-auto">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-auto lg:top-20 left-0 right-0 z-40 px-4 pointer-events-none">
+          <div className="mx-auto max-w-2xl lg:flex lg:justify-end">
+            <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl pointer-events-auto lg:w-auto lg:min-w-[260px]">
               <span className={`text-xs font-bold flex items-center gap-1.5 ${undoSnackbar.action === 'Delivered' ? 'text-green-400' : 'text-amber-400'}`}>
                 {undoSnackbar.action === 'Delivered' ? '✓' : '—'} {undoSnackbar.name}
                 <span className="opacity-60">{MEAL_SLOT_EMOJI[undoSnackbar.slot]}</span>
               </span>
               <div className="flex-1" />
+              <div className="h-4 w-px bg-gray-700" />
               <button
                 onClick={handleUndo}
-                className="text-xs font-black text-orange-400 uppercase tracking-wide active:scale-95 transition-all"
+                className="text-xs font-bold text-gray-400 hover:text-white transition-colors px-1"
               >
                 Undo
               </button>
