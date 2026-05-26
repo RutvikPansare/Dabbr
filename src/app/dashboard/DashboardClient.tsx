@@ -396,8 +396,17 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           </div>
         )}
 
-        {/* Index / status circle — click to cycle pending → delivered → skipped → pending */}
+        {/* Index / status circle — click/tap to cycle pending → delivered → skipped → pending */}
         <span
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            if (bulkMode) return
+            if (status === 'pending') onMark('delivered')
+            else if (status === 'delivered') onMark('skipped')
+            else onMark('pending')
+          }}
           onClick={(e) => {
             e.stopPropagation()
             if (bulkMode) return
