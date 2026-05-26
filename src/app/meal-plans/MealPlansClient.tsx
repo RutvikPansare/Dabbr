@@ -82,6 +82,7 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
     affectedCount: number
   } | null>(null)
   const [dialogSaving, setDialogSaving] = useState(false)
+  const [dialogChoice, setDialogChoice] = useState<'apply' | 'keep' | null>(null)
 
   // Price history per plan
   const [priceHistory, setPriceHistory] = useState<Record<string, PriceHistoryEntry[]>>({})
@@ -224,6 +225,7 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
         newPrice,
         affectedCount: count,
       })
+      setDialogChoice(null)
       return
     }
 
@@ -543,42 +545,74 @@ export default function MealPlansClient({ providerId, initialMealPlans, backUrl 
               </p>
             </div>
 
-            {/* Choices */}
+            {/* Radio choices */}
             <div className="space-y-2.5">
               <button
+                type="button"
                 disabled={dialogSaving}
-                onClick={() => handlePriceDialogChoice(true)}
-                className="flex w-full flex-col rounded-2xl border-2 border-orange-500 bg-orange-50 px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50"
+                onClick={() => setDialogChoice('apply')}
+                className={`flex w-full items-start gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50 ${
+                  dialogChoice === 'apply'
+                    ? 'border-orange-500 bg-orange-50'
+                    : 'border-gray-200 bg-white'
+                }`}
               >
-                <p className="text-sm font-black text-orange-700">Apply to everyone</p>
-                <p className="text-xs text-orange-500 mt-0.5">
-                  Update all {priceDialog.affectedCount} existing customers to ₹{priceDialog.newPrice}/mo
-                </p>
+                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  dialogChoice === 'apply' ? 'border-orange-500' : 'border-gray-300'
+                }`}>
+                  {dialogChoice === 'apply' && <span className="h-2 w-2 rounded-full bg-orange-500" />}
+                </span>
+                <div>
+                  <p className={`text-sm font-black ${dialogChoice === 'apply' ? 'text-orange-700' : 'text-gray-700'}`}>Apply to everyone</p>
+                  <p className={`text-xs mt-0.5 ${dialogChoice === 'apply' ? 'text-orange-500' : 'text-gray-400'}`}>
+                    Update all {priceDialog.affectedCount} existing customers to ₹{priceDialog.newPrice}/mo
+                  </p>
+                </div>
               </button>
 
               <button
+                type="button"
                 disabled={dialogSaving}
-                onClick={() => handlePriceDialogChoice(false)}
-                className="flex w-full flex-col rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50"
+                onClick={() => setDialogChoice('keep')}
+                className={`flex w-full items-start gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition active:scale-[0.98] disabled:opacity-50 ${
+                  dialogChoice === 'keep'
+                    ? 'border-orange-500 bg-orange-50'
+                    : 'border-gray-200 bg-white'
+                }`}
               >
-                <p className="text-sm font-black text-gray-700">Keep old rate for existing customers</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  They stay on ₹{priceDialog.oldPrice}/mo — new customers get ₹{priceDialog.newPrice}/mo
-                </p>
+                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  dialogChoice === 'keep' ? 'border-orange-500' : 'border-gray-300'
+                }`}>
+                  {dialogChoice === 'keep' && <span className="h-2 w-2 rounded-full bg-orange-500" />}
+                </span>
+                <div>
+                  <p className={`text-sm font-black ${dialogChoice === 'keep' ? 'text-orange-700' : 'text-gray-700'}`}>Keep old rate for existing customers</p>
+                  <p className={`text-xs mt-0.5 ${dialogChoice === 'keep' ? 'text-orange-500' : 'text-gray-400'}`}>
+                    They stay on ₹{priceDialog.oldPrice}/mo — new customers get ₹{priceDialog.newPrice}/mo
+                  </p>
+                </div>
               </button>
             </div>
 
-            {dialogSaving && (
-              <p className="text-center text-xs text-gray-400 animate-pulse">Saving…</p>
-            )}
-
-            <button
-              disabled={dialogSaving}
-              onClick={() => setPriceDialog(null)}
-              className="w-full rounded-2xl border border-gray-200 py-3 text-sm font-bold text-gray-500 disabled:opacity-50"
-            >
-              Cancel
-            </button>
+            {/* Confirm + Cancel */}
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                disabled={!dialogChoice || dialogSaving}
+                onClick={() => handlePriceDialogChoice(dialogChoice === 'apply')}
+                className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40"
+              >
+                {dialogSaving ? 'Saving…' : 'Confirm price change'}
+              </button>
+              <button
+                type="button"
+                disabled={dialogSaving}
+                onClick={() => setPriceDialog(null)}
+                className="w-full rounded-2xl border border-gray-200 py-3 text-sm font-bold text-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
