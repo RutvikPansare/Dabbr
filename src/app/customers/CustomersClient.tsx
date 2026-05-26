@@ -2305,16 +2305,19 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             <div className="rounded-2xl bg-white px-5 py-5 shadow-sm border border-gray-100 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Balance</h3>
 
-              <Field label="Opening balance (₹)">
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0"
-                  value={formData.balance}
-                  onChange={(e) => setFormData((f) => ({ ...f, balance: e.target.value }))}
-                  className={inputClass}
-                />
-              </Field>
+              {/* Opening balance — only shown when adding a new customer */}
+              {formMode === 'add' && (
+                <Field label="Opening balance (₹)">
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0"
+                    value={formData.balance}
+                    onChange={(e) => setFormData((f) => ({ ...f, balance: e.target.value }))}
+                    className={inputClass}
+                  />
+                </Field>
+              )}
 
               <Field label="Credit limit (₹) — how far negative the balance can go">
                 <input
@@ -2328,11 +2331,19 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 />
               </Field>
 
-              <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
-                <p className="text-xs font-medium text-orange-700 leading-relaxed">
-                  Balance in ₹. Payments top up balance. Each delivery deducts the per-day cost (monthly price ÷ 30). Days left = balance ÷ per-day cost.
-                </p>
-              </div>
+              {formMode === 'add' ? (
+                <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                  <p className="text-xs font-medium text-orange-700 leading-relaxed">
+                    Set an opening balance if the customer already paid before joining. After this, all top-ups go through the Payment Center.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3">
+                  <p className="text-xs font-medium text-gray-500 leading-relaxed">
+                    To add or adjust the balance, use the <strong>Payment Center</strong> to record a payment.
+                  </p>
+                </div>
+              )}
             </div>
 
             {formError && (
