@@ -305,7 +305,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   isLast: boolean
   hideArea?: boolean
   status: DeliveryStatus
-  onMark: (s: 'delivered' | 'skipped') => void
+  onMark: (s: 'delivered' | 'skipped' | 'pending') => void
   bulkMode: boolean
   selected: boolean
   onToggleSelect: () => void
@@ -396,13 +396,22 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           </div>
         )}
 
-        {/* Index / status icon */}
-        {/* Index / status circle */}
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-          isDelivered ? 'bg-green-100 text-green-600' :
-          isSkipped   ? 'bg-amber-100 text-amber-600' :
-                        'bg-gray-100 text-gray-500'
-        }`}>
+        {/* Index / status circle — click to cycle pending → delivered → skipped → pending */}
+        <span
+          onClick={(e) => {
+            e.stopPropagation()
+            if (bulkMode) return
+            if (status === 'pending') onMark('delivered')
+            else if (status === 'delivered') onMark('skipped')
+            else onMark('pending')
+          }}
+          title={status === 'pending' ? 'Mark delivered' : status === 'delivered' ? 'Mark skipped' : 'Reset to pending'}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+            isDelivered ? 'bg-green-100 text-green-600 hover:bg-green-200' :
+            isSkipped   ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
+                          'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
           {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
         </span>
 
