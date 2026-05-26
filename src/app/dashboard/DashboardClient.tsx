@@ -1564,9 +1564,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           {/* ── Left column ── */}
           <div className="space-y-5">
 
-          {/* ── Payment alerts — desktop left-column only (hidden on mobile/Android) ── */}
+          {/* ── Payment alerts — mobile/Android only (hidden on desktop, desktop has right panel) ── */}
           {paymentAlerts.length > 0 && (
-            <section className="mt-8 hidden lg:block">
+            <section className="mt-8 lg:hidden">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
                   <span className="flex items-center justify-center p-1.5 bg-red-100 rounded-xl">
