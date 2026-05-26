@@ -8,7 +8,7 @@ import BottomNav from '@/components/BottomNav'
 import {
   CreditCard, CheckCircle2, MessageCircle, Plus, Send,
   Phone, PartyPopper, ChevronDown, ChevronUp, IndianRupee,
-  Check, Leaf, Drumstick, X,
+  Check, Leaf, Drumstick, X, HandCoins,
 } from 'lucide-react'
 import type { Frequency, MealSlot, PlanType, SubscriptionStatus } from '@/types/database'
 import { formatMealSlots } from '@/lib/meals'
@@ -158,6 +158,17 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     url: string; customerName: string; amount: number; newBalance: number; monthlyPrice: number
   } | null>(null)
 
+  // Charge extra modal
+  const [showCharge, setShowCharge]         = useState(false)
+  const [chargeCustomerId, setChargeCustomerId] = useState('')
+  const [chargeItem, setChargeItem]         = useState('')
+  const [chargeAmt, setChargeAmt]           = useState('')
+  const [chargeNote, setChargeNote]         = useState('')
+  const [chargeSaving, setChargeSaving]     = useState(false)
+  const [chargeError, setChargeError]       = useState('')
+  const [chargeSuccess, setChargeSuccess]   = useState(false)
+  const [chargePresets, setChargePresets]   = useState<{ id: string; name: string; amount: number }[]>([])
+
   // History toggle
   const [showHistory, setShowHistory] = useState(false)
 
@@ -305,6 +316,62 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     await invalidateCustomers(providerId)
   }
 
+  async function openCharge(customerId: string) {
+    setChargeCustomerId(customerId)
+    setChargeItem('')
+    setChargeAmt('')
+    setChargeNote('')
+    setChargeError('')
+    setChargeSuccess(false)
+    setChargePresets([])
+    setShowCharge(true)
+    const { data } = await db
+      .from('extra_presets')
+      .select('id, name, amount')
+      .eq('provider_id', providerId)
+      .order('sort_order')
+      .order('created_at')
+    if (data) setChargePresets(data)
+  }
+
+  async function handleCharge(e: React.FormEvent) {
+    e.preventDefault()
+    const c = customers.find(x => x.id === chargeCustomerId)
+    if (!c || !chargeItem.trim()) return
+    setChargeSaving(true)
+    setChargeError('')
+
+    const deliveryDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+    const addRes = await fetch('/api/add-extra', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: c.id,
+        delivery_date: deliveryDate,
+        item: chargeItem.trim(),
+        amount: Number(chargeAmt) || 0,
+        note: chargeNote.trim() || null,
+      }),
+    })
+    const addJson = await addRes.json()
+    if (!addRes.ok) { setChargeError(addJson.error ?? 'Failed to add charge'); setChargeSaving(false); return }
+
+    const billRes = await fetch('/api/bill-extras', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: c.id, delivery_date: deliveryDate }),
+    })
+    const billJson = await billRes.json()
+    if (!billRes.ok) { setChargeError(billJson.error ?? 'Failed to deduct balance'); setChargeSaving(false); return }
+
+    const newBalance = billJson.newBalance ?? c.balance
+    setCustomers(prev => prev.map(x => x.id === c.id ? { ...x, balance: newBalance } : x))
+    setChargeSaving(false)
+    setChargeSuccess(true)
+    await invalidateCustomers(providerId)
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -437,6 +504,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   selected={selectedIds.has(c.id)}
                   onToggle={() => toggleSelect(c.id)}
                   onRecord={() => openRecord(c.id)}
+                  onCharge={() => openCharge(c.id)}
                 />
               ))}
             </div>
@@ -480,6 +548,7 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
                   selected={selectedIds.has(c.id)}
                   onToggle={() => toggleSelect(c.id)}
                   onRecord={() => openRecord(c.id)}
+                  onCharge={() => openCharge(c.id)}
                 />
               ))}
             </div>
@@ -767,6 +836,147 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
         </div>
       )}
 
+      {/* ════════════════════════════════════════════════
+          Charge Extra Modal
+      ════════════════════════════════════════════════ */}
+      {showCharge && (() => {
+        const c = customers.find(x => x.id === chargeCustomerId)
+        if (!c) return null
+        const price = activePlan(c)?.monthly_price ?? c.price_per_month
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => { if (!chargeSuccess) setShowCharge(false) }}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-orange-500">Charge Extra</p>
+                  <h2 className="text-lg font-black text-gray-900 leading-tight mt-0.5">{c.name}</h2>
+                </div>
+                <button
+                  onClick={() => setShowCharge(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gray-100 text-gray-500 active:bg-gray-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5">
+                {chargeSuccess ? (
+                  <div className="text-center py-4 space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-orange-100 flex items-center justify-center text-orange-500 mx-auto">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="font-black text-gray-900">Charge added!</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        New balance: ₹{Math.round(customers.find(x => x.id === chargeCustomerId)?.balance ?? 0)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowCharge(false)}
+                      className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white active:scale-95 transition-all"
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCharge} className="space-y-4">
+                    <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                      <p className="text-xs font-semibold text-gray-600">
+                        Balance: <span className="font-black text-orange-600">₹{Math.round(c.balance)}</span>
+                        {chargeAmt && Number(chargeAmt) > 0 && (
+                          <> → <span className={`font-black ${c.balance - Number(chargeAmt) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            ₹{Math.round(c.balance - Number(chargeAmt))}
+                          </span></>
+                        )}
+                        {price > 0 && <span className="text-gray-400"> · ₹{price}/mo</span>}
+                      </p>
+                    </div>
+
+                    {chargePresets.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {chargePresets.map(preset => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => { setChargeItem(preset.name); setChargeAmt(String(preset.amount || '')) }}
+                            className={`rounded-2xl border px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                              chargeItem === preset.name
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300'
+                            }`}
+                          >
+                            {preset.name}{preset.amount ? ` · ₹${preset.amount}` : ''}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Item *</label>
+                      <input
+                        required
+                        autoFocus
+                        value={chargeItem}
+                        onChange={e => setChargeItem(e.target.value)}
+                        placeholder="e.g. Extra chapati, Paneer, Delivery fee…"
+                        className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Amount (₹) — optional</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={chargeAmt}
+                        onChange={e => setChargeAmt(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Note — optional</label>
+                      <input
+                        value={chargeNote}
+                        onChange={e => setChargeNote(e.target.value)}
+                        placeholder="e.g. missed yesterday, customer requested…"
+                        className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    {chargeError && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{chargeError}</p>}
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowCharge(false)}
+                        className="flex-1 rounded-2xl border border-gray-200 py-3.5 text-sm font-bold text-gray-500 active:scale-95 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={chargeSaving || !chargeItem.trim()}
+                        className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-sm disabled:opacity-50 active:scale-95 transition-all"
+                      >
+                        {chargeSaving ? 'Charging…' : 'Charge Now'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       <BottomNav />
     </div>
   )
@@ -781,9 +991,10 @@ interface CustomerRowProps {
   selected: boolean
   onToggle: () => void
   onRecord: () => void
+  onCharge: () => void
 }
 
-function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRecord }: CustomerRowProps) {
+function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRecord, onCharge }: CustomerRowProps) {
   const plan   = activePlan(c)
   const price  = plan?.monthly_price ?? c.price_per_month
   const bs     = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
@@ -855,12 +1066,13 @@ function CustomerRow({ customer: c, provider, bulkMode, selected, onToggle, onRe
               >
                 <IndianRupee className="w-3.5 h-3.5" /> Record
               </button>
-              <a
-                href={`tel:${c.whatsapp_number}`}
-                className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 active:scale-95 transition-all shrink-0"
+              <button
+                onClick={onCharge}
+                className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-50 border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-500 active:scale-95 transition-all shrink-0"
+                title="Charge extra"
               >
-                <Phone className="w-3.5 h-3.5" />
-              </a>
+                <HandCoins className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
