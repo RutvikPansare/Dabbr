@@ -202,7 +202,7 @@ export default function ReportsClient() {
 
       {/* ── Header ── */}
       <header className="fixed inset-x-0 top-0 z-30 lg:left-[220px] bg-[#FDF8F3]/90 backdrop-blur-sm py-3">
-        <div className="mx-auto max-w-3xl px-4 lg:px-8 flex items-center gap-3">
+        <div className="px-4 lg:px-8 flex items-center gap-3">
           <div className="flex-1">
             <h1 className="text-xl font-black text-gray-900 tracking-tight">Reports</h1>
             <p className="text-xs font-semibold text-orange-600/80">Download CSV reports for your tiffin business</p>
