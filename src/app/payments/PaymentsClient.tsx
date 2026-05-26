@@ -298,9 +298,11 @@ export default function PaymentsClient({ providerId, provider, initialCustomers,
     setShowRecord(false)
     setSelCustomerId(''); setAmount(''); setNote('')
     setRecording(false)
+    // Invalidate server cache so other pages (dashboard etc.) see fresh data
+    // on next navigation — do NOT call router.refresh() as Next.js 16 RSC
+    // reconciliation overwrites the optimistic state update with stale data.
     await invalidatePayments(providerId)
     await invalidateCustomers(providerId)
-    router.refresh()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────

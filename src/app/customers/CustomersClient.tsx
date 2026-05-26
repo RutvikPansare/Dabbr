@@ -632,7 +632,6 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
     setPayLoading(false)
     await invalidateCustomers(providerId)
-    router.refresh()
   }
 
   async function deleteCustomer(c: Customer) {
