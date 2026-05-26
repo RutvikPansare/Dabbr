@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  TrendingUp, Users, AlertTriangle, CheckCircle2,
+  TrendingUp, Users,
   IndianRupee, ChevronRight, TrendingDown, Minus,
 } from 'lucide-react'
 
@@ -186,25 +186,16 @@ export default function SummarySection({ userId, deliveryTrackingEnabled }: {
               <p className="text-[11px] text-gray-400 mt-1">customers</p>
             </div>
 
-            {stats.overdueCount > 0 ? (
-              <div className="rounded-2xl bg-red-50 border border-red-100 px-4 py-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                  <p className="text-[11px] font-bold text-red-500 uppercase tracking-wide">Overdue</p>
-                </div>
-                <p className="text-2xl font-black text-red-600 leading-none">{stats.overdueCount}</p>
-                <p className="text-[11px] text-red-400 mt-1">balance expired</p>
+            <div className="glass-card rounded-2xl px-4 py-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-3.5 h-3.5 text-orange-500" />
+                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Last Month</p>
               </div>
-            ) : (
-              <div className="rounded-2xl bg-green-50 border border-green-100 px-4 py-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                  <p className="text-[11px] font-bold text-green-600 uppercase tracking-wide">Payments</p>
-                </div>
-                <p className="text-base font-black text-green-700 leading-none mt-1">All clear</p>
-                <p className="text-[11px] text-green-500 mt-1">no one overdue</p>
-              </div>
-            )}
+              <p className="text-2xl font-black text-gray-900 leading-none">
+                {stats.lastMonthRevenue === 0 ? '₹0' : fmt(stats.lastMonthRevenue)}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">collected</p>
+            </div>
           </div>
 
           {/* Delivery rate — only if tracking on and there's data */}
