@@ -1378,7 +1378,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       )}
 
       {/* ── Cook List + Packing List with shared slot filter ── */}
-      {!overCustomerLimit && (todayMenus.length > 0 || deliveryToday.length > 0) && (
+      {!overCustomerLimit && deliveryToday.length > 0 && (
         <div className="mx-auto max-w-2xl px-4 mt-4 lg:max-w-none lg:px-8 lg:mt-4">
 
           {/* Shared slot filter bar — doubles as workspace selector.
@@ -1463,8 +1463,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           <div className="mt-3 space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
 
           {/* ── Cook List ─────────────────────────────────────────────── */}
-          {todayMenus.length > 0 && (
-            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
 
               {/* Header */}
               <button
@@ -1536,8 +1535,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   )}
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           {/* ── Packing List ───────────────────────────────────────────── */}
           {!todayHoliday && deliveryToday.length > 0 && (
