@@ -312,6 +312,16 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   const [payError, setPayError]           = useState('')
   const [payReceiptUrl, setPayReceiptUrl] = useState<string | null>(null)
 
+  // Charge extra modal (from customer detail — retrospective / instant charge)
+  const [showChargeModal, setShowChargeModal]   = useState(false)
+  const [chargeItem, setChargeItem]             = useState('')
+  const [chargeAmt, setChargeAmt]               = useState('')
+  const [chargeNote, setChargeNote]             = useState('')
+  const [chargeSaving, setChargeSaving]         = useState(false)
+  const [chargeError, setChargeError]           = useState('')
+  const [chargeSuccess, setChargeSuccess]       = useState(false)
+  const [chargePresets, setChargePresets]       = useState<{ id: string; name: string; amount: number }[]>([])
+
   // Customer limit / upgrade modal
   const [showCustomerLimitModal, setShowCustomerLimitModal] = useState(initialAddWouldExceedLimit || initialOverCustomerLimit)
   const [limitAttemptCount, setLimitAttemptCount] = useState(1)
@@ -593,6 +603,85 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     setPayError('')
     setPayReceiptUrl(null)
     setShowPayModal(true)
+  }
+
+  async function openChargeModal() {
+    setChargeItem('')
+    setChargeAmt('')
+    setChargeNote('')
+    setChargeError('')
+    setChargeSuccess(false)
+    setChargePresets([])
+    setShowChargeModal(true)
+    // Load presets in background
+    const { data } = await db
+      .from('extra_presets')
+      .select('id, name, amount')
+      .eq('provider_id', providerId)
+      .order('sort_order')
+      .order('created_at')
+    if (data) setChargePresets(data)
+  }
+
+  async function handleSubmitCharge(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedCustomer || !chargeItem.trim()) return
+    setChargeSaving(true)
+    setChargeError('')
+
+    const deliveryDate = today()
+
+    // 1. Add the extra (status=pending)
+    const addRes = await fetch('/api/add-extra', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: selectedCustomer.id,
+        delivery_date: deliveryDate,
+        item: chargeItem.trim(),
+        amount: Number(chargeAmt) || 0,
+        note: chargeNote.trim() || null,
+      }),
+    })
+    const addJson = await addRes.json()
+    if (!addRes.ok) {
+      setChargeError(addJson.error ?? 'Failed to add charge')
+      setChargeSaving(false)
+      return
+    }
+
+    // 2. Bill immediately (deduct from balance)
+    const billRes = await fetch('/api/bill-extras', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: selectedCustomer.id, delivery_date: deliveryDate }),
+    })
+    const billJson = await billRes.json()
+    if (!billRes.ok) {
+      setChargeError(billJson.error ?? 'Failed to deduct balance')
+      setChargeSaving(false)
+      return
+    }
+
+    const newBalance = billJson.newBalance ?? selectedCustomer.balance
+
+    // 3. Update local state
+    const updatedCustomer = { ...selectedCustomer, balance: newBalance }
+    setSelectedCustomer(updatedCustomer)
+    setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, balance: newBalance } : c))
+
+    // 4. Prepend to ledger
+    const amount = Number(chargeAmt) || 0
+    setLedgerEvents(prev => [{
+      id: `ex-${addJson.extra?.id ?? Date.now()}`,
+      date: new Date().toISOString(),
+      type: 'delivery_extra' as LedgerEventType,
+      amount,
+      notes: [chargeItem.trim(), chargeNote.trim() || null].filter(Boolean).join(' · '),
+    }, ...prev])
+
+    setChargeSaving(false)
+    setChargeSuccess(true)
   }
 
   async function handleRecordPayment(e: React.FormEvent) {
@@ -1835,6 +1924,20 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             ) : null}
 
             <button
+              onClick={openChargeModal}
+              className="w-full flex items-center gap-3 rounded-2xl bg-white border border-gray-100 px-5 py-4 text-left shadow-sm hover:bg-orange-50 hover:border-orange-200 active:scale-[0.98] transition-all"
+            >
+              <div className="flex w-10 h-10 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 shrink-0">
+                <HandCoins className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-gray-900">Charge Extra</p>
+                <p className="text-xs text-gray-400">Add a one-time charge and deduct from balance</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300" />
+            </button>
+
+            <button
               onClick={openPayments}
               className="w-full flex items-center gap-3 rounded-2xl bg-white border border-gray-100 px-5 py-4 text-left shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all"
             >
@@ -2315,6 +2418,151 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             </div>
           )
         })()}
+
+        {/* ── Charge Extra Modal ── */}
+        {showChargeModal && selectedCustomer && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={() => { if (!chargeSuccess) setShowChargeModal(false) }}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-orange-500">Charge Extra</p>
+                  <h2 className="text-lg font-black text-gray-900 leading-tight mt-0.5">{selectedCustomer.name}</h2>
+                </div>
+                <button
+                  onClick={() => setShowChargeModal(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gray-100 text-gray-500 active:bg-gray-200 transition-colors"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5">
+                {chargeSuccess ? (
+                  /* Success state */
+                  <div className="text-center py-4 space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-orange-100 flex items-center justify-center text-orange-500 mx-auto">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="font-black text-gray-900">Charge added!</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        New balance: ₹{Math.round(selectedCustomer.balance)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowChargeModal(false)}
+                      className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white active:scale-95 transition-all"
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitCharge} className="space-y-4">
+                    {/* Current balance info */}
+                    <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
+                      <p className="text-xs font-semibold text-gray-600">
+                        Current balance: <span className="font-black text-orange-600">₹{Math.round(selectedCustomer.balance)}</span>
+                        {chargeAmt && Number(chargeAmt) > 0 && (
+                          <> → <span className={`font-black ${selectedCustomer.balance - Number(chargeAmt) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            ₹{Math.round(selectedCustomer.balance - Number(chargeAmt))}
+                          </span></>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Preset chips */}
+                    {chargePresets.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {chargePresets.map(preset => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              setChargeItem(preset.name)
+                              setChargeAmt(String(preset.amount || ''))
+                            }}
+                            className={`rounded-2xl border px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                              chargeItem === preset.name
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300'
+                            }`}
+                          >
+                            {preset.name}{preset.amount ? ` · ₹${preset.amount}` : ''}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Item name */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Item *</label>
+                      <input
+                        required
+                        autoFocus
+                        value={chargeItem}
+                        onChange={e => setChargeItem(e.target.value)}
+                        placeholder="e.g. Extra chapati, Paneer, Delivery fee…"
+                        className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    {/* Amount */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Amount (₹) — optional</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={chargeAmt}
+                        onChange={e => setChargeAmt(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    {/* Note */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Note — optional</label>
+                      <input
+                        value={chargeNote}
+                        onChange={e => setChargeNote(e.target.value)}
+                        placeholder="e.g. customer requested, missed yesterday…"
+                        className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    {chargeError && (
+                      <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{chargeError}</p>
+                    )}
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowChargeModal(false)}
+                        className="flex-1 rounded-2xl border border-gray-200 py-3.5 text-sm font-bold text-gray-500 active:scale-95 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={chargeSaving || !chargeItem.trim()}
+                        className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-sm disabled:opacity-50 active:scale-95 transition-all"
+                      >
+                        {chargeSaving ? 'Charging…' : 'Charge Now'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     )
