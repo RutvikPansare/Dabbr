@@ -1987,9 +1987,27 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             ) : slotFilter === 'all' ? (
               /* Overview: all customers */
               <div>
-                {deliveryToday.map((c, i) => (
-                  <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveryToday.length - 1} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
-                ))}
+                {deliveryToday.map((c, i) => {
+                  const slots = customerMealSlots(c)
+                  // Single-slot customer: allow clicking circle to cycle status directly.
+                  // Multi-slot: circle opens detail modal (ambiguous which slot to mark).
+                  const singleSlot = slots.length === 1 ? slots[0] : null
+                  const allStatus: DeliveryStatus | undefined = singleSlot
+                    ? (deliveryStatuses[`${c.id}:${singleSlot}`] ?? 'pending')
+                    : undefined
+                  return (
+                    <DeliveryRow
+                      key={c.id} c={c} index={i}
+                      isLast={i === deliveryToday.length - 1}
+                      status={allStatus}
+                      onMark={singleSlot ? (s) => markDelivery(c.id, singleSlot, s) : undefined}
+                      onOpen={() => setCustomerModal(c)}
+                      onAddExtra={() => openExtraModal(c)}
+                      pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                      onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                    />
+                  )
+                })}
               </div>
 
             ) : deliveryView === 'list' ? (
