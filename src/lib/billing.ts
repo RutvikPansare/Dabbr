@@ -27,6 +27,7 @@ export const BILLING_PLANS: Record<BillingPlanId, {
     description: 'Dabbr Starter monthly subscription',
     highlight: 'Best for early tiffin businesses.',
     features: [
+      'Everything in the Free plan',
       'Up to 50 customers',
       'Daily delivery tracking',
       'Payments and reminders',
@@ -42,7 +43,7 @@ export const BILLING_PLANS: Record<BillingPlanId, {
     description: 'Dabbr Pro monthly subscription',
     highlight: 'Best for growing kitchens.',
     features: [
-      'Everything in Starter',
+      'Everything in the Starter plan',
       'Unlimited customers',
       'Meal plans and subscriptions',
       'Priority support',
