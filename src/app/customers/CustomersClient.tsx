@@ -93,6 +93,7 @@ type LedgerEventType =
   | 'delivery_delivered'
   | 'delivery_skipped'
   | 'customer_created'
+  | 'delivery_extra'
 
 interface LedgerEvent {
   id: string
@@ -434,8 +435,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 90)
 
-    // Fetch payments + delivery logs + monthly payments in parallel
-    const [{ data: payData }, { data: deliveryData }, { data: monthlyPayData }] = await Promise.all([
+    // Fetch payments + delivery logs + monthly payments + extras in parallel
+    const [{ data: payData }, { data: deliveryData }, { data: monthlyPayData }, { data: extrasData }] = await Promise.all([
       supabase
         .from('payments')
         .select('id, amount, recorded_at, notes')
@@ -451,6 +452,12 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         .from('monthly_payments')
         .select('id, amount, note, created_at')
         .eq('customer_id', c.id)
+        .order('created_at', { ascending: false }),
+      db
+        .from('delivery_extras')
+        .select('id, item, amount, note, delivery_date, status, created_at')
+        .eq('customer_id', c.id)
+        .gte('delivery_date', cutoff.toISOString().split('T')[0])
         .order('created_at', { ascending: false }),
     ])
 
@@ -487,6 +494,18 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         id: `dl-${d.id}`,
         date: `${d.date}T12:00:00`,
         type: d.status === 'delivered' ? 'delivery_delivered' : 'delivery_skipped',
+      })
+    }
+
+    // Delivery extras
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const ex of ((extrasData ?? []) as any[])) {
+      events.push({
+        id: `ex-${ex.id}`,
+        date: `${ex.delivery_date}T13:00:00`,
+        type: 'delivery_extra',
+        amount: ex.amount,
+        notes: [ex.item, ex.note].filter(Boolean).join(' · '),
       })
     }
 
@@ -2053,7 +2072,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
             {(() => {
               const filteredLedger = ledgerEvents.filter(e => {
                 if (ledgerFilter === 'deliveries')   return e.type === 'delivery_delivered' || e.type === 'delivery_skipped'
-                if (ledgerFilter === 'transactions') return e.type === 'payment' || e.type === 'monthly_payment'
+                if (ledgerFilter === 'transactions') return e.type === 'payment' || e.type === 'monthly_payment' || e.type === 'delivery_extra'
                 return true
               })
               return ledgerLoading ? (
@@ -2096,6 +2115,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                             event.type === 'pause_end'          ? 'bg-blue-100 text-blue-600' :
                             event.type === 'delivery_delivered' ? 'bg-emerald-100 text-emerald-600' :
                             event.type === 'delivery_skipped'   ? 'bg-gray-100 text-gray-500' :
+                            event.type === 'delivery_extra'     ? 'bg-orange-100 text-orange-600' :
                             event.type === 'customer_created'   ? 'bg-purple-100 text-purple-600' :
                                                                    'bg-red-100 text-red-600'
                           }`}>
@@ -2106,6 +2126,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                             {event.type === 'balance_low'        && <AlertTriangle className="w-4 h-4" />}
                             {event.type === 'delivery_delivered' && <CheckCircle2 className="w-4 h-4" />}
                             {event.type === 'delivery_skipped'   && <XCircle className="w-4 h-4" />}
+                            {event.type === 'delivery_extra'     && <Plus className="w-4 h-4" />}
                             {event.type === 'customer_created'   && <Sparkles className="w-4 h-4" />}
                           </div>
 
@@ -2119,6 +2140,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                               {event.type === 'balance_low'        && 'Balance running low'}
                               {event.type === 'delivery_delivered' && 'Meal delivered'}
                               {event.type === 'delivery_skipped'   && 'Skipped today'}
+                              {event.type === 'delivery_extra'     && <>Extra charged {event.amount ? <span className="text-orange-600">₹{event.amount}</span> : ''}</>}
                               {event.type === 'customer_created'   && 'Customer added'}
                             </p>
                             {event.notes && (

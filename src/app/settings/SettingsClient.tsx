@@ -367,6 +367,43 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [msSaved,            setMsSaved]            = useState(false)
   const [msError,            setMsError]            = useState('')
 
+  // Extra presets
+  interface ExtraPreset { id: string; name: string; amount: number; sort_order: number }
+  const [extraPresets, setExtraPresets] = useState<ExtraPreset[]>([])
+  const [extraPresetsLoaded, setExtraPresetsLoaded] = useState(false)
+  const [newPresetName, setNewPresetName] = useState('')
+  const [newPresetAmount, setNewPresetAmount] = useState('')
+  const [presetSaving, setPresetSaving] = useState(false)
+  const [presetError, setPresetError] = useState('')
+  useEffect(() => {
+    db.from('extra_presets').select('id, name, amount, sort_order').eq('provider_id', providerId).order('sort_order').order('created_at')
+      .then(({ data }: { data: ExtraPreset[] | null }) => { if (data) setExtraPresets(data); setExtraPresetsLoaded(true) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleAddPreset(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newPresetName.trim()) return
+    setPresetSaving(true)
+    setPresetError('')
+    const { data, error } = await db.from('extra_presets').insert({
+      provider_id: providerId,
+      name: newPresetName.trim(),
+      amount: Number(newPresetAmount) || 0,
+      sort_order: extraPresets.length,
+    }).select().single()
+    setPresetSaving(false)
+    if (error) { setPresetError(error.message); return }
+    setExtraPresets(prev => [...prev, data])
+    setNewPresetName('')
+    setNewPresetAmount('')
+  }
+
+  async function handleDeletePreset(id: string) {
+    await db.from('extra_presets').delete().eq('id', id)
+    setExtraPresets(prev => prev.filter(p => p.id !== id))
+  }
+
   // Delivery riders
   const [riders, setRiders] = useState<DeliveryRider[]>(initialRiders)
   const [newRiderName, setNewRiderName] = useState('')
@@ -1561,6 +1598,65 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           >
             {msSaving ? 'Saving…' : msSaved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save Defaults'}
           </button>
+        </div>
+
+        {/* Extra Presets */}
+        <div className="glass-card rounded-[2rem] p-6 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-sm font-black text-gray-900 flex items-center gap-2">
+              <span className="flex items-center justify-center p-1.5 bg-orange-50 rounded-xl">
+                <Plus className="w-4 h-4 text-orange-500" />
+              </span>
+              Extra Item Presets
+            </h2>
+            <p className="text-xs font-medium text-gray-500 mt-1 ml-9">
+              Quick chips shown when adding extras during delivery — e.g. Chapati ₹10, Chicken ₹50.
+            </p>
+          </div>
+
+          {/* Existing presets */}
+          {extraPresetsLoaded && extraPresets.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {extraPresets.map(preset => (
+                <div key={preset.id} className="flex items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3 py-1.5">
+                  <span className="text-xs font-bold text-gray-700">{preset.name}</span>
+                  {preset.amount > 0 && <span className="text-xs font-semibold text-gray-400">₹{preset.amount}</span>}
+                  <button onClick={() => handleDeletePreset(preset.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {extraPresetsLoaded && extraPresets.length === 0 && (
+            <p className="text-xs text-gray-400 mb-4">No presets yet. Add your first one below.</p>
+          )}
+
+          {/* Add preset form */}
+          <form onSubmit={handleAddPreset} className="flex gap-2">
+            <input
+              value={newPresetName}
+              onChange={e => setNewPresetName(e.target.value)}
+              placeholder="Item name (e.g. Chapati)"
+              className="flex-1 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+            />
+            <input
+              type="number"
+              min="0"
+              value={newPresetAmount}
+              onChange={e => setNewPresetAmount(e.target.value)}
+              placeholder="₹"
+              className="w-20 rounded-2xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+            />
+            <button
+              type="submit"
+              disabled={presetSaving || !newPresetName.trim()}
+              className="rounded-2xl bg-orange-500 px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </form>
+          {presetError && <p className="mt-2 text-xs text-red-500">{presetError}</p>}
         </div>
 
         {/* Delivery Riders */}

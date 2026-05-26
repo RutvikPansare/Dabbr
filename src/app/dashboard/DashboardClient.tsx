@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, ChevronRight, UtensilsCrossed,
+  MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { computeBalance, fmtRupees, fmtDays } from '@/lib/udhar'
@@ -247,11 +247,18 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen }: {
   )
 }
 
+// ── ExtraPreset type ──────────────────────────────────────────────────────
+interface ExtraPreset {
+  id: string
+  name: string
+  amount: number
+}
+
 // ── SwipeableDeliveryRow (delivery tracking ON) ────────────────────────────
 
 const SWIPE_THRESHOLD = 72
 
-function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulkMode, selected, onToggleSelect, onOpen }: {
+function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulkMode, selected, onToggleSelect, onOpen, onAddExtra, pendingExtraCount }: {
   c: Customer
   index: number
   isLast: boolean
@@ -262,6 +269,8 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   selected: boolean
   onToggleSelect: () => void
   onOpen?: () => void
+  onAddExtra?: () => void
+  pendingExtraCount?: number
 }) {
   const startX = useRef(0)
   const startY = useRef(0)
@@ -383,6 +392,28 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
               {c.notes && !isDelivered && (
                 <p className="mt-1 text-[11px] text-gray-400 truncate">{c.notes.split('\n')[0]}</p>
               )}
+              {/* Add Extra button */}
+              {!bulkMode && onAddExtra && (
+                <button
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onAddExtra() }}
+                  onClick={(e) => { e.stopPropagation(); onAddExtra() }}
+                  className={`mt-1.5 inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                    isDelivered
+                      ? pendingExtraCount
+                        ? 'bg-green-100 text-green-600'
+                        : 'opacity-0 pointer-events-none'
+                      : pendingExtraCount
+                        ? 'bg-orange-100 border border-orange-300 text-orange-600'
+                        : 'bg-gray-100 text-gray-500 hover:bg-orange-50 hover:text-orange-500'
+                  }`}
+                >
+                  {isDelivered && pendingExtraCount
+                    ? <><Sparkles className="w-2.5 h-2.5" /> {pendingExtraCount} extra{pendingExtraCount > 1 ? 's' : ''} billed</>
+                    : <><Plus className="w-2.5 h-2.5" /> {pendingExtraCount ? `${pendingExtraCount} extra${pendingExtraCount > 1 ? 's' : ''}` : 'Extra'}</>
+                  }
+                </button>
+              )}
             </>
           )}
         </div>
@@ -489,8 +520,40 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveStatus])
+  // Load extra presets + today's pending extras counts
+  useEffect(() => {
+    async function loadExtras() {
+      const [presetsRes, extrasRes] = await Promise.all([
+        db.from('extra_presets').select('id, name, amount').eq('provider_id', userId).order('sort_order').order('created_at'),
+        db.from('delivery_extras').select('customer_id').eq('provider_id', userId).eq('delivery_date', today).eq('status', 'pending'),
+      ])
+      if (presetsRes.data) setExtraPresets(presetsRes.data)
+      if (extrasRes.data) {
+        const counts: Record<string, number> = {}
+        for (const row of extrasRes.data) {
+          counts[row.customer_id] = (counts[row.customer_id] ?? 0) + 1
+        }
+        setPendingExtras(counts)
+      }
+    }
+    loadExtras()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
+
+  // ── Extras state ──────────────────────────────────────────────────────────
+  const [extraPresets, setExtraPresets] = useState<ExtraPreset[]>([])
+  // pendingExtras: customerId → count of pending extras today
+  const [pendingExtras, setPendingExtras] = useState<Record<string, number>>({})
+  // extraModal: which customer's extra sheet is open
+  const [extraModal, setExtraModal] = useState<Customer | null>(null)
+  const [extraItem, setExtraItem] = useState('')
+  const [extraAmount, setExtraAmount] = useState('')
+  const [extraNote, setExtraNote] = useState('')
+  const [extraSaving, setExtraSaving] = useState(false)
+  const [extraError, setExtraError] = useState('')
   const todayMenus: TodayMenu[] = initialData.todayMenus ?? []
   const [riderModal, setRiderModal] = useState<{ area: string; members: Customer[] } | null>(null)
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
@@ -658,6 +721,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         return { ...c, balance: c.balance + balanceDelta }
       }))
     }
+
+    // ── Bill any pending extras when delivery is marked as delivered ──────
+    if (newStatus === 'delivered' && pendingExtras[customerId]) {
+      billExtrasForCustomer(customerId)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, today, overCustomerLimit])
 
@@ -667,6 +735,54 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     const { id, slot, prevStatus } = undoSnackbar
     setUndoSnackbar(null)
     await markDelivery(id, slot, prevStatus)
+  }
+
+  // ── Extras ────────────────────────────────────────────────────────────────
+
+  function openExtraModal(c: Customer) {
+    setExtraModal(c)
+    setExtraItem('')
+    setExtraAmount('')
+    setExtraNote('')
+    setExtraError('')
+  }
+
+  async function handleSubmitExtra(e: React.FormEvent) {
+    e.preventDefault()
+    if (!extraModal || !extraItem.trim()) return
+    setExtraSaving(true)
+    setExtraError('')
+    const res = await fetch('/api/add-extra', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: extraModal.id,
+        delivery_date: today,
+        item: extraItem.trim(),
+        amount: Number(extraAmount) || 0,
+        note: extraNote.trim() || null,
+      }),
+    })
+    const json = await res.json()
+    setExtraSaving(false)
+    if (!res.ok) { setExtraError(json.error ?? 'Failed to save extra'); return }
+    // Update pending count
+    setPendingExtras(prev => ({ ...prev, [extraModal.id]: (prev[extraModal.id] ?? 0) + 1 }))
+    setExtraModal(null)
+  }
+
+  async function billExtrasForCustomer(customerId: string) {
+    const res = await fetch('/api/bill-extras', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: customerId, delivery_date: today }),
+    })
+    const json = await res.json()
+    if (res.ok && json.newBalance !== null && json.newBalance !== undefined) {
+      setCustomers(prev => prev.map(c => c.id === customerId ? { ...c, balance: json.newBalance } : c))
+      // Move extras from pending → billed in local state
+      setPendingExtras(prev => { const n = { ...prev }; delete n[customerId]; return n })
+    }
   }
 
   // ── Bulk actions ──────────────────────────────────────────────────────────
@@ -1776,6 +1892,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         bulkMode={bulkMode} selected={selectedIds.has(c.id)}
                         onToggleSelect={() => toggleSelect(c.id)}
                         onOpen={() => setCustomerModal(c)}
+                        onAddExtra={() => openExtraModal(c)}
+                        pendingExtraCount={pendingExtras[c.id] ?? 0}
                       />
                     ) : (
                       <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} onOpen={() => setCustomerModal(c)} />
@@ -1875,6 +1993,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                               bulkMode={bulkMode} selected={selectedIds.has(c.id)}
                               onToggleSelect={() => toggleSelect(c.id)}
                               onOpen={() => setCustomerModal(c)}
+                              onAddExtra={() => openExtraModal(c)}
+                              pendingExtraCount={pendingExtras[c.id] ?? 0}
                             />
                           ) : (
                             <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} />
@@ -2334,6 +2454,104 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>{/* end scrollable content */}
 
       <BottomNav />
+
+      {/* ── Add Extra bottom sheet ───────────────────────────────────────── */}
+      {extraModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-orange-500">Add Extra</p>
+                <h2 className="text-lg font-black text-gray-900 leading-tight mt-0.5">{extraModal.name}</h2>
+              </div>
+              <button onClick={() => setExtraModal(null)} className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gray-100 text-gray-500">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitExtra} className="px-6 pb-6 space-y-4">
+              {/* Preset chips */}
+              {extraPresets.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {extraPresets.map(preset => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setExtraItem(preset.name)
+                        setExtraAmount(String(preset.amount || ''))
+                      }}
+                      className={`rounded-2xl border px-3 py-1.5 text-xs font-bold transition-all ${
+                        extraItem === preset.name
+                          ? 'bg-orange-500 border-orange-500 text-white'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300'
+                      }`}
+                    >
+                      {preset.name}{preset.amount ? ` · ₹${preset.amount}` : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Item name */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Item *</label>
+                <input
+                  required
+                  value={extraItem}
+                  onChange={e => setExtraItem(e.target.value)}
+                  placeholder="e.g. Extra Chapati, Paneer, Chicken…"
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Amount (₹) — optional</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={extraAmount}
+                  onChange={e => setExtraAmount(e.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-gray-500">Note — optional</label>
+                <input
+                  value={extraNote}
+                  onChange={e => setExtraNote(e.target.value)}
+                  placeholder="e.g. customer requested"
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                />
+              </div>
+
+              {extraError && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{extraError}</p>}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setExtraModal(null)}
+                  className="flex-1 rounded-2xl border border-gray-200 py-3.5 text-sm font-bold text-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={extraSaving || !extraItem.trim()}
+                  className="flex-1 rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-sm disabled:opacity-50"
+                >
+                  {extraSaving ? 'Saving…' : 'Add Extra'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
