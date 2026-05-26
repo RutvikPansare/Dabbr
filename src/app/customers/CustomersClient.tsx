@@ -1712,20 +1712,12 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   ₹{plan?.monthly_price ?? c.price_per_month}/mo · payments top up balance
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => openPayModal(c)}
-                  className="flex items-center gap-1 rounded-xl bg-orange-500 px-3 py-1.5 text-[11px] font-bold text-white active:scale-95 transition-all"
-                >
-                  <Plus className="w-3 h-3" /> Add Payment
-                </button>
-                <button
-                  onClick={() => openEdit(c)}
-                  className="text-[10px] font-bold text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  Edit
-                </button>
-              </div>
+              <button
+                onClick={() => openPayModal(c)}
+                className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-600 active:scale-95 transition-all shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Payment
+              </button>
             </div>
           </div>
 
