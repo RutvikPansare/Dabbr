@@ -1619,10 +1619,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   )}
                   <button
                     onClick={() => setPackingListOpen(v => !v)}
-                    className="flex items-center gap-0.5 text-[12px] font-bold text-orange-500 active:opacity-70 transition-opacity"
+                    className="flex items-center gap-0.5 text-[12px] font-bold text-gray-400 active:opacity-70 transition-opacity"
                   >
                     {packingListOpen ? 'Hide' : 'View all'}
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${packingListOpen ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
               </div>
