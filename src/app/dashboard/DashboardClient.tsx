@@ -190,11 +190,13 @@ function reminderLink(c: Customer): string {
 
 // ── Static DeliveryRow (delivery tracking OFF) ─────────────────────────────
 
-function DeliveryRow({ c, index, isLast, hideArea, onOpen, onAddExtra, onViewExtras, pendingExtraCount }: {
+function DeliveryRow({ c, index, isLast, hideArea, status, onMark, onOpen, onAddExtra, onViewExtras, pendingExtraCount }: {
   c: Customer
   index: number
   isLast: boolean
   hideArea?: boolean
+  status?: DeliveryStatus
+  onMark?: (s: 'delivered' | 'skipped' | 'pending') => void
   onOpen?: () => void
   onAddExtra?: () => void
   onViewExtras?: () => void
@@ -205,15 +207,33 @@ function DeliveryRow({ c, index, isLast, hideArea, onOpen, onAddExtra, onViewExt
   const planType = plan?.plan_type ?? c.plan_type
   const price    = c.price_per_month
   const bs       = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: price })
+  const isDelivered = status === 'delivered'
+  const isSkipped   = status === 'skipped'
+
+  function cycleStatus() {
+    if (!onMark) return
+    if (!status || status === 'pending') onMark('delivered')
+    else if (status === 'delivered') onMark('skipped')
+    else onMark('pending')
+  }
 
   return (
-    <div className={`group flex items-start gap-3 px-5 py-4 transition-colors hover:bg-gray-50/40 ${!isLast ? 'border-b border-gray-100' : ''}`}>
-      {/* Index circle — tappable to open detail */}
+    <div className={`group flex items-start gap-3 px-5 py-4 transition-colors ${isDelivered ? 'bg-green-50/30' : isSkipped ? 'bg-amber-50/20' : 'hover:bg-gray-50/40'} ${!isLast ? 'border-b border-gray-100' : ''}`}>
+      {/* Index / status circle — click/tap to cycle when onMark is provided */}
       <span
-        onClick={onOpen}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-500 mt-0.5 cursor-pointer"
+        onTouchStart={onMark ? (e) => e.stopPropagation() : undefined}
+        onTouchEnd={onMark ? (e) => { e.stopPropagation(); e.preventDefault(); cycleStatus() } : undefined}
+        onClick={onMark ? (e) => { e.stopPropagation(); cycleStatus() } : onOpen}
+        title={onMark ? (isDelivered ? 'Mark skipped' : isSkipped ? 'Reset to pending' : 'Mark delivered') : undefined}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5 transition-transform ${
+          onMark ? 'cursor-pointer hover:scale-110 active:scale-95' : 'cursor-pointer'
+        } ${
+          isDelivered ? 'bg-green-100 text-green-600 hover:bg-green-200' :
+          isSkipped   ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
+                        'bg-gray-100 text-gray-500 hover:bg-gray-200'
+        }`}
       >
-        {index + 1}
+        {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
       </span>
 
       {/* Main info — tappable to open detail */}
@@ -1974,7 +1994,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
                       />
                     ) : (
-                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
+                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'} onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
                     )
                   )
                 ) : deliveryTrackingEnabled ? (
@@ -2075,7 +2095,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                               pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
                             />
                           ) : (
-                            <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
+                            <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'} onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
                           )
                         )}
                       </div>
