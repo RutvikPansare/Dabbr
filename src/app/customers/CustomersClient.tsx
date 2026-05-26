@@ -285,6 +285,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
   // Ledger (auto timeline on detail screen)
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [ledgerFilter, setLedgerFilter] = useState<'all' | 'deliveries' | 'transactions'>('all')
   const [monthlyTotalPaid, setMonthlyTotalPaid] = useState(0)
 
   // Portal link
@@ -1929,14 +1930,42 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
 
           {/* ── Auto Ledger ─────────────────────────────────────────── */}
           <div className="rounded-2xl border border-orange-100 bg-white shadow-sm overflow-hidden">
-            {/* Section header */}
-            <div className="flex items-center gap-2 px-5 pt-5 pb-4 border-b border-gray-50">
-              <Clock className="w-4 h-4 text-orange-400" />
-              <h3 className="text-sm font-black text-gray-900 tracking-tight">Activity</h3>
+            {/* Section header + filter tabs */}
+            <div className="px-5 pt-5 pb-0 border-b border-gray-50">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-4 h-4 text-orange-400" />
+                <h3 className="text-sm font-black text-gray-900 tracking-tight">Activity</h3>
+              </div>
+              <div className="flex gap-1 -mx-1 px-1">
+                {([
+                  { key: 'all',          label: 'All' },
+                  { key: 'deliveries',   label: 'Deliveries' },
+                  { key: 'transactions', label: 'Transactions' },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setLedgerFilter(tab.key)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all active:scale-95 ${
+                      ledgerFilter === tab.key
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="h-3" />
             </div>
 
             <div className="overflow-y-auto max-h-[420px] px-4 py-4 space-y-3">
-            {ledgerLoading ? (
+            {(() => {
+              const filteredLedger = ledgerEvents.filter(e => {
+                if (ledgerFilter === 'deliveries')   return e.type === 'delivery_delivered' || e.type === 'delivery_skipped'
+                if (ledgerFilter === 'transactions') return e.type === 'payment' || e.type === 'monthly_payment'
+                return true
+              })
+              return ledgerLoading ? (
               <div className="space-y-4 px-1 py-1">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="flex items-center gap-3">
@@ -1948,14 +1977,18 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   </div>
                 ))}
               </div>
-            ) : ledgerEvents.length === 0 ? (
+            ) : filteredLedger.length === 0 ? (
               <div className="px-1 py-6 flex flex-col items-center text-center">
-                <p className="text-sm font-semibold text-gray-400">No activity yet</p>
-                <p className="text-xs text-gray-300 mt-0.5">Payments and deliveries will appear here</p>
+                <p className="text-sm font-semibold text-gray-400">
+                  {ledgerFilter === 'deliveries' ? 'No deliveries yet' : ledgerFilter === 'transactions' ? 'No payments yet' : 'No activity yet'}
+                </p>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  {ledgerFilter === 'deliveries' ? 'Delivery logs will appear here' : ledgerFilter === 'transactions' ? 'Payments will appear here' : 'Payments and deliveries will appear here'}
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {groupLedgerByDay(ledgerEvents).map(({ label, events: dayEvents }) => (
+                {groupLedgerByDay(filteredLedger).map(({ label, events: dayEvents }) => (
                   <div key={label}>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-1 mb-1.5">{label}</p>
                     <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
@@ -2015,7 +2048,8 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                   </div>
                 ))}
               </div>
-            )}
+            )
+            })()}
             </div>
           </div>
 
