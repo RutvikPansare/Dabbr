@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { User, Users, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX, Info, MapPin, Navigation, Loader2 } from 'lucide-react'
@@ -216,6 +216,9 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [address, setAddress] = useState(provider?.address ?? '')
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState('')
+  const addressInputRef = useRef<HTMLInputElement>(null)
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+  const mapsLoadedRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -251,6 +254,46 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
 
     seedDefaultQuickTags()
   }, [db, providerId, menuQuickTags.length])
+
+  // ── Google Maps / Places Autocomplete ──────────────────────────────────────
+  const initAutocomplete = useCallback(() => {
+    if (!addressInputRef.current || autocompleteRef.current) return
+    autocompleteRef.current = new google.maps.places.Autocomplete(addressInputRef.current, {
+      types: ['geocode', 'establishment'],
+      componentRestrictions: { country: 'in' },
+      fields: ['formatted_address'],
+    })
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current!.getPlace()
+      if (place.formatted_address) {
+        setAddress(place.formatted_address)
+        setLocateError('')
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    if (!apiKey || mapsLoadedRef.current) return
+
+    // If Maps already loaded by another component, just init
+    if (window.google?.maps?.places) {
+      mapsLoadedRef.current = true
+      initAutocomplete()
+      return
+    }
+
+    // Load script once
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      mapsLoadedRef.current = true
+      initAutocomplete()
+    }
+    document.head.appendChild(script)
+  }, [initAutocomplete])
 
   // Collapsed meal slot sections — all start collapsed to save space
   const [collapsedSlots, setCollapsedSlots] = useState<Set<string>>(
@@ -396,7 +439,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
   }
 
-  async function handleLocate() {
+  function handleLocate() {
     setLocating(true)
     setLocateError('')
 
@@ -407,27 +450,23 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
     }
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         const { latitude, longitude } = pos.coords
-        try {
-          const res = await fetch(
-            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-          )
-          if (!res.ok) throw new Error('Reverse geocode failed')
-          const data = await res.json()
-          // Build a readable address from components
-          const parts = [
-            data.locality,
-            data.city ?? data.principalSubdivision,
-            data.postcode,
-            data.countryName,
-          ].filter(Boolean)
-          setAddress(parts.join(', ') || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`)
-        } catch {
-          setLocateError('Could not resolve address. Type it in manually.')
-        } finally {
+        if (!window.google?.maps) {
+          setLocateError('Maps not loaded yet. Try again in a moment.')
           setLocating(false)
+          return
         }
+        const geocoder = new google.maps.Geocoder()
+        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            setAddress(results[0].formatted_address)
+            setLocateError('')
+          } else {
+            setLocateError('Could not resolve address. Type it in manually.')
+          }
+          setLocating(false)
+        })
       },
       (err) => {
         if (err.code === 1) {
@@ -814,12 +853,15 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                     : <><Navigation className="w-3 h-3" /> Use my location</>}
                 </button>
               </div>
-              <textarea
-                rows={2}
-                placeholder="e.g. Shop 4, Shivaji Nagar, Pune 411005"
+              <input
+                ref={addressInputRef}
+                type="text"
+                placeholder="Start typing your address…"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="input-modern resize-none"
+                onFocus={initAutocomplete}
+                className="input-modern"
+                autoComplete="off"
               />
               {locateError && (
                 <p className="mt-1.5 text-xs text-red-500 font-medium">{locateError}</p>
