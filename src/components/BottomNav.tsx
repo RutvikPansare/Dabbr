@@ -2,9 +2,10 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, CreditCard, Home, Settings, Users } from 'lucide-react'
+import { CalendarDays, CreditCard, Home, Settings, Users, BarChart2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
-const TABS = [
+const BASE_TABS = [
   { href: '/dashboard', icon: Home,        label: 'Home'      },
   { href: '/customers', icon: Users,       label: 'Customers' },
   { href: '/menu',      icon: CalendarDays, label: 'Menu'      },
@@ -12,8 +13,16 @@ const TABS = [
   { href: '/settings',  icon: Settings,    label: 'Settings'  },
 ]
 
+const REPORTS_TAB = { href: '/reports', icon: BarChart2, label: 'Reports' }
+
 export default function BottomNav() {
   const pathname = usePathname()
+  const [isNative, setIsNative] = useState(true) // default true = don't flash Reports on native
+  useEffect(() => {
+    setIsNative(!!(window as any).Capacitor?.isNativePlatform?.())
+  }, [])
+
+  const TABS = isNative ? BASE_TABS : [...BASE_TABS, REPORTS_TAB]
 
   return (
     /* Outer container — sits on top of safe-area, provides spacing from screen edge */
