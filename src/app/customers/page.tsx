@@ -7,7 +7,7 @@ import Paywall from '@/components/Paywall'
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ openAdd?: string; open?: string }>
+  searchParams: Promise<{ openAdd?: string; open?: string; highlight?: string }>
 }) {
   const params = await searchParams
   const supabase = await createClient()
@@ -31,7 +31,7 @@ export default async function CustomersPage({
       providerDefaultCreditLimit={provider?.default_credit_limit ?? 3000}
       providerSubscriptionPlan={provider?.subscription_status === 'active' ? provider?.subscription_plan ?? null : null}
       initialShowAdd={params.openAdd === 'true'}
-      initialOpenId={params.open ?? null}
+      initialOpenId={params.open ?? params.highlight ?? null}
     />
   )
 }

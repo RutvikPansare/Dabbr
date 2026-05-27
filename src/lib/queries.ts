@@ -182,6 +182,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         { data: logsData },
         { data: holidayData },
         { data: riders },
+        { data: cancelRequests },
         trial,
       ] = await Promise.all([
         db.from('customers').select('*, pauses(*), subscriptions(*)').eq('provider_id', userId).order('name'),
@@ -190,6 +191,11 @@ export function getCachedDashboardData(userId: string, today: string) {
         db.from('delivery_logs').select('customer_id, meal_slot, status').eq('provider_id', userId).eq('date', today),
         db.from('provider_holidays').select('label').eq('provider_id', userId).eq('date', today).maybeSingle(),
         db.from('delivery_riders').select('id, name, whatsapp_number, email, invite_status').eq('provider_id', userId).order('created_at'),
+        db.from('cancellation_requests')
+          .select('id, customer_id, reason, created_at, customers(name)')
+          .eq('provider_id', userId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false }),
         getTrialStatus(db, userId),
       ])
 
@@ -218,6 +224,15 @@ export function getCachedDashboardData(userId: string, today: string) {
           ? { label: 'Weekly off day' }
           : null
 
+      // Flatten cancellation requests — embed customer name from join
+      const cancellationRequests = (cancelRequests ?? []).map((r: any) => ({
+        id: r.id as string,
+        customer_id: r.customer_id as string,
+        reason: r.reason as string | null,
+        created_at: r.created_at as string,
+        customer_name: (r.customers as any)?.name as string ?? 'Unknown',
+      }))
+
       return {
         customers: enrichedCustomers,
         provider: provider ?? null,
@@ -225,6 +240,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         trial,
         deliveryStatuses,
         todayHoliday,
+        cancellationRequests,
       }
     },
     [`dashboard-data-${userId}-${today}`],

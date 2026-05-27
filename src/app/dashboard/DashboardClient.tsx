@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles,
+  MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { computeBalance, fmtRupees, fmtDays } from '@/lib/udhar'
@@ -93,6 +93,14 @@ interface TodayMenu {
   quantities: Record<string, number> | null
 }
 
+interface CancellationRequest {
+  id: string
+  customer_id: string
+  customer_name: string
+  reason: string | null
+  created_at: string
+}
+
 interface InitialData {
   customers: any[]
   provider: any
@@ -101,6 +109,7 @@ interface InitialData {
   deliveryStatuses: Record<string, string>
   todayHoliday: { label: string | null } | null
   todayMenus?: TodayMenu[]
+  cancellationRequests?: CancellationRequest[]
 }
 
 interface Props {
@@ -674,6 +683,34 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
+
+  // ── Cancellation notification state ───────────────────────────────────────
+  const [cancelRequests] = useState<CancellationRequest[]>(initialData.cancellationRequests ?? [])
+  const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = JSON.parse(localStorage.getItem('dismissed_cancel_requests') ?? '[]')
+      return new Set(Array.isArray(stored) ? stored : [])
+    } catch { return new Set() }
+  })
+  const [cancelBellOpen, setCancelBellOpen] = useState(false)
+  const visibleCancelRequests = cancelRequests.filter(r => !dismissedCancelIds.has(r.id))
+
+  function dismissCancelRequest(id: string) {
+    setDismissedCancelIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      try { localStorage.setItem('dismissed_cancel_requests', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+
+  function dismissAllCancelRequests() {
+    const allIds = new Set(cancelRequests.map(r => r.id))
+    setDismissedCancelIds(allIds)
+    try { localStorage.setItem('dismissed_cancel_requests', JSON.stringify([...allIds])) } catch {}
+    setCancelBellOpen(false)
+  }
 
   // ── Extras state ──────────────────────────────────────────────────────────
   const [extraPresets, setExtraPresets] = useState<ExtraPreset[]>([])
@@ -1430,13 +1467,28 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
           </div>
-          <button
-            onClick={handleSignOut}
-            className="shrink-0 flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 hover:bg-white/25 active:scale-95 transition-all"
-            title="Sign out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="shrink-0 flex items-center gap-2">
+            {/* Notification bell */}
+            <button
+              onClick={() => setCancelBellOpen(o => !o)}
+              className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 hover:bg-white/25 active:scale-95 transition-all"
+              title="Notifications"
+            >
+              <Bell className="w-4 h-4" />
+              {visibleCancelRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
+                  {visibleCancelRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 hover:bg-white/25 active:scale-95 transition-all"
+              title="Sign out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1449,18 +1501,33 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <GreetingIcon className="w-5 h-5 text-yellow-400 shrink-0" strokeWidth={2} />
           </h1>
         </div>
-        {!trialBadge && activePlanName && (
-          <span className={`chip font-semibold flex items-center gap-1.5 ${activePlanName === 'Free' ? 'bg-gray-50 text-gray-400' : 'bg-emerald-50 text-emerald-600'}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${activePlanName === 'Free' ? 'bg-gray-300' : 'bg-emerald-400'}`} />
-            Dabbr {activePlanName}
-          </span>
-        )}
-        {trialBadge && (
-          <span className={`chip font-semibold flex items-center gap-1.5 ${trialBadge.clsDesktop}`}>
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
-            {trialBadge.planName} · {trialBadge.label}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {!trialBadge && activePlanName && (
+            <span className={`chip font-semibold flex items-center gap-1.5 ${activePlanName === 'Free' ? 'bg-gray-50 text-gray-400' : 'bg-emerald-50 text-emerald-600'}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${activePlanName === 'Free' ? 'bg-gray-300' : 'bg-emerald-400'}`} />
+              Dabbr {activePlanName}
+            </span>
+          )}
+          {trialBadge && (
+            <span className={`chip font-semibold flex items-center gap-1.5 ${trialBadge.clsDesktop}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+              {trialBadge.planName} · {trialBadge.label}
+            </span>
+          )}
+          {/* Desktop notification bell */}
+          <button
+            onClick={() => setCancelBellOpen(o => !o)}
+            className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-95 transition-all"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {visibleCancelRequests.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
+                {visibleCancelRequests.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ── Scrollable content (mobile) / Document flow (desktop) ── */}
@@ -2423,6 +2490,103 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Cancellation notifications panel ── */}
+      {cancelBellOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setCancelBellOpen(false)}
+          />
+          {/* Panel — bottom sheet on mobile, top-right dropdown on desktop */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 lg:bottom-auto lg:top-[60px] lg:left-auto lg:right-6 lg:w-96 animate-in slide-in-from-bottom-4 lg:slide-in-from-top-2">
+            <div className="rounded-t-3xl lg:rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
+              {/* Handle bar (mobile only) */}
+              <div className="flex justify-center pt-3 pb-1 lg:hidden">
+                <div className="w-10 h-1 rounded-full bg-gray-200" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-gray-600" />
+                  <p className="text-sm font-black text-gray-900">Notifications</p>
+                  {visibleCancelRequests.length > 0 && (
+                    <span className="flex items-center justify-center h-5 px-1.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">
+                      {visibleCancelRequests.length}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {visibleCancelRequests.length > 1 && (
+                    <button
+                      onClick={dismissAllCancelRequests}
+                      className="text-[11px] font-bold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setCancelBellOpen(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
+                {visibleCancelRequests.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-10 px-5 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
+                      <Bell className="w-5 h-5 text-gray-300" />
+                    </div>
+                    <p className="text-sm font-bold text-gray-400">All clear — no pending notifications</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {visibleCancelRequests.map(req => (
+                      <div key={req.id} className="flex items-start gap-3 px-5 py-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-red-500">Cancellation Request</span>
+                          </div>
+                          <p className="text-sm font-black text-gray-900 truncate">{req.customer_name}</p>
+                          {req.reason && (
+                            <p className="text-xs text-gray-500 font-medium mt-0.5 line-clamp-2">"{req.reason}"</p>
+                          )}
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            {new Date(req.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                          <a
+                            href={`/customers?open=${req.customer_id}`}
+                            onClick={() => setCancelBellOpen(false)}
+                            className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 hover:text-orange-700"
+                          >
+                            View customer →
+                          </a>
+                        </div>
+                        <button
+                          onClick={() => dismissCancelRequest(req.id)}
+                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+                          title="Dismiss"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom padding for safe area on mobile */}
+              <div className="h-[env(safe-area-inset-bottom)] lg:hidden" />
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Undo snackbar ── */}
