@@ -16,16 +16,17 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
-  // Ownership guard + fetch billing type
+  // Ownership guard + fetch balance info
   const { data: customer, error: custErr } = await db
     .from('customers')
-    .select('id, billing_type, balance_days, meals_delivered')
+    .select('id, balance, price_per_month')
     .eq('id', customer_id)
     .eq('provider_id', user.id)
     .single()
 
   if (custErr || !customer) {
-    return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    console.error('[mark-delivery] customer lookup failed:', custErr?.message, custErr)
+    return NextResponse.json({ error: custErr?.message ?? 'Customer not found' }, { status: 404 })
   }
 
   // Snapshot: delivered count before change
@@ -63,22 +64,21 @@ export async function POST(req: NextRequest) {
     .eq('date', date)
     .eq('status', 'delivered')
 
-  // Balance rule: deduct on first delivery of the day; refund when last is removed
+  // Balance rule: deduct one day's cost on first delivery of the day; refund when last is removed
   let balance_delta = 0
   if ((prevCount ?? 0) === 0 && (newCount ?? 0) > 0) balance_delta = -1
   else if ((prevCount ?? 0) > 0 && (newCount ?? 0) === 0) balance_delta = 1
 
-  if (balance_delta !== 0) {
-    if (customer.billing_type === 'monthly_settlement') {
-      await db
-        .from('customers')
-        .update({ meals_delivered: Math.max(0, (customer.meals_delivered ?? 0) - balance_delta) })
-        .eq('id', customer_id)
-    } else {
-      await db
-        .from('customers')
-        .update({ balance_days: Math.max(0, (customer.balance_days ?? 0) + balance_delta) })
-        .eq('id', customer_id)
+  if (balance_delta !== 0 && (customer.price_per_month ?? 0) > 0) {
+    const perDayCost = customer.price_per_month / 30
+    const balanceChange = balance_delta * perDayCost
+    const newBalance = (customer.balance ?? 0) + balanceChange
+    const { error: balErr } = await db
+      .from('customers')
+      .update({ balance: newBalance })
+      .eq('id', customer_id)
+    if (balErr) {
+      console.error('[mark-delivery] balance update failed:', balErr.message)
     }
   }
 

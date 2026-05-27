@@ -219,22 +219,28 @@ function DeliveryRow({ c, index, isLast, hideArea, status, onMark, onOpen, onAdd
   }
 
   return (
-    <div className={`group flex items-start gap-3 px-5 py-4 transition-colors ${isDelivered ? 'bg-green-50/30' : isSkipped ? 'bg-amber-50/20' : 'hover:bg-gray-50/40'} ${!isLast ? 'border-b border-gray-100' : ''}`}>
+    <div className={`group flex items-start gap-3 px-5 py-4 transition-colors ${isDelivered ? 'bg-green-50' : isSkipped ? 'bg-amber-50/60' : 'hover:bg-gray-50/40'} ${!isLast ? 'border-b border-gray-100' : ''}`}>
       {/* Index / status circle — click/tap to cycle when onMark is provided */}
-      <span
-        onTouchStart={onMark ? (e) => { lastCircleTouchMs.current = Date.now(); e.stopPropagation() } : undefined}
-        onTouchEnd={onMark ? (e) => { lastCircleTouchMs.current = Date.now(); e.stopPropagation(); e.preventDefault(); cycleStatus() } : undefined}
-        onClick={onMark ? (e) => { if (Date.now() - lastCircleTouchMs.current < 600) return; e.stopPropagation(); cycleStatus() } : onOpen}
-        title={onMark ? (isDelivered ? 'Mark skipped' : isSkipped ? 'Reset to pending' : 'Mark delivered') : undefined}
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5 transition-transform ${
-          onMark ? 'cursor-pointer hover:scale-110 active:scale-95' : 'cursor-pointer'
-        } ${
-          isDelivered ? 'bg-green-100 text-green-600 hover:bg-green-200' :
-          isSkipped   ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
-                        'bg-gray-100 text-gray-500 hover:bg-gray-200'
-        }`}
-      >
-        {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
+      <span className="relative group/dot shrink-0 mt-0.5">
+        <span
+          onTouchStart={onMark ? (e) => { lastCircleTouchMs.current = Date.now(); e.stopPropagation() } : undefined}
+          onTouchEnd={onMark ? (e) => { lastCircleTouchMs.current = Date.now(); e.stopPropagation(); e.preventDefault(); cycleStatus() } : undefined}
+          onClick={onMark ? (e) => { if (Date.now() - lastCircleTouchMs.current < 600) return; e.stopPropagation(); cycleStatus() } : onOpen}
+          className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-transform ${
+            onMark ? 'cursor-pointer hover:scale-110 active:scale-95' : 'cursor-pointer'
+          } ${
+            isDelivered ? 'bg-green-500 text-white hover:bg-green-600' :
+            isSkipped   ? 'bg-amber-500 text-white hover:bg-amber-600' :
+                          'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
+          {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
+        </span>
+        {onMark && (
+          <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-75 group-hover/dot:opacity-100 z-50">
+            {isDelivered ? 'Mark skipped' : isSkipped ? 'Reset to pending' : 'Mark delivered'}
+          </span>
+        )}
       </span>
 
       {/* Main info — tappable to open detail */}
@@ -400,8 +406,8 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
       <div
         onClick={bulkMode ? onToggleSelect : onOpen}
         className={`flex items-center gap-3 px-5 py-4 transition-colors ${
-          isDelivered ? 'bg-green-50/40' :
-          isSkipped   ? 'bg-amber-50/30' :
+          isDelivered ? 'bg-green-50' :
+          isSkipped   ? 'bg-amber-50/70' :
           'hover:bg-gray-50/50'
         } ${bulkMode ? 'cursor-pointer active:bg-orange-50' : 'cursor-pointer'}`}
         style={{
@@ -419,43 +425,47 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
         )}
 
         {/* Index / status circle — click/tap to cycle pending → delivered → skipped → pending */}
-        <span
-          onTouchStart={(e) => {
-            lastCircleTouchMs.current = Date.now()
-            e.stopPropagation()
-          }}
-          onTouchEnd={(e) => {
-            lastCircleTouchMs.current = Date.now()
-            e.stopPropagation()
-            e.preventDefault()
-            if (bulkMode) return
-            if (status === 'pending') onMark('delivered')
-            else if (status === 'delivered') onMark('skipped')
-            else onMark('pending')
-          }}
-          onClick={(e) => {
-            // Suppress ghost click that fires ~300ms after touch on Android WebView
-            if (Date.now() - lastCircleTouchMs.current < 600) return
-            e.stopPropagation()
-            if (bulkMode) return
-            if (status === 'pending') onMark('delivered')
-            else if (status === 'delivered') onMark('skipped')
-            else onMark('pending')
-          }}
-          title={status === 'pending' ? 'Mark delivered' : status === 'delivered' ? 'Mark skipped' : 'Reset to pending'}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
-            isDelivered ? 'bg-green-100 text-green-600 hover:bg-green-200' :
-            isSkipped   ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
-                          'bg-gray-100 text-gray-500 hover:bg-gray-200'
-          }`}
-        >
-          {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
+        <span className="relative group/dot">
+          <span
+            onTouchStart={(e) => {
+              lastCircleTouchMs.current = Date.now()
+              e.stopPropagation()
+            }}
+            onTouchEnd={(e) => {
+              lastCircleTouchMs.current = Date.now()
+              e.stopPropagation()
+              e.preventDefault()
+              if (bulkMode) return
+              if (status === 'pending') onMark('delivered')
+              else if (status === 'delivered') onMark('skipped')
+              else onMark('pending')
+            }}
+            onClick={(e) => {
+              // Suppress ghost click that fires ~300ms after touch on Android WebView
+              if (Date.now() - lastCircleTouchMs.current < 600) return
+              e.stopPropagation()
+              if (bulkMode) return
+              if (status === 'pending') onMark('delivered')
+              else if (status === 'delivered') onMark('skipped')
+              else onMark('pending')
+            }}
+            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+              isDelivered ? 'bg-green-500 text-white hover:bg-green-600' :
+              isSkipped   ? 'bg-amber-500 text-white hover:bg-amber-600' :
+                            'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
+          </span>
+          <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-75 group-hover/dot:opacity-100 z-50">
+            {status === 'pending' ? 'Mark delivered' : status === 'delivered' ? 'Mark skipped' : 'Reset to pending'}
+          </span>
         </span>
 
         <div className="min-w-0 flex-1">
           <p className={`truncate text-[15px] font-black leading-snug ${
-            isDelivered ? 'text-gray-400 line-through' :
-            isSkipped   ? 'text-gray-500' :
+            isDelivered ? 'text-green-800' :
+            isSkipped   ? 'text-amber-800' :
                           'text-gray-900'
           }`}>
             {c.name}
@@ -465,19 +475,19 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           ) : (
             <>
               {!hideArea && c.area && (
-                <p className={`flex items-center gap-1 text-xs font-medium mt-0.5 ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>
+                <p className={`flex items-center gap-1 text-xs font-medium mt-0.5 ${isDelivered ? 'text-green-600/60' : 'text-gray-400'}`}>
                   <MapPin className="w-3 h-3 shrink-0" />{c.area}
                 </p>
               )}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {/* Plan chip */}
                 <div className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${
-                  isDelivered ? 'bg-gray-100/50' : 'bg-gray-100/80'
+                  isDelivered ? 'bg-green-100/60' : 'bg-gray-100/80'
                 }`}>
-                  <span className={`text-[11px] ${isDelivered ? 'opacity-40' : ''}`}>{PLAN_EMOJI[planType]}</span>
-                  <span className={`text-[11px] font-semibold truncate max-w-[80px] ${isDelivered ? 'text-gray-300' : 'text-gray-600'}`}>{plan?.name ?? planType}</span>
-                  <span className={`text-xs ${isDelivered ? 'text-gray-200' : 'text-gray-300'}`}>·</span>
-                  <span className={`text-[11px] ${isDelivered ? 'text-gray-300' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
+                  <span className="text-[11px]">{PLAN_EMOJI[planType]}</span>
+                  <span className={`text-[11px] font-semibold truncate max-w-[80px] ${isDelivered ? 'text-green-700' : 'text-gray-600'}`}>{plan?.name ?? planType}</span>
+                  <span className={`text-xs ${isDelivered ? 'text-green-400' : 'text-gray-300'}`}>·</span>
+                  <span className={`text-[11px] ${isDelivered ? 'text-green-600/70' : 'text-gray-400'}`}>{slots.map(s => MEAL_SLOT_EMOJI[s]).join('')}</span>
                 </div>
                 {/* Extra chip — split view/add when extras exist */}
                 {!bulkMode && onAddExtra && (
@@ -524,7 +534,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           const swipePrice = plan?.monthly_price ?? c.price_per_month
           const swipeBS    = computeBalance({ balance: c.balance, creditLimit: c.credit_limit, monthlyPrice: swipePrice })
           return (
-            <div className={`shrink-0 flex flex-col items-end gap-1 mt-0.5 ${isDelivered || isSkipped ? 'opacity-30' : ''}`}>
+            <div className="shrink-0 flex flex-col items-end gap-1 mt-0.5">
               <span className={`inline-flex items-center rounded-xl border px-3 py-1 text-xs font-bold ${balancePillClass(swipeBS.state)}`}>
                 {swipeBS.daysLeft <= 0 ? 'Overdue' : `${fmtDays(swipeBS.daysLeft)} left`}
               </span>
@@ -555,9 +565,26 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(true)
+  const [showSkipped, setShowSkipped] = useState(false)
   const [cookListOpen, setCookListOpen] = useState(true)
   const [packingListOpen, setPackingListOpen] = useState(true)
   const [slotFilter, setSlotFilter] = useState<'all' | MealSlot>('all')
+
+  // Persist slot selection across navigation
+  useEffect(() => {
+    const saved = localStorage.getItem('dabbr_slot_filter')
+    if (saved === 'all' || saved === 'breakfast' || saved === 'lunch' || saved === 'dinner') {
+      setSlotFilter(saved)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function changeSlot(f: 'all' | MealSlot) {
+    setSlotFilter(f)
+    localStorage.setItem('dabbr_slot_filter', f)
+    setBulkMode(false)
+    setSelectedIds(new Set())
+  }
 
   // ── Data state — seeded from server-side cached initialData ───────────────
   const [customers, setCustomers] = useState<Customer[]>(initialData.customers)
@@ -727,11 +754,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         'postgres_changes',
         { event: '*', schema: 'public', table: 'delivery_logs', filter: `provider_id=eq.${userId}` },
         (payload) => {
-          console.log('[realtime] delivery_logs event:', payload.eventType, payload)
           if (payload.eventType === 'DELETE') {
             const old = payload.old as { customer_id?: string; meal_slot?: string; date?: string }
             if (!old.customer_id || !old.meal_slot || old.date !== today) return
-            console.log(`[realtime] DELETE → clearing ${old.customer_id}:${old.meal_slot}`)
             setDeliveryStatuses(prev => {
               const next = { ...prev }
               delete next[`${old.customer_id}:${old.meal_slot}`]
@@ -740,7 +765,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           } else {
             const row = payload.new as { customer_id: string; meal_slot: string; status: string; date: string }
             if (row.date !== today) return
-            console.log(`[realtime] ${payload.eventType} → ${row.customer_id}:${row.meal_slot} = ${row.status}`)
             setDeliveryStatuses(prev => ({
               ...prev,
               [`${row.customer_id}:${row.meal_slot}`]: row.status as DeliveryStatus,
@@ -761,22 +785,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // ── Delivery mutation ─────────────────────────────────────────────────────
 
   const markDelivery = useCallback(async (customerId: string, slot: MealSlot, newStatus: 'delivered' | 'skipped' | 'pending') => {
-    console.log(`[mark] called — customer=${customerId} slot=${slot} newStatus=${newStatus} overLimit=${overCustomerLimit}`)
-
     if (overCustomerLimit) {
-      console.warn('[mark] BLOCKED — over customer limit')
       setShowCustomerLimitModal(true)
       return
     }
 
     const key = `${customerId}:${slot}`
     const prevStatus: DeliveryStatus = deliveryStatusesRef.current[key] ?? 'pending'
-    console.log(`[mark] prevStatus=${prevStatus}`)
 
-    if (prevStatus === newStatus) {
-      console.log('[mark] no-op — same status, returning')
-      return
-    }
+    if (prevStatus === newStatus) return
 
     const customer = customersRef.current.find(c => c.id === customerId)
 
@@ -788,7 +805,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       else next[key] = newStatus
       return next
     })
-    console.log(`[mark] optimistic UI → ${newStatus}`)
 
     // Undo snackbar (single-action only, not for resets)
     if (newStatus !== 'pending') {
@@ -804,17 +820,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     }
 
     // ── Server write ─────────────────────────────────────────────────────────
-    console.log(`[mark] POST /api/mark-delivery date=${today}`)
     const res = await fetch('/api/mark-delivery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customer_id: customerId, date: today, meal_slot: slot, status: newStatus }),
     })
-    console.log(`[mark] response status=${res.status}`)
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}))
-      console.error(`[mark] FAILED — rolling back to ${prevStatus}. Server error:`, json.error)
+      console.error('[mark-delivery] failed:', json.error)
       setDeliveryStatuses(prev => {
         const next = { ...prev }
         if (prevStatus === 'pending') delete next[key]
@@ -826,7 +840,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     }
 
     const json = await res.json().catch(() => ({}))
-    console.log(`[mark] SUCCESS — balance_delta=${json.balance_delta}`)
 
     // Re-assert confirmed status
     setDeliveryStatuses(prev => {
@@ -836,11 +849,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       return next
     })
 
+    // Update local balance display: balance_delta is ±1 day; convert to rupees
     const balanceDelta: number = json.balance_delta ?? 0
     if (balanceDelta !== 0) {
       setCustomers(prev => prev.map(c => {
         if (c.id !== customerId) return c
-        return { ...c, balance: c.balance + balanceDelta }
+        const perDayCost = (c.price_per_month ?? 0) / 30
+        return { ...c, balance: c.balance + balanceDelta * perDayCost }
       }))
     }
 
@@ -852,7 +867,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   async function handleUndo() {
     if (!undoSnackbar) return
-    console.log(`[undo] UNDO clicked — reverting ${undoSnackbar.name} ${undoSnackbar.slot} to ${undoSnackbar.prevStatus}`)
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     const { id, slot, prevStatus } = undoSnackbar
     setUndoSnackbar(null)
@@ -1221,17 +1235,18 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   const allDone = workspaceCustomers.length > 0 && pendingCount === 0
 
-  // Active / delivered split — only meaningful in a slot workspace; overview is always static
+  // Active / delivered / skipped split — only meaningful in a slot workspace; overview is always static
   const activeList = (slotFilter !== 'all' && deliveryTrackingEnabled)
-    ? workspaceCustomers
-        .filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] !== 'delivered')
-        .sort((a, b) =>
-          (deliveryStatuses[`${a.id}:${slotFilter}`] === 'skipped' ? 1 : 0) -
-          (deliveryStatuses[`${b.id}:${slotFilter}`] === 'skipped' ? 1 : 0)
-        )
+    ? workspaceCustomers.filter(c => {
+        const s = deliveryStatuses[`${c.id}:${slotFilter}`]
+        return s !== 'delivered' && s !== 'skipped'
+      })
     : workspaceCustomers
   const deliveredList = (slotFilter !== 'all' && deliveryTrackingEnabled)
     ? workspaceCustomers.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered')
+    : []
+  const skippedList = (slotFilter !== 'all' && deliveryTrackingEnabled)
+    ? workspaceCustomers.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'skipped')
     : []
 
 
@@ -1514,11 +1529,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 return (
                   <button
                     key={f.key}
-                    onClick={() => {
-                      setSlotFilter(f.key)
-                      setBulkMode(false)
-                      setSelectedIds(new Set())
-                    }}
+                    onClick={() => changeSlot(f.key)}
                     className={`flex flex-1 items-center justify-center gap-1 px-1 py-2.5 rounded-lg transition-all duration-200 active:scale-95 ${
                       active ? 'bg-orange-50' : 'bg-transparent'
                     }`}
@@ -1544,7 +1555,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   return (
                     <button
                       key={s}
-                      onClick={() => { setSlotFilter(s); setBulkMode(false); setSelectedIds(new Set()) }}
+                      onClick={() => changeSlot(s)}
                       className={`chip transition-all active:scale-95 ${
                         isAllDone   ? 'bg-emerald-50 text-emerald-700'
                         : hasProgress ? 'bg-orange-50 text-orange-700'
@@ -1883,7 +1894,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   return (
                     <button
                       key={s}
-                      onClick={() => setSlotFilter(s)}
+                      onClick={() => changeSlot(s)}
                       className={`chip transition-all active:scale-95 ${
                         isAllDone   ? 'bg-emerald-50 text-emerald-700'
                         : hasProgress ? 'bg-orange-50 text-orange-700'
@@ -2028,7 +2039,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     deliveryTrackingEnabled ? (
                       <SwipeableDeliveryRow
                         key={c.id} c={c} index={i}
-                        isLast={i === activeList.length - 1 && deliveredList.length === 0}
+                        isLast={i === activeList.length - 1 && deliveredList.length === 0 && skippedList.length === 0}
                         status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
                         onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
                         bulkMode={bulkMode} selected={selectedIds.has(c.id)}
@@ -2038,7 +2049,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
                       />
                     ) : (
-                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0} status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'} onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
+                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === activeList.length - 1 && deliveredList.length === 0 && skippedList.length === 0} status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'} onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
                     )
                   )
                 ) : deliveryTrackingEnabled ? (
@@ -2063,10 +2074,50 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       </div>
                       <span className="text-sm font-black text-green-800">Delivered</span>
                       <span className="rounded-lg bg-green-100 border border-green-200 px-2 py-0.5 text-xs font-bold text-green-700">{deliveredList.length}</span>
-                      <ChevronDown className={`w-4 h-4 text-green-500 ml-auto transition-transform duration-200 ${showDelivered ? 'rotate-180' : ''}`} />
+                      <span className="ml-auto mr-2 text-[11px] font-medium text-green-500/70">tap circle to undo</span>
+                      <ChevronDown className={`w-4 h-4 text-green-500 transition-transform duration-200 ${showDelivered ? 'rotate-180' : ''}`} />
                     </button>
                     {showDelivered && deliveredList.map((c, i) => (
-                      <DeliveryRow key={c.id} c={c} index={i} isLast={i === deliveredList.length - 1} onOpen={() => setCustomerModal(c)} />
+                      <DeliveryRow
+                        key={c.id} c={c} index={i}
+                        isLast={i === deliveredList.length - 1}
+                        status="delivered"
+                        onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                        onOpen={() => setCustomerModal(c)}
+                        onAddExtra={() => openExtraModal(c)}
+                        pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                        onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Skipped section — collapsible */}
+                {skippedList.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowSkipped(v => !v)}
+                      className="w-full flex items-center gap-2 px-5 py-3.5 bg-amber-50/60 border-t border-amber-100 transition-colors active:bg-amber-100/60"
+                    >
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500 shrink-0">
+                        <X className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <span className="text-sm font-black text-amber-800">Skipped</span>
+                      <span className="rounded-lg bg-amber-100 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">{skippedList.length}</span>
+                      <span className="ml-auto mr-2 text-[11px] font-medium text-amber-500/70">tap circle to undo</span>
+                      <ChevronDown className={`w-4 h-4 text-amber-500 transition-transform duration-200 ${showSkipped ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showSkipped && skippedList.map((c, i) => (
+                      <DeliveryRow
+                        key={c.id} c={c} index={i}
+                        isLast={i === skippedList.length - 1}
+                        status="skipped"
+                        onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                        onOpen={() => setCustomerModal(c)}
+                        onAddExtra={() => openExtraModal(c)}
+                        pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                        onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                      />
                     ))}
                   </>
                 )}
@@ -2188,7 +2239,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     return (
                       <button
                         key={s}
-                        onClick={() => { setSlotFilter(s); setBulkMode(false); setSelectedIds(new Set()) }}
+                        onClick={() => changeSlot(s)}
                         className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all hover:bg-gray-50 active:scale-[0.98] ${slotFilter === s ? 'bg-orange-50' : ''}`}
                       >
                         <span className="text-base leading-none shrink-0">{MEAL_SLOT_EMOJI[s]}</span>
@@ -2317,7 +2368,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Undo snackbar ── */}
       {!overCustomerLimit && undoSnackbar && !bulkMode && (
-        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-auto lg:top-20 left-0 right-0 z-40 px-4 pointer-events-none">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-0 right-0 lg:left-[220px] z-40 px-4 pointer-events-none">
           <div className="mx-auto max-w-2xl lg:flex lg:justify-end">
             <div className="flex items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 shadow-2xl pointer-events-auto lg:w-auto lg:min-w-[260px]">
               <span className={`text-xs font-bold flex items-center gap-1.5 ${undoSnackbar.action === 'Delivered' ? 'text-green-400' : 'text-amber-400'}`}>
