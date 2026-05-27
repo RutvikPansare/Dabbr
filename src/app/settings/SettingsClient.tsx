@@ -1769,8 +1769,11 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
               {riderSaving ? <span>Adding…</span> : <><Plus className="w-4 h-4" /> Add Rider</>}
             </button>
           </div>
+          <p className="text-xs font-semibold text-gray-400 mt-2 px-1">
+            Don't add your own number or email — you can do deliveries directly from the dashboard.
+          </p>
           {riderError && (
-            <p className="text-xs font-semibold text-red-500 mt-2">{riderError}</p>
+            <p className="text-xs font-semibold text-red-500 mt-1">{riderError}</p>
           )}
         </div>
 
