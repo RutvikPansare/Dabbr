@@ -43,6 +43,7 @@ async function getProvider(providerId: string) {
 
 export async function pauseSubscription(
   token: string,
+  startDate: string,
   endDate: string,
   reason: string,
 ): Promise<ActionResult> {
@@ -53,13 +54,16 @@ export async function pauseSubscription(
   const db = createAdminClient() as any
 
   const provider = await getProvider(ctx.provider_id)
-  const effectiveStart = getEffectiveChangeDate(
+  const earliestStart = getEffectiveChangeDate(
     provider?.cutoff_hour ?? 21,
     provider?.cutoff_tz ?? 'Asia/Kolkata',
   )
 
+  // Clamp: start date can't be before the earliest allowed date
+  const effectiveStart = startDate >= earliestStart ? startDate : earliestStart
+
   if (endDate < effectiveStart) {
-    return { ok: false, error: 'End date must be on or after the effective start date.' }
+    return { ok: false, error: 'End date must be on or after the start date.' }
   }
 
   // Get active subscription

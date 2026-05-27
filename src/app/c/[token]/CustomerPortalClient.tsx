@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { CustomerPortalData, MenuSlot, DayMenu, SlotDelivery, DayHistory } from '@/lib/customer-token'
 import PortalLoginButton from './PortalLoginButton'
+import DateRangePicker from './DateRangePicker'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, PLAN_TYPE_LABEL } from '@/lib/meals'
 import {
   cutoffMessage, formatDisplayDate, formatShortDate,
@@ -244,10 +245,11 @@ export default function CustomerPortalClient({
 
   // Pause form state
   const effectiveStart = getEffectiveChangeDate(provider.cutoff_hour, provider.cutoff_tz)
-  const minEndDate = addDays(effectiveStart, 0)
+  const [pauseStart, setPauseStart] = useState(effectiveStart)
   const [pauseEnd, setPauseEnd] = useState(addDays(effectiveStart, 6))
   const [pauseReason, setPauseReason] = useState('')
   const [pauseResult, setPauseResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [showCalendar, setShowCalendar] = useState(false)
 
   // Cancel form state
   const [cancelReason, setCancelReason] = useState('')
@@ -270,7 +272,7 @@ export default function CustomerPortalClient({
   function handlePauseSubmit(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      const result = await pauseSubscription(token, pauseEnd, pauseReason)
+      const result = await pauseSubscription(token, pauseStart, pauseEnd, pauseReason)
       setPauseResult(result)
     })
   }
@@ -731,26 +733,59 @@ export default function CustomerPortalClient({
               <form onSubmit={handlePauseSubmit} className="space-y-4">
                 <div className="rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-5 space-y-4">
 
+                  {/* Date range — inputs + calendar toggle */}
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Pause starts from</p>
-                    <div className="rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3">
-                      <p className="text-sm font-black text-gray-800">{formatDisplayDate(effectiveStart)}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Calculated automatically based on cutoff time</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-black text-gray-500 uppercase tracking-wide">Select dates</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCalendar(v => !v)}
+                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors ${
+                          showCalendar ? 'bg-orange-500 text-white' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                        }`}
+                      >
+                        📅 {showCalendar ? 'Hide calendar' : 'Pick on calendar'}
+                      </button>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5 block">
-                      Resume deliveries from *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      min={minEndDate}
-                      value={pauseEnd}
-                      onChange={e => setPauseEnd(e.target.value)}
-                      className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100 bg-white"
-                    />
+                    {/* Inline inputs */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">Pause from</label>
+                        <input
+                          type="date"
+                          required
+                          min={effectiveStart}
+                          value={pauseStart}
+                          onChange={e => {
+                            setPauseStart(e.target.value)
+                            if (pauseEnd < e.target.value) setPauseEnd(e.target.value)
+                          }}
+                          className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">Resume from *</label>
+                        <input
+                          type="date"
+                          required
+                          min={pauseStart}
+                          value={pauseEnd}
+                          onChange={e => setPauseEnd(e.target.value)}
+                          className="w-full rounded-2xl border border-gray-200 px-3 py-2.5 text-sm font-semibold outline-none focus:border-[#F4622A] focus:ring-2 focus:ring-orange-100 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Inline calendar */}
+                    {showCalendar && (
+                      <DateRangePicker
+                        startDate={pauseStart}
+                        endDate={pauseEnd}
+                        minDate={effectiveStart}
+                        onChange={(s, e) => { setPauseStart(s); setPauseEnd(e) }}
+                      />
+                    )}
                   </div>
 
                   <div>
@@ -770,9 +805,14 @@ export default function CustomerPortalClient({
                 {/* Preview */}
                 <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
                   <p className="text-sm text-orange-800 font-semibold">
-                    📅 Pause: <strong>{formatShortDate(effectiveStart)}</strong> → <strong>{formatShortDate(pauseEnd)}</strong>
+                    📅 Pause: <strong>{formatShortDate(pauseStart)}</strong> → <strong>{formatShortDate(pauseEnd)}</strong>
                   </p>
-                  <p className="text-xs text-orange-600 mt-0.5">Your deliveries will automatically resume on {formatShortDate(pauseEnd)}.</p>
+                  <p className="text-xs text-orange-600 mt-0.5">
+                    {pauseStart < effectiveStart
+                      ? `Note: earliest start is ${formatShortDate(effectiveStart)} based on your provider's cutoff time.`
+                      : `Your deliveries will automatically resume on ${formatShortDate(pauseEnd)}.`
+                    }
+                  </p>
                 </div>
 
                 {pauseResult?.error && (
