@@ -54,4 +54,5 @@ export async function invalidateDashboard(userId: string) {
 export async function invalidateSettings(userId: string) {
   revalidateTag(t.settings(userId), P)
   revalidateTag(t.provider(userId), P)
+  revalidateTag(t.dashboard(userId), P)
 }
