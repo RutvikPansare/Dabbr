@@ -51,32 +51,11 @@ function statusLabel(status: string, activePause: boolean) {
 const SLOT_EMOJI: Record<string, string> = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
 
-function SlotStatusPill({ slot, status }: { slot: string; status: string }) {
-  const base = 'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold'
-  if (status === 'delivered') {
-    return (
-      <div className={`${base} bg-green-50 border border-green-200`}>
-        <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-        <span className="text-green-700">{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}</span>
-        <span className="text-green-500 ml-0.5">✓</span>
-      </div>
-    )
-  }
-  if (status === 'skipped') {
-    return (
-      <div className={`${base} bg-amber-50 border border-amber-200`}>
-        <XCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-        <span className="text-amber-700">{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}</span>
-        <span className="text-amber-500 ml-0.5 text-[10px] font-black">SKIP</span>
-      </div>
-    )
-  }
-  return (
-    <div className={`${base} bg-gray-50 border border-gray-200`}>
-      <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-      <span className="text-gray-500">{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}</span>
-    </div>
-  )
+function fmtTime(iso: string | null): string | null {
+  if (!iso) return null
+  return new Date(iso).toLocaleTimeString('en-IN', {
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+  })
 }
 
 function TodayDeliveries({ slots }: { slots: SlotDelivery[] }) {
@@ -94,10 +73,47 @@ function TodayDeliveries({ slots }: { slots: SlotDelivery[] }) {
           <span className="text-[10px] font-semibold text-gray-400">Not yet delivered</span>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
-        {slots.map(s => (
-          <SlotStatusPill key={s.slot} slot={s.slot} status={s.status} />
-        ))}
+      <div className="space-y-2">
+        {slots.map(s => {
+          const time = fmtTime(s.markedAt)
+          if (s.status === 'delivered') return (
+            <div key={s.slot} className="flex items-center justify-between rounded-2xl bg-green-50 border border-green-100 px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                <span className="text-sm font-bold text-green-800">
+                  {SLOT_EMOJI[s.slot]} {SLOT_LABEL[s.slot]}
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-green-600">
+                {time ? `Delivered at ${time}` : 'Delivered'}
+              </span>
+            </div>
+          )
+          if (s.status === 'skipped') return (
+            <div key={s.slot} className="flex items-center justify-between rounded-2xl bg-amber-50 border border-amber-100 px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-sm font-bold text-amber-800">
+                  {SLOT_EMOJI[s.slot]} {SLOT_LABEL[s.slot]}
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-amber-600">
+                {time ? `Skipped · ${time}` : 'Skipped'}
+              </span>
+            </div>
+          )
+          return (
+            <div key={s.slot} className="flex items-center justify-between rounded-2xl bg-gray-50 border border-gray-100 px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-300 shrink-0" />
+                <span className="text-sm font-semibold text-gray-400">
+                  {SLOT_EMOJI[s.slot]} {SLOT_LABEL[s.slot]}
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-gray-400">Pending</span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -105,29 +121,32 @@ function TodayDeliveries({ slots }: { slots: SlotDelivery[] }) {
 
 function HistoryRow({ day }: { day: DayHistory }) {
   const date = new Date(day.date + 'T00:00:00')
-  const label = date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
   const allDelivered = day.slots.every(s => s.status === 'delivered')
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <div className="w-10 text-center shrink-0">
-        <p className="text-[10px] font-bold text-gray-400 uppercase">{date.toLocaleDateString('en-IN', { weekday: 'short' })}</p>
-        <p className="text-sm font-black text-gray-800">{date.getDate()}</p>
-        <p className="text-[10px] font-semibold text-gray-400">{date.toLocaleDateString('en-IN', { month: 'short' })}</p>
+    <div className="px-4 py-3 space-y-1.5">
+      {/* Date header */}
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[11px] font-black text-gray-500 uppercase tracking-wide">
+          {date.toLocaleDateString('en-IN', { weekday: 'short' })} {date.getDate()} {date.toLocaleDateString('en-IN', { month: 'short' })}
+        </p>
+        {allDelivered && <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />}
       </div>
-      <div className="flex-1 flex flex-wrap gap-1.5">
-        {day.slots.map(s => (
-          <span
-            key={s.slot}
-            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-              s.status === 'delivered' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-            }`}
-          >
-            {SLOT_EMOJI[s.slot]} {s.status === 'delivered' ? '✓' : '✗'}
-          </span>
-        ))}
-      </div>
-      {allDelivered && <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />}
+      {/* Slot rows */}
+      {day.slots.map(s => {
+        const time = fmtTime(s.markedAt)
+        const delivered = s.status === 'delivered'
+        return (
+          <div key={s.slot} className="flex items-center justify-between">
+            <span className={`text-xs font-bold ${delivered ? 'text-green-700' : 'text-amber-700'}`}>
+              {SLOT_EMOJI[s.slot]} {SLOT_LABEL[s.slot]}
+            </span>
+            <span className={`text-[11px] font-semibold ${delivered ? 'text-green-500' : 'text-amber-500'}`}>
+              {delivered ? '✓ Delivered' : '✗ Skipped'}{time ? ` · ${time}` : ''}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -91,6 +91,7 @@ export type DeliveryStatus = 'delivered' | 'skipped' | 'pending'
 export interface SlotDelivery {
   slot: MealSlot
   status: DeliveryStatus
+  markedAt: string | null   // ISO timestamp, null when pending
 }
 
 export interface DayHistory {
@@ -248,7 +249,7 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .lte('date', dates[dates.length - 1]),
     db
       .from('delivery_logs')
-      .select('date, meal_slot, status')
+      .select('date, meal_slot, status, marked_at')
       .eq('customer_id', tokenRow.customer_id)
       .gte('date', historyFromStr)
       .lte('date', today)
@@ -286,30 +287,31 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       }))
   }
 
-  // Build delivery status lookup: date → slot → status
-  const deliveryMap: Record<string, Record<string, 'delivered' | 'skipped'>> = {}
+  // Build delivery status lookup: date → slot → { status, marked_at }
+  const deliveryMap: Record<string, Record<string, { status: 'delivered' | 'skipped'; markedAt: string | null }>> = {}
   for (const row of (deliveryRows ?? [])) {
     if (!deliveryMap[row.date]) deliveryMap[row.date] = {}
-    deliveryMap[row.date][row.meal_slot] = row.status
+    deliveryMap[row.date][row.meal_slot] = { status: row.status, markedAt: row.marked_at ?? null }
   }
 
   // Today's delivery status — one entry per slot the customer is subscribed to
   const planSlots: MealSlot[] = mealPlanData?.meal_slots ?? []
   const todayDeliveries: SlotDelivery[] = planSlots.length > 0
-    ? planSlots.map(slot => ({
-        slot,
-        status: (deliveryMap[today]?.[slot] as DeliveryStatus) ?? 'pending',
-      }))
+    ? planSlots.map(slot => {
+        const entry = deliveryMap[today]?.[slot]
+        return { slot, status: (entry?.status as DeliveryStatus) ?? 'pending', markedAt: entry?.markedAt ?? null }
+      })
     : SLOT_ORDER
         .filter(slot => deliveryMap[today]?.[slot])
         .map(slot => ({
           slot,
-          status: deliveryMap[today][slot] as DeliveryStatus,
+          status: deliveryMap[today][slot].status as DeliveryStatus,
+          markedAt: deliveryMap[today][slot].markedAt,
         }))
 
   // History: last 30 days (only days with at least one delivery/skip event), newest first
   const historyDates = Object.keys(deliveryMap)
-    .filter(d => d < today || d === today)
+    .filter(d => d <= today)
     .sort((a, b) => b.localeCompare(a))
 
   const deliveryHistory: DayHistory[] = historyDates.map(date => ({
@@ -318,7 +320,8 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .filter(slot => deliveryMap[date]?.[slot])
       .map(slot => ({
         slot,
-        status: deliveryMap[date][slot] as DeliveryStatus,
+        status: deliveryMap[date][slot].status as DeliveryStatus,
+        markedAt: deliveryMap[date][slot].markedAt,
       })),
   })).filter(d => d.slots.length > 0)
 

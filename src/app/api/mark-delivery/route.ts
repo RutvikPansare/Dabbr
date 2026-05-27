@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const { error } = await db
       .from('delivery_logs')
       .upsert(
-        { customer_id, provider_id: providerId, date, meal_slot, status },
+        { customer_id, provider_id: providerId, date, meal_slot, status, marked_at: new Date().toISOString() },
         { onConflict: 'customer_id,date,meal_slot' }
       )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
