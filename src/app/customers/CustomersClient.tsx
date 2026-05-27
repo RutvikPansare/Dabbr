@@ -17,6 +17,7 @@ import { formatMealSlots, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { computeBalance, DUE_COLORS, balanceStateLabel, fmtRupees, fmtDays } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
 import { invalidateCustomers } from '@/lib/revalidate'
+import { resolveCancellationByCustomer } from './actions'
 import { getCustomerLimit, type BillingPlanId, type CustomerLimitPlanId } from '@/lib/billing'
 import CustomerLimitModal from '@/components/CustomerLimitModal'
 import CsvImport from './CsvImport'
@@ -210,6 +211,57 @@ const SUGGESTED_TAGS = [
 
 function activeSubscription(c: Customer): Subscription | null {
   return c.subscriptions?.find(s => s.status === 'active' || s.status === 'paused') ?? null
+}
+
+function hasPendingCancellation(c: Customer): boolean {
+  return (c.subscriptions ?? []).some((s: any) =>
+    (s.cancellation_requests ?? []).some((r: any) => r.status === 'pending')
+  )
+}
+
+function PendingCancellationBanner({
+  customerId,
+  onResolved,
+}: {
+  customerId: string
+  onResolved: (action: 'approve' | 'reject') => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handle(action: 'approve' | 'reject') {
+    setLoading(true); setError(null)
+    const result = await resolveCancellationByCustomer(customerId, action)
+    setLoading(false)
+    if (!result.ok) { setError(result.error ?? 'Something went wrong'); return }
+    onResolved(action)
+  }
+
+  return (
+    <div className="mx-5 mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+      <p className="text-xs font-black uppercase tracking-wider text-red-500 mb-1">Cancellation Request</p>
+      <p className="text-sm font-semibold text-gray-700 mb-3">
+        This customer has requested cancellation. Confirm to deactivate, or keep them active.
+      </p>
+      {error && <p className="text-xs text-red-600 font-semibold mb-2">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          disabled={loading}
+          onClick={() => handle('approve')}
+          className="flex-1 rounded-xl bg-red-500 py-2 text-xs font-black text-white hover:bg-red-600 active:scale-95 disabled:opacity-50 transition-all"
+        >
+          {loading ? '…' : 'Confirm cancellation'}
+        </button>
+        <button
+          disabled={loading}
+          onClick={() => handle('reject')}
+          className="flex-1 rounded-xl bg-white border border-gray-200 py-2 text-xs font-black text-gray-600 hover:bg-gray-50 active:scale-95 disabled:opacity-50 transition-all"
+        >
+          {loading ? '…' : 'Keep active'}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function customerPlan(c: Customer): MealPlan | null {
@@ -1408,13 +1460,18 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                       <div className="min-w-0 flex-1">
 
                         {/* Row 1: name + status */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-black text-gray-900 text-base leading-tight truncate group-hover:text-orange-600 transition-colors">
                             {c.name}
                           </span>
                           <span className={`shrink-0 rounded-lg px-2.5 py-0.5 text-[11px] font-semibold border ${statusBadgeClass(c.status)}`}>
                             {c.status}
                           </span>
+                          {hasPendingCancellation(c) && (
+                            <span className="shrink-0 rounded-lg px-2.5 py-0.5 text-[11px] font-black border border-red-200 bg-red-50 text-red-600">
+                              Cancellation pending
+                            </span>
+                          )}
                         </div>
 
                         {/* Row 2: area */}
@@ -1759,6 +1816,29 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                 </span>
               )}
             </div>
+
+            {/* Pending cancellation banner */}
+            {hasPendingCancellation(c) && (
+              <PendingCancellationBanner
+                customerId={c.id}
+                onResolved={(action) => {
+                  if (action === 'approve') {
+                    setCustomers(prev => prev.map(x =>
+                      x.id === c.id
+                        ? { ...x, status: 'inactive', subscriptions: (x.subscriptions ?? []).map((s: any) => ({ ...s, status: 'inactive', cancellation_requests: [] })) }
+                        : x
+                    ))
+                  } else {
+                    // Remove the pending flag optimistically
+                    setCustomers(prev => prev.map(x =>
+                      x.id === c.id
+                        ? { ...x, subscriptions: (x.subscriptions ?? []).map((s: any) => ({ ...s, cancellation_requests: [] })) }
+                        : x
+                    ))
+                  }
+                }}
+              />
+            )}
 
             {/* Meal plan row */}
             <button

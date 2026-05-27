@@ -84,7 +84,7 @@ export function getCachedCustomersData(userId: string) {
       const [{ data: customers }, { data: mealPlans }] = await Promise.all([
         db
           .from('customers')
-          .select('*, pauses(*), subscriptions(*)')
+          .select('*, pauses(*), subscriptions(*, cancellation_requests(id, status))')
           .eq('provider_id', userId)
           .order('name'),
         db.from('meal_plans').select('*').eq('provider_id', userId),

@@ -632,13 +632,16 @@ function NotificationRow({
           </a>
         )}
       </div>
-      <button
-        onClick={onDismiss}
-        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
-        title="Dismiss"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
+      {/* Cancellation requests must be resolved — no silent dismiss */}
+      {!isCancellation && (
+        <button
+          onClick={onDismiss}
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+          title="Dismiss"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   )
 }
@@ -780,9 +783,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   }
 
   function dismissAll() {
-    setNotifications([])
-    dismissAllNotifications().catch(() => {})
-    setCancelBellOpen(false)
+    // Only dismiss non-cancellation notifications — cancellations must be explicitly resolved
+    const toKeep = notifications.filter(n => n.type === 'cancellation_request')
+    const toDismiss = notifications.filter(n => n.type !== 'cancellation_request')
+    setNotifications(toKeep)
+    toDismiss.forEach(n => dismissNotification(n.id).catch(() => {}))
+    if (toKeep.length === 0) setCancelBellOpen(false)
   }
 
   // ── Fire native Android notification for unread push events ──────────────
