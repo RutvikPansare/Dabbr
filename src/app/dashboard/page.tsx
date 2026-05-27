@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getCachedDashboardData, getCachedMealPlans, getTodayMenus } from '@/lib/queries'
-import { getRiderInfo } from '@/lib/rider'
+import { findAndLinkRider } from '@/lib/rider'
+import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardClient from './DashboardClient'
 
 export default async function DashboardPage() {
@@ -9,17 +10,20 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Riders get their own delivery view
-  const riderInfo = await getRiderInfo(user.id)
-  if (riderInfo) redirect('/rider')
-
-  // If the user has no meal plans they haven't completed setup yet — send to onboarding.
-  // But skip the redirect if they've already explicitly completed/dismissed onboarding.
+  // ── Role resolution ────────────────────────────────────────────────────────
+  // Always use findAndLinkRider so a rider's first login gets their row linked
+  // by phone/email before we check. Provider status (meal plans) overrides rider.
   const mealPlans = await getCachedMealPlans(user.id)
-  if (!mealPlans || mealPlans.length === 0) {
-    // Check if they've already completed onboarding (cross-device safe)
+  const hasProviderSetup = mealPlans && mealPlans.length > 0
+
+  if (!hasProviderSetup) {
+    // No meal plans yet — check if this is a rider
+    const riderInfo = await findAndLinkRider(user.id, user.phone ?? null, user.email ?? null)
+    if (riderInfo) redirect('/rider')
+
+    // New provider — check onboarding_done flag (cross-device safe)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = (await import('@/lib/supabase/admin')).createAdminClient() as any
+    const db = createAdminClient() as any
     const { data: prov } = await db
       .from('providers')
       .select('onboarding_done')

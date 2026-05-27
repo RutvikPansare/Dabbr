@@ -87,53 +87,49 @@ export default function OnboardingGuide() {
   const [isRider, setIsRider] = useState<boolean | null>(null)
   const initDone = useRef(false)
 
-  // ── Init: check rider status + DB completion state on mount ────────────────
+  // ── Init: resolve role via server route (handles linking + DB check) ────────
   useEffect(() => {
     if (initDone.current) return
     initDone.current = true
 
     async function init() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      try {
+        // /api/check-role does findAndLinkRider + provider-override + DB onboarding check
+        const res = await fetch('/api/check-role')
+        if (!res.ok) { setIsRider(false); setStep(localStorage.getItem('dabbr_onboarding_step')); return }
+        const { role } = await res.json()
 
-      if (!user) {
+        if (role === 'rider') {
+          setIsRider(true)
+          return
+        }
+
         setIsRider(false)
-        setStep(null)
-        return
+
+        // For providers: check DB onboarding_done (cross-device)
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { setStep(null); return }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: provider } = await (supabase as any)
+          .from('providers')
+          .select('onboarding_done')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (provider?.onboarding_done) {
+          localStorage.setItem('dabbr_onboarding_step', 'done')
+          setStep('done')
+          return
+        }
+
+        // Fall back to localStorage
+        setStep(localStorage.getItem('dabbr_onboarding_step'))
+      } catch {
+        setIsRider(false)
+        setStep(localStorage.getItem('dabbr_onboarding_step'))
       }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any
-
-      // Check if this user is a rider — riders never see the onboarding guide
-      const { data: riderRow } = await db
-        .from('delivery_riders')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (riderRow) {
-        setIsRider(true)
-        return
-      }
-      setIsRider(false)
-
-      // Check DB onboarding_done flag (handles cross-device case)
-      const { data: provider } = await db
-        .from('providers')
-        .select('onboarding_done')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (provider?.onboarding_done) {
-        localStorage.setItem('dabbr_onboarding_step', 'done')
-        setStep('done')
-        return
-      }
-
-      // Fall back to localStorage
-      const stored = localStorage.getItem('dabbr_onboarding_step')
-      setStep(stored)
     }
 
     init()
