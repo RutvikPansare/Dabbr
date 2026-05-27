@@ -751,7 +751,7 @@ export default function CustomerPortalClient({
                     {/* Inline inputs */}
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">Pause from</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">First day paused</label>
                         <input
                           type="date"
                           required
@@ -765,7 +765,7 @@ export default function CustomerPortalClient({
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">Resume from *</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">First day back *</label>
                         <input
                           type="date"
                           required
@@ -805,12 +805,12 @@ export default function CustomerPortalClient({
                 {/* Preview */}
                 <div className="rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3">
                   <p className="text-sm text-orange-800 font-semibold">
-                    📅 Pause: <strong>{formatShortDate(pauseStart)}</strong> → <strong>{formatShortDate(pauseEnd)}</strong>
+                    ⏸️ Paused {formatShortDate(pauseStart)} – {formatShortDate(pauseEnd)}
                   </p>
                   <p className="text-xs text-orange-600 mt-0.5">
                     {pauseStart < effectiveStart
-                      ? `Note: earliest start is ${formatShortDate(effectiveStart)} based on your provider's cutoff time.`
-                      : `Your deliveries will automatically resume on ${formatShortDate(pauseEnd)}.`
+                      ? `Note: earliest pause date is ${formatShortDate(effectiveStart)} due to your provider's cutoff time.`
+                      : `Deliveries resume on ${formatShortDate(pauseEnd)}.`
                     }
                   </p>
                 </div>
