@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut } from 'lucide-react'
+import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut, MapPin } from 'lucide-react'
 import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
 
 type MealSlot = 'breakfast' | 'lunch' | 'dinner'
@@ -39,6 +39,15 @@ function isPaused(c: Customer, today: string) {
   return c.pauses?.some((p: { pause_date: string }) => p.pause_date === today)
 }
 
+// Composite status for a customer across all their slots (used in area view)
+function getAreaStatus(c: Customer, statuses: Record<string, DeliveryStatus>): DeliveryStatus {
+  const slots = getSlots(c)
+  const vals = slots.map(s => statuses[`${c.id}:${s}`] ?? 'pending')
+  if (vals.some(v => v === 'pending')) return 'pending'
+  if (vals.some(v => v === 'delivered')) return 'delivered'
+  return 'skipped'
+}
+
 interface RiderNotification {
   id: string
   type: string
@@ -57,9 +66,10 @@ interface Props {
   hasAssignment: boolean
   notifications: RiderNotification[]
   isAlsoProvider?: boolean
+  isAreaBased: boolean
 }
 
-export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider }: Props) {
+export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider, isAreaBased }: Props) {
   const router = useRouter()
   const [statuses, setStatuses] = useState<Record<string, DeliveryStatus>>(
     initialStatuses as Record<string, DeliveryStatus>
@@ -207,7 +217,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
   const pendingSlots = totalSlots - deliveredSlots - skippedSlots
   const allDone = totalSlots > 0 && pendingSlots === 0
 
-  // Group by slot — customers appear once per slot they subscribe to
+  // ── Slot-based grouping (full assignment) ────────────────────────────────
   const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner']
   const slotGroups = SLOT_ORDER
     .map(slot => {
@@ -219,6 +229,17 @@ export default function RiderClient({ riderName, today, customers, initialStatus
       return { slot, slotCustomers, pending, delivered, skipped }
     })
     .filter(g => g.slotCustomers.length > 0)
+
+  // ── Area-based grouping (area assignment) ─────────────────────────────────
+  const areaGroups = isAreaBased
+    ? [...new Set(activeCustomers.map(c => c.area ?? 'Other'))].sort().map(area => {
+        const areaCusts = activeCustomers.filter(c => (c.area ?? 'Other') === area)
+        const pending   = areaCusts.filter(c => getAreaStatus(c, statuses) === 'pending')
+        const delivered = areaCusts.filter(c => getAreaStatus(c, statuses) === 'delivered')
+        const skipped   = areaCusts.filter(c => getAreaStatus(c, statuses) === 'skipped')
+        return { area, areaCusts, pending, delivered, skipped }
+      })
+    : []
 
   return (
     <div className="min-h-screen bg-[#FDF8F3]">
@@ -305,8 +326,23 @@ export default function RiderClient({ riderName, today, customers, initialStatus
           </div>
         )}
 
-        {/* Slot groups */}
-        {hasAssignment && slotGroups.map(({ slot, slotCustomers, pending, delivered, skipped }) => (
+        {/* Area sections (area-based assignment) */}
+        {hasAssignment && isAreaBased && areaGroups.map(({ area, areaCusts, pending, delivered, skipped }) => (
+          <AreaSection
+            key={area}
+            area={area}
+            total={areaCusts.length}
+            pending={pending}
+            delivered={delivered}
+            skipped={skipped}
+            statuses={statuses}
+            onMark={markDelivery}
+            lastTouchMs={lastTouchMs}
+          />
+        ))}
+
+        {/* Slot sections (full assignment) */}
+        {hasAssignment && !isAreaBased && slotGroups.map(({ slot, slotCustomers, pending, delivered, skipped }) => (
           <SlotSection
             key={slot}
             slot={slot}
@@ -314,7 +350,6 @@ export default function RiderClient({ riderName, today, customers, initialStatus
             pending={pending}
             delivered={delivered}
             skipped={skipped}
-            today={today}
             statuses={statuses}
             onMark={markDelivery}
             lastTouchMs={lastTouchMs}
@@ -456,14 +491,13 @@ const SLOT_EMOJI: Record<MealSlot, string> = {
 }
 
 function SlotSection({
-  slot, total, pending, delivered, skipped, today, statuses, onMark, lastTouchMs,
+  slot, total, pending, delivered, skipped, statuses, onMark, lastTouchMs,
 }: {
   slot: MealSlot
   total: number
   pending: Customer[]
   delivered: Customer[]
   skipped: Customer[]
-  today: string
   statuses: Record<string, DeliveryStatus>
   onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
   lastTouchMs: React.MutableRefObject<Record<string, number>>
@@ -497,7 +531,6 @@ function SlotSection({
             <CustomerRow
               key={c.id}
               c={c}
-              today={today}
               statuses={statuses}
               onMark={onMark}
               lastTouchMs={lastTouchMs}
@@ -528,7 +561,6 @@ function SlotSection({
                 <CustomerRow
                   key={c.id}
                   c={c}
-                  today={today}
                   statuses={statuses}
                   onMark={onMark}
                   lastTouchMs={lastTouchMs}
@@ -561,7 +593,6 @@ function SlotSection({
                 <CustomerRow
                   key={c.id}
                   c={c}
-                  today={today}
                   statuses={statuses}
                   onMark={onMark}
                   lastTouchMs={lastTouchMs}
@@ -576,20 +607,107 @@ function SlotSection({
   )
 }
 
+// ── Area section ─────────────────────────────────────────────────────────────
+
+function AreaSection({
+  area, total, pending, delivered, skipped, statuses, onMark, lastTouchMs,
+}: {
+  area: string
+  total: number
+  pending: Customer[]
+  delivered: Customer[]
+  skipped: Customer[]
+  statuses: Record<string, DeliveryStatus>
+  onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
+  lastTouchMs: React.MutableRefObject<Record<string, number>>
+}) {
+  const [showDelivered, setShowDelivered] = useState(false)
+  const [showSkipped, setShowSkipped] = useState(false)
+  const allDone = pending.length === 0
+
+  return (
+    <section className="space-y-2">
+      {/* Area header */}
+      <div className="flex items-center gap-2 px-1">
+        <MapPin className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+        <p className="text-xs font-black text-gray-500 uppercase tracking-wide flex-1">{area}</p>
+        <span className={`text-xs font-black ${allDone ? 'text-green-600' : 'text-gray-400'}`}>
+          {delivered.length + skipped.length}/{total}
+        </span>
+        {allDone && (
+          <span className="text-[10px] font-black text-green-600 uppercase tracking-wide bg-green-50 px-2 py-0.5 rounded-full">
+            Done
+          </span>
+        )}
+      </div>
+
+      {/* Pending rows */}
+      {pending.length > 0 && (
+        <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
+          {pending.map(c => (
+            <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView />
+          ))}
+        </div>
+      )}
+
+      {/* Delivered rows (collapsible) */}
+      {delivered.length > 0 && (
+        <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
+          <button onClick={() => setShowDelivered(v => !v)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+            <span className="text-xs font-black text-green-700 flex-1">{delivered.length} delivered</span>
+            {showDelivered ? <ChevronUp className="w-3.5 h-3.5 text-green-500" /> : <ChevronDown className="w-3.5 h-3.5 text-green-500" />}
+          </button>
+          {showDelivered && (
+            <div className="divide-y divide-green-50/50 border-t border-green-100">
+              {delivered.map(c => (
+                <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Skipped rows (collapsible) */}
+      {skipped.length > 0 && (
+        <div className="rounded-3xl border border-amber-100 bg-white shadow-sm overflow-hidden">
+          <button onClick={() => setShowSkipped(v => !v)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left">
+            <PackageX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="text-xs font-black text-amber-700 flex-1">{skipped.length} skipped</span>
+            {showSkipped ? <ChevronUp className="w-3.5 h-3.5 text-amber-500" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-500" />}
+          </button>
+          {showSkipped && (
+            <div className="divide-y divide-amber-50/50 border-t border-amber-100">
+              {skipped.map(c => (
+                <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Customer row ────────────────────────────────────────────────────────────────
 
 function CustomerRow({
-  c, today, statuses, onMark, lastTouchMs, filterSlot,
+  c, statuses, onMark, lastTouchMs, filterSlot, areaView,
 }: {
   c: Customer
-  today: string
   statuses: Record<string, DeliveryStatus>
   onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
   lastTouchMs: React.MutableRefObject<Record<string, number>>
   filterSlot?: MealSlot
+  areaView?: boolean
 }) {
   const slots = filterSlot ? [filterSlot] : getSlots(c)
   const allDone = slots.every(s => (statuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
+
+  // Slot view: subtitle = area.  Area view: subtitle = meal names (area is the section header).
+  const subtitle = areaView
+    ? slots.map(s => `${SLOT_EMOJI[s]} ${slotLabel(s)}`).join(' · ')
+    : c.area
 
   return (
     <div className={`flex items-center gap-3 px-4 py-3 transition-colors ${allDone ? 'bg-green-50/50' : ''}`}>
@@ -597,8 +715,8 @@ function CustomerRow({
         <p className={`text-sm font-bold truncate ${allDone ? 'text-green-800' : 'text-gray-900'}`}>
           {c.name}
         </p>
-        {c.area && (
-          <p className="text-xs font-semibold text-gray-400">{c.area}</p>
+        {subtitle && (
+          <p className="text-xs font-semibold text-gray-400">{subtitle}</p>
         )}
       </div>
       <div className="flex items-center gap-1.5 shrink-0">

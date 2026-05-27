@@ -100,6 +100,7 @@ export default async function RiderPage() {
       hasAssignment={assignments.length > 0}
       notifications={notifications}
       isAlsoProvider={isAlsoProvider}
+      isAreaBased={!hasFull}
     />
   )
 }
