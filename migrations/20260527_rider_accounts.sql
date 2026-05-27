@@ -42,12 +42,14 @@ CREATE INDEX IF NOT EXISTS rider_assignments_rider_date_idx
 ALTER TABLE rider_assignments ENABLE ROW LEVEL SECURITY;
 
 -- Providers can read/write their own assignments
+DROP POLICY IF EXISTS "provider_manage_rider_assignments" ON rider_assignments;
 CREATE POLICY "provider_manage_rider_assignments"
   ON rider_assignments FOR ALL TO authenticated
   USING  (provider_id = auth.uid())
   WITH CHECK (provider_id = auth.uid());
 
 -- Riders can read assignments where they are the assigned rider
+DROP POLICY IF EXISTS "rider_read_own_assignments" ON rider_assignments;
 CREATE POLICY "rider_read_own_assignments"
   ON rider_assignments FOR SELECT TO authenticated
   USING (
