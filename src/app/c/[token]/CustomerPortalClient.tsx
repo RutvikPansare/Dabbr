@@ -310,7 +310,7 @@ export default function CustomerPortalClient({
             {/* Sign In button — top right, only when not authenticated */}
             {!isLoggedIn && (
               <div className="absolute top-0 right-0">
-                <PortalLoginButton />
+                <PortalLoginButton token={token} />
               </div>
             )}
 
