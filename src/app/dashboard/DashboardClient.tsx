@@ -849,6 +849,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
   const [pickerOpen, setPickerOpen] = useState<string | null>(null) // area key or 'full' — which row's rider picker is open
   const runIsActive = assignments.length > 0
+  const [runCompleted, setRunCompleted] = useState(false)
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(
@@ -1182,7 +1183,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const prevRunActiveRef = useRef(false)
   useEffect(() => {
     // Reset guard when a fresh run becomes active
-    if (runIsActive && !prevRunActiveRef.current) autoCompletedRef.current = false
+    if (runIsActive && !prevRunActiveRef.current) {
+      autoCompletedRef.current = false
+      setRunCompleted(false)
+    }
     prevRunActiveRef.current = runIsActive
   }, [runIsActive])
   useEffect(() => {
@@ -1198,6 +1202,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     })
     if (!fullRunDone) return
     autoCompletedRef.current = true
+    setRunCompleted(true)
     // Clear all assignments — riders will see "No deliveries assigned" on next check
     const toRemove = assignmentsRef.current
     setAssignments([])
@@ -2174,6 +2179,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
               {riders.length > 0 && workspaceCustomers.length > 0 && (
                 <div className="flex items-center gap-2 shrink-0">
+                  {runCompleted && !runIsActive ? (
+                    <span className="flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black bg-green-100 border border-green-200 text-green-700">
+                      <CheckCheck className="w-3.5 h-3.5 shrink-0" /><span>Run Complete</span>
+                    </span>
+                  ) : (
                   <button
                     onClick={openAssignModal}
                     className={`flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black active:scale-95 transition-all duration-200 ${
@@ -2187,6 +2197,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       : <><Play className="w-3.5 h-3.5" /><span>Start Run</span></>
                     }
                   </button>
+                  )}
                   <button
                     onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
                     className="flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-black uppercase tracking-wide bg-orange-500 text-white shadow-[0_4px_14px_rgba(244,98,42,0.35)] active:scale-95 transition-all duration-200"
