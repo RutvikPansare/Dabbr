@@ -7,7 +7,7 @@ import { dismissNotification, dismissAllNotifications, resolveCancellation } fro
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
-  MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle,
+  MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle, Play, RotateCcw, Zap, ChevronUp, List,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { computeBalance, fmtRupees, fmtDays } from '@/lib/udhar'
@@ -843,6 +843,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [assignModal, setAssignModal] = useState(false)
   const [assignments, setAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
   const [assignSaving, setAssignSaving] = useState(false)
+  // Start Run dispatch state
+  const [runGrouping, setRunGrouping] = useState<'list' | 'area'>('list')
+  const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
+  const [pickerOpen, setPickerOpen] = useState<string | null>(null) // area key or 'full' — which row's rider picker is open
+  const runIsActive = assignments.length > 0
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(
@@ -1490,11 +1495,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   }
 
   async function openAssignModal() {
+    setRunGrouping(deliveryView) // default to current dashboard grouping
+    setPickerOpen(null)
     setAssignModal(true)
-    // Load today's assignments
+    // Load today's + yesterday's assignments in parallel
+    const yesterday = new Date(today + 'T00:00:00')
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yd = yesterday.toISOString().split('T')[0]
     try {
-      const res = await fetch(`/api/rider/assignments?date=${today}`)
-      if (res.ok) setAssignments(await res.json())
+      const [todayRes, ydRes] = await Promise.all([
+        fetch(`/api/rider/assignments?date=${today}`),
+        fetch(`/api/rider/assignments?date=${yd}`),
+      ])
+      if (todayRes.ok) setAssignments(await todayRes.json())
+      if (ydRes.ok) setYesterdayAssignments(await ydRes.json())
     } catch { /* ignore */ }
   }
 
@@ -2104,10 +2118,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={openAssignModal}
-                    className="flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black bg-white border border-gray-200 text-gray-700 active:scale-95 transition-all duration-200"
+                    className={`flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black active:scale-95 transition-all duration-200 ${
+                      runIsActive
+                        ? 'bg-green-50 border border-green-200 text-green-700'
+                        : 'bg-white border border-gray-200 text-gray-700'
+                    }`}
                   >
-                    <Bike className="w-4 h-4" />
-                    Assign
+                    {runIsActive
+                      ? <><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" /><span>Run Active</span></>
+                      : <><Play className="w-3.5 h-3.5" /><span>Start Run</span></>
+                    }
                   </button>
                   <button
                     onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
@@ -2169,6 +2189,35 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <div className="progress-bar">
                   <div className="progress-fill" style={{ width: `${(deliveredCount / workspaceCustomers.length) * 100}%` }} />
                 </div>
+              </div>
+            )}
+
+            {/* ── Run Active: rider progress strip ── */}
+            {runIsActive && deliveryTrackingEnabled && slotFilter !== 'all' && workspaceCustomers.length > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 bg-green-50/40 overflow-x-auto">
+                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-green-600 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                  Live
+                </span>
+                {riders.map(rider => {
+                  const riderAssigned = assignments.some(a => a.rider_id === rider.id)
+                  if (!riderAssigned) return null
+                  const riderAreas = assignments.filter(a => a.rider_id === rider.id)
+                  const hasFull = riderAreas.some(a => a.scope === 'full')
+                  const riderCustomers = hasFull
+                    ? workspaceCustomers
+                    : workspaceCustomers.filter(c => riderAreas.some(a => a.scope === 'area' && a.area_name === (c.area?.trim() || 'Other')))
+                  const done = riderCustomers.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered').length
+                  const total = riderCustomers.length
+                  if (total === 0) return null
+                  return (
+                    <div key={rider.id} className="flex items-center gap-1.5 shrink-0 bg-white rounded-xl px-2.5 py-1 border border-green-100">
+                      <Bike className="w-3 h-3 text-green-600 shrink-0" />
+                      <span className="text-[11px] font-bold text-gray-700 max-w-[80px] truncate">{rider.name.split(' ')[0]}</span>
+                      <span className="text-[11px] font-black text-green-600">{done}/{total}</span>
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -2967,135 +3016,284 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       )}
 
-      {/* ── Assign Rider modal ── */}
-      {assignModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          onClick={() => setAssignModal(false)}
-        >
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100">
-              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100 shrink-0">
-                <Bike className="w-4 h-4 text-orange-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-gray-900">Assign rider for today</p>
-                <p className="text-xs font-semibold text-gray-400">{today} · tap a rider to assign</p>
-              </div>
-              <button
-                onClick={() => setAssignModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 active:scale-95 transition-all shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* ── Start Run bottom sheet ── */}
+      {assignModal && (() => {
+        // Helpers scoped to this render
+        function getAreaRider(areaKey: string): typeof assignments[0] | undefined {
+          // Check exact area assignment first
+          const areaA = assignments.find(a => a.scope === 'area' && a.area_name === areaKey)
+          if (areaA) return areaA
+          // Fall back to full-scope assignment
+          return assignments.find(a => a.scope === 'full')
+        }
+        function getYdHint(areaKey: string | null): string | null {
+          if (yesterdayAssignments.length === 0) return null
+          const yd = areaKey
+            ? yesterdayAssignments.find(a => a.scope === 'area' && a.area_name === areaKey)
+                ?? yesterdayAssignments.find(a => a.scope === 'full')
+            : yesterdayAssignments.find(a => a.scope === 'full')
+          return yd ? yd.rider_name : null
+        }
+        function assignRow(scope: 'full' | 'area', areaKey: string | null, riderId: string) {
+          // Remove any existing assignment for this row, then add new one
+          const toRemove = assignments.filter(a =>
+            scope === 'full' ? a.scope === 'full' : (a.scope === 'area' && a.area_name === areaKey)
+          )
+          Promise.all(toRemove.map(a => removeAssignment(a.id)))
+            .then(() => assignRider(riderId, scope, areaKey))
+          setPickerOpen(null)
+        }
+        function unassignRow(scope: 'full' | 'area', areaKey: string | null) {
+          const toRemove = assignments.filter(a =>
+            scope === 'full' ? a.scope === 'full' : (a.scope === 'area' && a.area_name === areaKey)
+          )
+          toRemove.forEach(a => removeAssignment(a.id))
+          setPickerOpen(null)
+        }
+        async function reuseYesterday() {
+          setAssignSaving(true)
+          for (const ya of yesterdayAssignments) {
+            const already = assignments.some(a =>
+              a.rider_id === ya.rider_id && a.scope === ya.scope && a.area_name === ya.area_name
+            )
+            if (!already) {
+              await assignRider(ya.rider_id, ya.scope, ya.area_name)
+            }
+          }
+          setAssignSaving(false)
+        }
+        async function autoAssign() {
+          // For each area, assign the rider who was most recently assigned there (from yesterday or current)
+          setAssignSaving(true)
+          const allAreas = sortedAreas.map(([area]) => area)
+          for (const area of allAreas) {
+            const alreadyAssigned = assignments.some(a =>
+              (a.scope === 'area' && a.area_name === area) || a.scope === 'full'
+            )
+            if (alreadyAssigned) continue
+            const hint = getYdHint(area)
+            if (hint) {
+              const rider = riders.find(r => r.name === hint)
+              if (rider) await assignRider(rider.id, 'area', area)
+            }
+          }
+          // If no areas, try full
+          if (allAreas.length === 0 && assignments.length === 0 && yesterdayAssignments.length > 0) {
+            const ya = yesterdayAssignments.find(a => a.scope === 'full')
+            if (ya) await assignRider(ya.rider_id, 'full', null)
+          }
+          setAssignSaving(false)
+        }
 
-            {/* Current assignments */}
-            {assignments.length > 0 && (
-              <div className="px-5 pt-4 pb-2 space-y-1.5">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Active today</p>
-                {assignments.map(a => (
-                  <div key={a.id} className="flex items-center gap-2 rounded-2xl bg-orange-50 border border-orange-100 px-3 py-2">
-                    <Bike className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-900 truncate">{a.rider_name}</p>
-                      <p className="text-[10px] font-semibold text-gray-500">
-                        {a.scope === 'full' ? 'All deliveries' : `Area: ${a.area_name}`}
+        const dispatchRows: { key: string; label: string; count: number; scope: 'full' | 'area'; areaKey: string | null }[] =
+          runGrouping === 'area'
+            ? sortedAreas.map(([area, members]) => ({
+                key: area, label: area, count: members.length, scope: 'area', areaKey: area,
+              }))
+            : [{ key: 'full', label: 'All deliveries', count: deliveryToday.length, scope: 'full', areaKey: null }]
+
+        return (
+          <>
+            <div className="fixed inset-0 z-50" onClick={() => { setAssignModal(false); setPickerOpen(null) }} />
+            <div className="fixed bottom-0 left-0 right-0 z-50 animate-in slide-in-from-bottom-4 max-h-[92vh] flex flex-col lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-md lg:max-h-[80vh] lg:rounded-3xl">
+              <div className="rounded-t-3xl lg:rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+
+                {/* Handle (mobile) */}
+                <div className="flex justify-center pt-3 pb-1 shrink-0 lg:hidden">
+                  <div className="w-10 h-1 rounded-full bg-gray-200" />
+                </div>
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {runIsActive && <span className="w-2 h-2 rounded-full bg-green-500" />}
+                      <p className="text-base font-black text-gray-900">
+                        {runIsActive ? 'Delivery Run' : 'Start Run'}
                       </p>
                     </div>
+                    <p className="text-xs font-semibold text-gray-400 mt-0.5">
+                      {deliveryToday.length} deliveries today
+                      {runIsActive && <span className="ml-1 text-green-600 font-bold">· Active</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Grouping toggle */}
+                    <div className="flex items-center bg-gray-100 rounded-xl p-0.5 gap-0.5">
+                      <button
+                        onClick={() => setRunGrouping('list')}
+                        className={`flex items-center gap-1 rounded-[9px] px-2.5 py-1.5 text-[11px] font-bold transition-all ${runGrouping === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
+                      >
+                        <List className="w-3 h-3" />List
+                      </button>
+                      <button
+                        onClick={() => setRunGrouping('area')}
+                        className={`flex items-center gap-1 rounded-[9px] px-2.5 py-1.5 text-[11px] font-bold transition-all ${runGrouping === 'area' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
+                      >
+                        <MapPin className="w-3 h-3" />Area
+                      </button>
+                    </div>
                     <button
-                      onClick={() => removeAssignment(a.id)}
-                      disabled={assignSaving}
-                      className="flex h-6 w-6 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 active:scale-95 transition-all shrink-0"
+                      onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                      className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 active:scale-95 transition-all shrink-0"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Rider list */}
-            <div
-              className="overflow-y-auto overscroll-contain"
-              style={{ maxHeight: 'min(50vh, 360px)' }}
-            >
-              {riders.length === 0 ? (
-                <div className="flex flex-col items-center justify-center px-6 py-10 gap-3 text-center">
-                  <Bike className="w-8 h-8 text-gray-300" />
-                  <div>
-                    <p className="text-sm font-black text-gray-700">No riders yet</p>
-                    <p className="text-xs font-medium text-gray-400 mt-0.5">Add riders in Settings first.</p>
-                  </div>
-                  <button
-                    onClick={() => { setAssignModal(false); router.push('/settings') }}
-                    className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white active:scale-95 transition-all"
-                  >
-                    Go to Settings
-                  </button>
                 </div>
-              ) : (
-                riders.map(rider => {
-                  const riderAssignments = assignments.filter(a => a.rider_id === rider.id)
-                  const hasFullAssignment = riderAssignments.some(a => a.scope === 'full')
-                  return (
-                    <div key={rider.id} className="border-t border-gray-50 px-5 py-3">
-                      <p className="text-sm font-bold text-gray-900 mb-2">{rider.name}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {/* Full scope */}
-                        <button
-                          onClick={() => assignRider(rider.id, 'full', null)}
-                          disabled={assignSaving || hasFullAssignment}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                            hasFullAssignment
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-gray-100 text-gray-700 hover:bg-orange-50 hover:text-orange-600'
-                          }`}
-                        >
-                          All deliveries
-                        </button>
-                        {/* Per-area scope */}
-                        {sortedAreas.filter(([area]) => area !== 'Other').map(([area]) => {
-                          const hasArea = riderAssignments.some(a => a.scope === 'area' && a.area_name === area)
-                          return (
-                            <button
-                              key={area}
-                              onClick={() => assignRider(rider.id, 'area', area)}
-                              disabled={assignSaving || hasArea}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                                hasArea
-                                  ? 'bg-orange-500 text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-orange-50 hover:text-orange-600'
-                              }`}
-                            >
-                              {area}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
 
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button
-                onClick={() => setAssignModal(false)}
-                className="w-full rounded-2xl bg-gray-100 py-3 text-sm font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
-              >
-                Done
-              </button>
+                {/* Quick actions */}
+                {riders.length > 0 && (yesterdayAssignments.length > 0 || riders.length > 0) && (
+                  <div className="flex items-center gap-2 px-5 pb-3 shrink-0">
+                    {yesterdayAssignments.length > 0 && (
+                      <button
+                        onClick={reuseYesterday}
+                        disabled={assignSaving}
+                        className="flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        <RotateCcw className="w-3 h-3" />Reuse Yesterday
+                      </button>
+                    )}
+                    {yesterdayAssignments.length > 0 && runGrouping === 'area' && (
+                      <button
+                        onClick={autoAssign}
+                        disabled={assignSaving}
+                        className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-3 py-1.5 text-[11px] font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        <Zap className="w-3 h-3" />Auto Assign
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="h-px bg-gray-100 shrink-0" />
+
+                {/* Dispatch rows */}
+                <div className="overflow-y-auto overscroll-contain flex-1">
+                  {riders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center px-6 py-12 gap-3 text-center">
+                      <Bike className="w-8 h-8 text-gray-300" />
+                      <p className="text-sm font-black text-gray-700">No riders yet</p>
+                      <p className="text-xs font-medium text-gray-400">Add riders in Settings first.</p>
+                      <button
+                        onClick={() => { setAssignModal(false); router.push('/settings') }}
+                        className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white active:scale-95 transition-all"
+                      >
+                        Go to Settings
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {dispatchRows.map(row => {
+                        const assigned = getAreaRider(row.key)
+                        const hint = getYdHint(row.areaKey)
+                        const isOpen = pickerOpen === row.key
+
+                        return (
+                          <div key={row.key}>
+                            <div
+                              className="flex items-center gap-3 px-5 py-3.5 cursor-pointer active:bg-gray-50 transition-colors"
+                              onClick={() => setPickerOpen(isOpen ? null : row.key)}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black text-gray-900 truncate">{row.label}</p>
+                                <p className="text-[11px] font-semibold text-gray-400 mt-0.5">
+                                  {row.count} deliver{row.count === 1 ? 'y' : 'ies'}
+                                  {hint && !assigned && (
+                                    <span className="ml-1.5 text-gray-300">· Usually {hint.split(' ')[0]}</span>
+                                  )}
+                                </p>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                {assigned ? (
+                                  <span className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1">
+                                    <Bike className="w-3 h-3 text-orange-500 shrink-0" />
+                                    <span className="text-[11px] font-bold text-gray-800 max-w-[80px] truncate">
+                                      {assigned.rider_name}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] font-semibold text-gray-300 rounded-xl border border-dashed border-gray-200 px-2.5 py-1">
+                                    Unassigned
+                                  </span>
+                                )}
+                                {isOpen
+                                  ? <ChevronUp className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                                  : <ChevronDown className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                                }
+                              </div>
+                            </div>
+
+                            {/* Inline rider picker */}
+                            {isOpen && (
+                              <div className="px-5 pb-3 bg-gray-50/60">
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {riders.map(rider => {
+                                    const isAssigned = assigned?.rider_id === rider.id
+                                    const wasYesterday = hint === rider.name && !isAssigned
+                                    return (
+                                      <button
+                                        key={rider.id}
+                                        onClick={() => isAssigned
+                                          ? unassignRow(row.scope, row.areaKey)
+                                          : assignRow(row.scope, row.areaKey, rider.id)
+                                        }
+                                        disabled={assignSaving}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
+                                          isAssigned
+                                            ? 'bg-orange-500 text-white'
+                                            : wasYesterday
+                                              ? 'bg-orange-50 border border-orange-200 text-orange-700'
+                                              : 'bg-white border border-gray-200 text-gray-700 hover:border-orange-200 hover:text-orange-600'
+                                        }`}
+                                      >
+                                        {isAssigned && <Check className="w-3 h-3" />}
+                                        {rider.name.split(' ')[0]}
+                                        {wasYesterday && !isAssigned && <span className="text-orange-400 font-semibold text-[10px]">yday</span>}
+                                      </button>
+                                    )
+                                  })}
+                                  {assigned && (
+                                    <button
+                                      onClick={() => unassignRow(row.scope, row.areaKey)}
+                                      disabled={assignSaving}
+                                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-gray-400 border border-gray-200 bg-white hover:border-red-200 hover:text-red-500 active:scale-95 transition-all disabled:opacity-50"
+                                    >
+                                      <X className="w-3 h-3" />Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                {riders.length > 0 && (
+                  <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+                    <button
+                      onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                      className={`w-full rounded-2xl py-3.5 text-sm font-black transition-all active:scale-[0.98] ${
+                        runIsActive
+                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/25'
+                          : 'bg-orange-500 text-white shadow-lg shadow-orange-500/25'
+                      }`}
+                    >
+                      {runIsActive ? '✓ Run is active' : 'Start Deliveries'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="h-[env(safe-area-inset-bottom)] shrink-0 lg:hidden" />
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )
+      })()}
 
       </div>{/* end scrollable content */}
 
