@@ -249,12 +249,31 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .lte('date', dates[dates.length - 1]),
     db
       .from('delivery_logs')
-      .select('date, meal_slot, status, marked_at')
+      .select('date, meal_slot, status')
       .eq('customer_id', tokenRow.customer_id)
       .gte('date', historyFromStr)
       .lte('date', today)
       .order('date', { ascending: false }),
   ])
+
+  // Separately fetch marked_at (added in a later migration — gracefully skip if column missing)
+  let markedAtMap: Record<string, Record<string, string | null>> = {}
+  try {
+    const { data: markedRows, error: markedErr } = await db
+      .from('delivery_logs')
+      .select('date, meal_slot, marked_at')
+      .eq('customer_id', tokenRow.customer_id)
+      .gte('date', historyFromStr)
+      .lte('date', today)
+    if (!markedErr && markedRows) {
+      for (const row of markedRows) {
+        if (!markedAtMap[row.date]) markedAtMap[row.date] = {}
+        markedAtMap[row.date][row.meal_slot] = row.marked_at ?? null
+      }
+    }
+  } catch {
+    // marked_at column not yet migrated — skip silently
+  }
 
   // Build holiday lookup
   const offDays: number[] = provider.off_days ?? []
@@ -287,11 +306,14 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       }))
   }
 
-  // Build delivery status lookup: date → slot → { status, marked_at }
+  // Build delivery status lookup: date → slot → { status, markedAt }
   const deliveryMap: Record<string, Record<string, { status: 'delivered' | 'skipped'; markedAt: string | null }>> = {}
   for (const row of (deliveryRows ?? [])) {
     if (!deliveryMap[row.date]) deliveryMap[row.date] = {}
-    deliveryMap[row.date][row.meal_slot] = { status: row.status, markedAt: row.marked_at ?? null }
+    deliveryMap[row.date][row.meal_slot] = {
+      status: row.status,
+      markedAt: markedAtMap[row.date]?.[row.meal_slot] ?? null,
+    }
   }
 
   // Today's delivery status — one entry per slot the customer is subscribed to
