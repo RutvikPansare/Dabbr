@@ -849,6 +849,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [runGrouping, setRunGrouping] = useState<'list' | 'area'>('list')
   const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
   const [pickerOpen, setPickerOpen] = useState<string | null>(null) // area key or 'full' — which row's rider picker is open
+  const [noAssignFlash, setNoAssignFlash] = useState(false) // flashes rows red when user tries to start without assigning
   const runIsActive = assignments.length > 0
   const [runCompleted, setRunCompleted] = useState(false)
 
@@ -1541,6 +1542,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   async function openAssignModal() {
     setRunGrouping(deliveryView) // default to current dashboard grouping
     setPickerOpen(null)
+    setNoAssignFlash(false)
     setAssignModal(true)
     // Today's assignments already seeded from server — only fetch yesterday's for hints
     const yesterday = new Date(today + 'T00:00:00')
@@ -3247,18 +3249,22 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         const hint = getYdHint(row.areaKey)
                         const isOpen = pickerOpen === row.key
 
+                        const flashUnassigned = noAssignFlash && !assigned
                         return (
                           <div key={row.key}>
                             <div
-                              className="flex items-center gap-3 px-5 py-3.5 cursor-pointer active:bg-gray-50 transition-colors"
+                              className={`flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors ${flashUnassigned ? 'bg-red-50/60 animate-pulse' : 'active:bg-gray-50'}`}
                               onClick={() => setPickerOpen(isOpen ? null : row.key)}
                             >
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-black text-gray-900 truncate">{row.label}</p>
                                 <p className="text-[11px] font-semibold text-gray-400 mt-0.5">
                                   {row.count} deliver{row.count === 1 ? 'y' : 'ies'}
-                                  {hint && !assigned && (
+                                  {hint && !assigned && !flashUnassigned && (
                                     <span className="ml-1.5 text-gray-300">· Usually {hint.split(' ')[0]}</span>
+                                  )}
+                                  {flashUnassigned && (
+                                    <span className="ml-1.5 text-red-400 font-bold">← tap to assign a rider</span>
                                   )}
                                 </p>
                               </div>
@@ -3271,7 +3277,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                     </span>
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] font-semibold text-gray-300 rounded-xl border border-dashed border-gray-200 px-2.5 py-1">
+                                  <span className={`text-[11px] font-semibold rounded-xl border border-dashed px-2.5 py-1 ${flashUnassigned ? 'border-red-300 text-red-400 bg-red-50' : 'border-gray-200 text-gray-300'}`}>
                                     Unassigned
                                   </span>
                                 )}
@@ -3330,7 +3336,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
                 {/* Footer */}
                 {riders.length > 0 && (
-                  <div className="px-5 py-4 border-t border-gray-100 shrink-0">
+                  <div className="px-5 py-4 border-t border-gray-100 shrink-0 space-y-2">
+                    {noAssignFlash && !runIsActive && (
+                      <p className="text-center text-xs font-bold text-red-500 animate-pulse">
+                        Assign a rider to each row first ↑
+                      </p>
+                    )}
                     {runIsActive ? (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr' }} className="gap-2">
                         <button
@@ -3348,7 +3359,19 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       </div>
                     ) : (
                       <button
-                        onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                        onClick={() => {
+                          if (runIsActive) {
+                            setAssignModal(false); setPickerOpen(null); return
+                          }
+                          // One rider → auto-assign and start
+                          if (riders.length === 1) {
+                            assignRider(riders[0].id, 'full', null)
+                            setAssignModal(false); setPickerOpen(null); return
+                          }
+                          // Multiple riders, none assigned → flash rows
+                          setNoAssignFlash(true)
+                          setTimeout(() => setNoAssignFlash(false), 1200)
+                        }}
                         className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
                       >
                         Start Deliveries
