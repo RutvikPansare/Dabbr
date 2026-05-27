@@ -842,6 +842,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
   const [assignModal, setAssignModal] = useState(false)
   const [assignments, setAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
+  const assignmentsRef = useRef(assignments)
+  assignmentsRef.current = assignments
   // Start Run dispatch state
   const [runGrouping, setRunGrouping] = useState<'list' | 'area'>('list')
   const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
@@ -1171,6 +1173,43 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     if (anyDelivered && noPending) setShowDelivered(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryStatuses, slotFilter])
+
+  // ── Auto-complete run when every delivery is done/skipped ─────────────────
+  // Checks all active-today customers across ALL their slots, independent of
+  // the current slotFilter workspace. Guards with a ref so it only fires once
+  // per run (reset when a new run starts).
+  const autoCompletedRef = useRef(false)
+  const prevRunActiveRef = useRef(false)
+  useEffect(() => {
+    // Reset guard when a fresh run becomes active
+    if (runIsActive && !prevRunActiveRef.current) autoCompletedRef.current = false
+    prevRunActiveRef.current = runIsActive
+  }, [runIsActive])
+  useEffect(() => {
+    if (!runIsActive || autoCompletedRef.current || !deliveryTrackingEnabled) return
+    const activeToday = customersRef.current.filter(c => isActiveToday(c, today))
+    if (!activeToday.length) return
+    const fullRunDone = activeToday.every(c => {
+      const slots = customerMealSlots(c)
+      return !slots.length || slots.every(s => {
+        const st = deliveryStatusesRef.current[`${c.id}:${s}`]
+        return st === 'delivered' || st === 'skipped'
+      })
+    })
+    if (!fullRunDone) return
+    autoCompletedRef.current = true
+    // Clear all assignments — riders will see "No deliveries assigned" on next check
+    const toRemove = assignmentsRef.current
+    setAssignments([])
+    toRemove.forEach(a => {
+      fetch('/api/rider/unassign', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignment_id: a.id }),
+      }).catch(() => {})
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryStatuses, runIsActive])
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
 
@@ -1549,6 +1588,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       if (!res.ok && item) setAssignments(prev => [...prev, item])
     }).catch(() => {
       if (item) setAssignments(prev => [...prev, item])
+    })
+  }
+
+  function stopRun() {
+    const toRemove = [...assignmentsRef.current]
+    setAssignments([])
+    setAssignModal(false)
+    setPickerOpen(null)
+    toRemove.forEach(a => {
+      fetch('/api/rider/unassign', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignment_id: a.id }),
+      }).catch(() => {})
     })
   }
 
@@ -3270,16 +3323,29 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {/* Footer */}
                 {riders.length > 0 && (
                   <div className="px-5 py-4 border-t border-gray-100 shrink-0">
-                    <button
-                      onClick={() => { setAssignModal(false); setPickerOpen(null) }}
-                      className={`w-full rounded-2xl py-3.5 text-sm font-black transition-all active:scale-[0.98] ${
-                        runIsActive
-                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/25'
-                          : 'bg-orange-500 text-white shadow-lg shadow-orange-500/25'
-                      }`}
-                    >
-                      {runIsActive ? '✓ Run is active' : 'Start Deliveries'}
-                    </button>
+                    {runIsActive ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr' }} className="gap-2">
+                        <button
+                          onClick={stopRun}
+                          className="rounded-2xl border border-red-200 bg-red-50 py-3.5 text-sm font-black text-red-600 active:scale-[0.98] transition-all hover:bg-red-100"
+                        >
+                          Stop Run
+                        </button>
+                        <button
+                          onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                          className="rounded-2xl bg-green-500 py-3.5 text-sm font-black text-white shadow-lg shadow-green-500/25 active:scale-[0.98] transition-all"
+                        >
+                          ✓ Run is active
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                        className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
+                      >
+                        Start Deliveries
+                      </button>
+                    )}
                   </div>
                 )}
 
