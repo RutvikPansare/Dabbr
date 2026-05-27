@@ -256,14 +256,17 @@ export async function withdrawCancellation(token: string): Promise<ActionResult>
     .from('subscriptions')
     .select('id')
     .eq('customer_id', ctx.customer_id)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   if (!sub) return { ok: false, error: 'No subscription found.' }
 
-  // Mark the pending request as withdrawn
+  // Delete the pending request — withdrawal means it never happened.
+  // (The provider_notifications row is kept as audit trail, just dismissed.)
   const { error } = await db
     .from('cancellation_requests')
-    .update({ status: 'withdrawn' })
+    .delete()
     .eq('subscription_id', sub.id)
     .eq('status', 'pending')
 
