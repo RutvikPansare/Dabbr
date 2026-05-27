@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut } from 'lucide-react'
 import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
 
@@ -59,6 +60,7 @@ interface Props {
 }
 
 export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider }: Props) {
+  const router = useRouter()
   const [statuses, setStatuses] = useState<Record<string, DeliveryStatus>>(
     initialStatuses as Record<string, DeliveryStatus>
   )
@@ -156,6 +158,22 @@ export default function RiderClient({ riderName, today, customers, initialStatus
     return () => { channel?.unsubscribe() }
   }, [today])
 
+  // Auto-refresh server data: on tab/app foreground + every 60s.
+  // This picks up new customer assignments without a manual page reload.
+  // Delivery statuses are kept in local state (updated by realtime + user
+  // interaction) so they aren't reset by router.refresh().
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') router.refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = setInterval(() => router.refresh(), 60_000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(timer)
+    }
+  }, [router])
+
   const markDelivery = useCallback(async (customerId: string, slot: MealSlot, newStatus: DeliveryStatus) => {
     const key = `${customerId}:${slot}`
     const prev = statusesRef.current[key] ?? 'pending'
@@ -194,9 +212,11 @@ export default function RiderClient({ riderName, today, customers, initialStatus
   const slotGroups = SLOT_ORDER
     .map(slot => {
       const slotCustomers = activeCustomers.filter(c => getSlots(c).includes(slot))
-      const pending = slotCustomers.filter(c => (statuses[`${c.id}:${slot}`] ?? 'pending') === 'pending')
-      const done    = slotCustomers.filter(c => (statuses[`${c.id}:${slot}`] ?? 'pending') !== 'pending')
-      return { slot, slotCustomers, pending, done }
+      const st = (c: Customer) => statuses[`${c.id}:${slot}`] ?? 'pending'
+      const pending   = slotCustomers.filter(c => st(c) === 'pending')
+      const delivered = slotCustomers.filter(c => st(c) === 'delivered')
+      const skipped   = slotCustomers.filter(c => st(c) === 'skipped')
+      return { slot, slotCustomers, pending, delivered, skipped }
     })
     .filter(g => g.slotCustomers.length > 0)
 
@@ -286,23 +306,20 @@ export default function RiderClient({ riderName, today, customers, initialStatus
         )}
 
         {/* Slot groups */}
-        {hasAssignment && slotGroups.map(({ slot, slotCustomers, pending, done }) => {
-          const slotAllDone = pending.length === 0
-          return (
-            <SlotSection
-              key={slot}
-              slot={slot}
-              total={slotCustomers.length}
-              pending={pending}
-              done={done}
-              slotAllDone={slotAllDone}
-              today={today}
-              statuses={statuses}
-              onMark={markDelivery}
-              lastTouchMs={lastTouchMs}
-            />
-          )
-        })}
+        {hasAssignment && slotGroups.map(({ slot, slotCustomers, pending, delivered, skipped }) => (
+          <SlotSection
+            key={slot}
+            slot={slot}
+            total={slotCustomers.length}
+            pending={pending}
+            delivered={delivered}
+            skipped={skipped}
+            today={today}
+            statuses={statuses}
+            onMark={markDelivery}
+            lastTouchMs={lastTouchMs}
+          />
+        ))}
 
         {/* Paused customers */}
         {pausedCustomers.length > 0 && (
@@ -439,19 +456,21 @@ const SLOT_EMOJI: Record<MealSlot, string> = {
 }
 
 function SlotSection({
-  slot, total, pending, done, slotAllDone, today, statuses, onMark, lastTouchMs,
+  slot, total, pending, delivered, skipped, today, statuses, onMark, lastTouchMs,
 }: {
   slot: MealSlot
   total: number
   pending: Customer[]
-  done: Customer[]
-  slotAllDone: boolean
+  delivered: Customer[]
+  skipped: Customer[]
   today: string
   statuses: Record<string, DeliveryStatus>
   onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
   lastTouchMs: React.MutableRefObject<Record<string, number>>
 }) {
-  const [showDone, setShowDone] = useState(false)
+  const [showDelivered, setShowDelivered] = useState(false)
+  const [showSkipped, setShowSkipped] = useState(false)
+  const slotAllDone = pending.length === 0
 
   return (
     <section className="space-y-2">
@@ -462,7 +481,7 @@ function SlotSection({
           {slotLabel(slot)}
         </p>
         <span className={`text-xs font-black ${slotAllDone ? 'text-green-600' : 'text-gray-400'}`}>
-          {total - pending.length}/{total}
+          {delivered.length + skipped.length}/{total}
         </span>
         {slotAllDone && (
           <span className="text-[10px] font-black text-green-600 uppercase tracking-wide bg-green-50 px-2 py-0.5 rounded-full">
@@ -488,24 +507,57 @@ function SlotSection({
         </div>
       )}
 
-      {/* Done rows (collapsible) */}
-      {done.length > 0 && (
+      {/* Delivered rows (collapsible) */}
+      {delivered.length > 0 && (
         <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
           <button
-            onClick={() => setShowDone(v => !v)}
+            onClick={() => setShowDelivered(v => !v)}
             className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
           >
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
             <span className="text-xs font-black text-green-700 flex-1">
-              {done.length} {done.length === 1 ? 'delivery' : 'deliveries'} done
+              {delivered.length} delivered
             </span>
-            {showDone
+            {showDelivered
               ? <ChevronUp className="w-3.5 h-3.5 text-green-500" />
               : <ChevronDown className="w-3.5 h-3.5 text-green-500" />}
           </button>
-          {showDone && (
+          {showDelivered && (
             <div className="divide-y divide-green-50/50 border-t border-green-100">
-              {done.map(c => (
+              {delivered.map(c => (
+                <CustomerRow
+                  key={c.id}
+                  c={c}
+                  today={today}
+                  statuses={statuses}
+                  onMark={onMark}
+                  lastTouchMs={lastTouchMs}
+                  filterSlot={slot}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Skipped rows (collapsible) */}
+      {skipped.length > 0 && (
+        <div className="rounded-3xl border border-amber-100 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowSkipped(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+          >
+            <PackageX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="text-xs font-black text-amber-700 flex-1">
+              {skipped.length} skipped
+            </span>
+            {showSkipped
+              ? <ChevronUp className="w-3.5 h-3.5 text-amber-500" />
+              : <ChevronDown className="w-3.5 h-3.5 text-amber-500" />}
+          </button>
+          {showSkipped && (
+            <div className="divide-y divide-amber-50/50 border-t border-amber-100">
+              {skipped.map(c => (
                 <CustomerRow
                   key={c.id}
                   c={c}
