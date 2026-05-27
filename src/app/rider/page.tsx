@@ -33,8 +33,8 @@ export default async function RiderPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
-  // Fetch assignments + customers + delivery logs in parallel
-  const [assignments, { data: allCustomers }, { data: mealPlans }, { data: logsData }] =
+  // Fetch assignments + customers + delivery logs + notifications in parallel
+  const [assignments, { data: allCustomers }, { data: mealPlans }, { data: logsData }, { data: rawNotifications }] =
     await Promise.all([
       getRiderAssignments(riderInfo.id, today),
       db
@@ -48,6 +48,13 @@ export default async function RiderPage() {
         .select('customer_id, meal_slot, status')
         .eq('provider_id', riderInfo.provider_id)
         .eq('date', today),
+      db
+        .from('rider_notifications')
+        .select('id, type, title, message, payload, created_at, read_at')
+        .eq('rider_id', riderInfo.id)
+        .is('dismissed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
   // Determine which customers this rider handles today
@@ -74,6 +81,16 @@ export default async function RiderPage() {
     deliveryStatuses[`${log.customer_id}:${log.meal_slot}`] = log.status
   }
 
+  const notifications = (rawNotifications ?? []).map((n: any) => ({
+    id: n.id as string,
+    type: n.type as string,
+    title: n.title as string,
+    message: n.message as string,
+    payload: n.payload as Record<string, any> | null,
+    created_at: n.created_at as string,
+    read_at: n.read_at as string | null,
+  }))
+
   return (
     <RiderClient
       riderName={riderInfo.name}
@@ -81,6 +98,7 @@ export default async function RiderPage() {
       customers={enrichedCustomers}
       initialStatuses={deliveryStatuses}
       hasAssignment={assignments.length > 0}
+      notifications={notifications}
     />
   )
 }

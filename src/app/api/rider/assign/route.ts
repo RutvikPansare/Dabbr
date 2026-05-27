@@ -43,5 +43,28 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Notify the rider — one notification per assignment date (skip if already notified today)
+  const { count: existing } = await db
+    .from('rider_notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('rider_id', rider_id)
+    .eq('type', 'assignment')
+    .contains('payload', { assignment_date })
+
+  if ((existing ?? 0) === 0) {
+    const fmtDate = new Date(assignment_date + 'T00:00:00').toLocaleDateString('en-IN', {
+      weekday: 'long', day: 'numeric', month: 'short',
+    })
+    const scopeText = scope === 'full' ? 'all deliveries' : `${area_name ?? scope} area`
+    await db.from('rider_notifications').insert({
+      rider_id,
+      type: 'assignment',
+      title: 'New delivery assignment',
+      message: `You've been assigned ${scopeText} on ${fmtDate}`,
+      payload: { provider_id: user.id, assignment_date, scope, area_name: area_name ?? null },
+    })
+  }
+
   return NextResponse.json({ assignment: data })
 }

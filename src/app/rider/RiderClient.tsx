@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck } from 'lucide-react'
+import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X } from 'lucide-react'
+import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
 
 type MealSlot = 'breakfast' | 'lunch' | 'dinner'
 type DeliveryStatus = 'pending' | 'delivered' | 'skipped'
@@ -37,21 +38,75 @@ function isPaused(c: Customer, today: string) {
   return c.pauses?.some((p: { pause_date: string }) => p.pause_date === today)
 }
 
+interface RiderNotification {
+  id: string
+  type: string
+  title: string
+  message: string
+  payload: Record<string, any> | null
+  created_at: string
+  read_at: string | null
+}
+
 interface Props {
   riderName: string
   today: string
   customers: Customer[]
   initialStatuses: Record<string, string>
   hasAssignment: boolean
+  notifications: RiderNotification[]
 }
 
-export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment }: Props) {
+export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications }: Props) {
   const [statuses, setStatuses] = useState<Record<string, DeliveryStatus>>(
     initialStatuses as Record<string, DeliveryStatus>
   )
   const statusesRef = useRef(statuses)
   const [showDone, setShowDone] = useState(false)
   const lastTouchMs = useRef<Record<string, number>>({})
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState<RiderNotification[]>(initialNotifications)
+  const [bellOpen, setBellOpen] = useState(false)
+  const totalBellCount = notifications.length
+
+  function dismissOne(id: string) {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    dismissRiderNotification(id).catch(() => {})
+  }
+
+  function dismissAll() {
+    setNotifications([])
+    dismissAllRiderNotifications().catch(() => {})
+    setBellOpen(false)
+  }
+
+  // Fire native Android notifications for unread items on first mount
+  const nativeFiredRef = useRef(false)
+  useEffect(() => {
+    const unread = notifications.filter(n => n.read_at === null)
+    if (nativeFiredRef.current || unread.length === 0) return
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
+    if (!isNative) return
+    nativeFiredRef.current = true
+    ;(async () => {
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications')
+        const perm = await LocalNotifications.requestPermissions()
+        if (perm.display !== 'granted') return
+        await LocalNotifications.schedule({
+          notifications: unread.map((n, i) => ({
+            id: Math.abs(n.id.split('').reduce((a: number, c: string) => (a << 5) - a + c.charCodeAt(0), 0)) % 2147483647 || (i + 1),
+            title: n.title,
+            body: n.message,
+            schedule: { at: new Date(Date.now() + 1000) },
+            channelId: 'dabbr-alerts',
+          })),
+        })
+      } catch (e) { console.warn('Rider notification error:', e) }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => { statusesRef.current = statuses }, [statuses])
 
@@ -142,6 +197,19 @@ export default function RiderClient({ riderName, today, customers, initialStatus
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">done</p>
             </div>
           )}
+          {/* Bell */}
+          <button
+            onClick={() => setBellOpen(o => !o)}
+            className="relative flex items-center justify-center h-9 w-9 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:scale-95 transition-all shrink-0"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {totalBellCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
+                {totalBellCount}
+              </span>
+            )}
+          </button>
         </div>
         {totalSlots > 0 && (
           <div className="h-1 bg-gray-100 mx-4 mb-2 rounded-full overflow-hidden max-w-2xl mx-auto">
@@ -252,6 +320,110 @@ export default function RiderClient({ riderName, today, customers, initialStatus
         )}
 
       </main>
+
+      {/* ── Notification bell panel ── */}
+      {bellOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setBellOpen(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 animate-in slide-in-from-bottom-4">
+            <div className="rounded-t-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-200" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-gray-600" />
+                  <p className="text-sm font-black text-gray-900">Notifications</p>
+                  {totalBellCount > 0 && (
+                    <span className="flex items-center justify-center h-5 px-1.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">
+                      {totalBellCount}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {notifications.length > 1 && (
+                    <button
+                      onClick={dismissAll}
+                      className="text-[11px] font-bold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setBellOpen(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-10 px-5 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
+                      <Bell className="w-5 h-5 text-gray-300" />
+                    </div>
+                    <p className="text-sm font-bold text-gray-400">All clear — no notifications</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {notifications.map(n => (
+                      <RiderNotificationRow
+                        key={n.id}
+                        n={n}
+                        onDismiss={() => dismissOne(n.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-[env(safe-area-inset-bottom)]" />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Rider notification row ───────────────────────────────────────────────────
+
+const RIDER_NOTIF_META: Record<string, { badge: string; badgeClass: string }> = {
+  assignment: { badge: '📦 New Assignment', badgeClass: 'text-orange-500' },
+  message:    { badge: '💬 Message',        badgeClass: 'text-blue-500'   },
+}
+
+function RiderNotificationRow({ n, onDismiss }: { n: RiderNotification; onDismiss: () => void }) {
+  const meta = RIDER_NOTIF_META[n.type] ?? { badge: n.type, badgeClass: 'text-gray-500' }
+  const isUnread = n.read_at === null
+
+  return (
+    <div className={`flex items-start gap-3 px-5 py-4 ${isUnread ? 'bg-orange-50/40' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1">
+          {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />}
+          <span className={`text-[10px] font-black uppercase tracking-wider ${meta.badgeClass}`}>
+            {meta.badge}
+          </span>
+        </div>
+        <p className="text-sm font-black text-gray-900">{n.title}</p>
+        <p className="text-xs font-semibold text-gray-500 mt-0.5">{n.message}</p>
+        <p className="text-[10px] text-gray-400 mt-1">
+          {new Date(n.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </p>
+      </div>
+      <button
+        onClick={onDismiss}
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+        title="Dismiss"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   )
 }
