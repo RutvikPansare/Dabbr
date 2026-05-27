@@ -842,7 +842,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
   const [assignModal, setAssignModal] = useState(false)
   const [assignments, setAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
-  const [assignSaving, setAssignSaving] = useState(false)
   // Start Run dispatch state
   const [runGrouping, setRunGrouping] = useState<'list' | 'area'>('list')
   const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
@@ -1512,39 +1511,45 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     } catch { /* ignore */ }
   }
 
-  async function assignRider(riderId: string, scope: 'full' | 'area', areaName: string | null) {
-    setAssignSaving(true)
-    try {
-      const res = await fetch('/api/rider/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rider_id: riderId, assignment_date: today, scope, area_name: areaName }),
-      })
+  function assignRider(riderId: string, scope: 'full' | 'area', areaName: string | null) {
+    const rider = riders.find(r => r.id === riderId)
+    const tempId = `temp-${Date.now()}-${Math.random()}`
+    // Optimistic: add immediately with a temp ID
+    setAssignments(prev => [
+      ...prev.filter(a => !(a.scope === scope && (scope === 'full' || a.area_name === areaName))),
+      { id: tempId, rider_id: riderId, rider_name: rider?.name ?? '', scope, area_name: areaName },
+    ])
+    // Background server write — replace temp ID with real ID, or revert on failure
+    fetch('/api/rider/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rider_id: riderId, assignment_date: today, scope, area_name: areaName }),
+    }).then(async res => {
       if (res.ok) {
         const { assignment } = await res.json()
-        const rider = riders.find(r => r.id === riderId)
-        setAssignments(prev => [
-          ...prev.filter(a => !(a.rider_id === riderId && a.scope === scope && a.area_name === areaName)),
-          { id: assignment.id, rider_id: riderId, rider_name: rider?.name ?? '', scope, area_name: areaName },
-        ])
+        setAssignments(prev => prev.map(a => a.id === tempId ? { ...a, id: assignment.id } : a))
+      } else {
+        setAssignments(prev => prev.filter(a => a.id !== tempId))
       }
-    } finally {
-      setAssignSaving(false)
-    }
+    }).catch(() => {
+      setAssignments(prev => prev.filter(a => a.id !== tempId))
+    })
   }
 
-  async function removeAssignment(assignmentId: string) {
-    setAssignSaving(true)
-    try {
-      const res = await fetch('/api/rider/unassign', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignment_id: assignmentId }),
-      })
-      if (res.ok) setAssignments(prev => prev.filter(a => a.id !== assignmentId))
-    } finally {
-      setAssignSaving(false)
-    }
+  function removeAssignment(assignmentId: string) {
+    const item = assignments.find(a => a.id === assignmentId)
+    // Optimistic: remove immediately
+    setAssignments(prev => prev.filter(a => a.id !== assignmentId))
+    // Background server write — revert on failure
+    fetch('/api/rider/unassign', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignment_id: assignmentId }),
+    }).then(res => {
+      if (!res.ok && item) setAssignments(prev => [...prev, item])
+    }).catch(() => {
+      if (item) setAssignments(prev => [...prev, item])
+    })
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -3035,12 +3040,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           return yd ? yd.rider_name : null
         }
         function assignRow(scope: 'full' | 'area', areaKey: string | null, riderId: string) {
-          // Remove any existing assignment for this row, then add new one
+          // Optimistic: remove existing + add new — both fire in background, all instant
           const toRemove = assignments.filter(a =>
             scope === 'full' ? a.scope === 'full' : (a.scope === 'area' && a.area_name === areaKey)
           )
-          Promise.all(toRemove.map(a => removeAssignment(a.id)))
-            .then(() => assignRider(riderId, scope, areaKey))
+          toRemove.forEach(a => removeAssignment(a.id))
+          assignRider(riderId, scope, areaKey)
           setPickerOpen(null)
         }
         function unassignRow(scope: 'full' | 'area', areaKey: string | null) {
@@ -3050,21 +3055,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           toRemove.forEach(a => removeAssignment(a.id))
           setPickerOpen(null)
         }
-        async function reuseYesterday() {
-          setAssignSaving(true)
+        function reuseYesterday() {
           for (const ya of yesterdayAssignments) {
             const already = assignments.some(a =>
               a.rider_id === ya.rider_id && a.scope === ya.scope && a.area_name === ya.area_name
             )
-            if (!already) {
-              await assignRider(ya.rider_id, ya.scope, ya.area_name)
-            }
+            if (!already) assignRider(ya.rider_id, ya.scope, ya.area_name)
           }
-          setAssignSaving(false)
         }
-        async function autoAssign() {
-          // For each area, assign the rider who was most recently assigned there (from yesterday or current)
-          setAssignSaving(true)
+        function autoAssign() {
+          // For each area, assign the rider who was most recently assigned there (from yesterday)
           const allAreas = sortedAreas.map(([area]) => area)
           for (const area of allAreas) {
             const alreadyAssigned = assignments.some(a =>
@@ -3074,15 +3074,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             const hint = getYdHint(area)
             if (hint) {
               const rider = riders.find(r => r.name === hint)
-              if (rider) await assignRider(rider.id, 'area', area)
+              if (rider) assignRider(rider.id, 'area', area)
             }
           }
           // If no areas, try full
           if (allAreas.length === 0 && assignments.length === 0 && yesterdayAssignments.length > 0) {
             const ya = yesterdayAssignments.find(a => a.scope === 'full')
-            if (ya) await assignRider(ya.rider_id, 'full', null)
+            if (ya) assignRider(ya.rider_id, 'full', null)
           }
-          setAssignSaving(false)
         }
 
         const dispatchRows: { key: string; label: string; count: number; scope: 'full' | 'area'; areaKey: string | null }[] =
@@ -3148,7 +3147,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     {yesterdayAssignments.length > 0 && (
                       <button
                         onClick={reuseYesterday}
-                        disabled={assignSaving}
                         className="flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
                       >
                         <RotateCcw className="w-3 h-3" />Reuse Yesterday
@@ -3157,7 +3155,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     {yesterdayAssignments.length > 0 && runGrouping === 'area' && (
                       <button
                         onClick={autoAssign}
-                        disabled={assignSaving}
                         className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-3 py-1.5 text-[11px] font-bold text-orange-600 hover:bg-orange-100 active:scale-95 transition-all disabled:opacity-50"
                       >
                         <Zap className="w-3 h-3" />Auto Assign
@@ -3238,7 +3235,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                           ? unassignRow(row.scope, row.areaKey)
                                           : assignRow(row.scope, row.areaKey, rider.id)
                                         }
-                                        disabled={assignSaving}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
                                           isAssigned
                                             ? 'bg-orange-500 text-white'
@@ -3256,7 +3252,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                   {assigned && (
                                     <button
                                       onClick={() => unassignRow(row.scope, row.areaKey)}
-                                      disabled={assignSaving}
                                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-gray-400 border border-gray-200 bg-white hover:border-red-200 hover:text-red-500 active:scale-95 transition-all disabled:opacity-50"
                                     >
                                       <X className="w-3 h-3" />Remove
