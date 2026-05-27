@@ -41,17 +41,7 @@ export default async function DashboardPage() {
       .eq('user_id', user.id)
       .limit(1)
       .maybeSingle()
-    if (customerRow) {
-      const { data: tokenRow } = await db
-        .from('customer_access_tokens')
-        .select('token')
-        .eq('customer_id', customerRow.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (tokenRow) redirect(`/c/${tokenRow.token}`)
-    }
+    if (customerRow) redirect('/c')
 
     // New provider — send to onboarding unless already completed
     if (!providerRow?.onboarding_done) redirect('/onboarding')

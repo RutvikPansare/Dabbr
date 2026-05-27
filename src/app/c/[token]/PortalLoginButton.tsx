@@ -47,10 +47,10 @@ export default function PortalLoginButton({ token }: { token: string }) {
         setLoading(false)
       }
     } else {
-      // Web OAuth — callback redirects back to this portal page
+      // Web OAuth — callback redirects to /c (session-based portal, no token needed)
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=/c/${token}` },
+        options: { redirectTo: `${window.location.origin}/auth/callback?next=/c` },
       })
       // Page redirects; keep loading
     }

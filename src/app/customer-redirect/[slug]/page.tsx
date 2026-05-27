@@ -103,32 +103,6 @@ export default async function CustomerRedirectPage({
     )
   }
 
-  // Find active portal token
-  const { data: tokenRow } = await db
-    .from('customer_access_tokens')
-    .select('token')
-    .eq('customer_id', customerId)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (!tokenRow) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-[#FDF8F3] p-6">
-        <div className="w-full max-w-sm rounded-3xl bg-white border border-gray-100 shadow-sm p-8 text-center space-y-4">
-          <div className="text-4xl">🔗</div>
-          <h1 className="text-lg font-black text-gray-900">Portal link not set up yet</h1>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Your provider hasn&apos;t generated a portal link for your account yet. Ask them to share it with you.
-          </p>
-          <a href={`/${slug}`} className="inline-flex items-center justify-center w-full rounded-2xl bg-orange-500 py-3 text-sm font-black text-white hover:bg-orange-600 transition-colors">
-            ← Back
-          </a>
-        </div>
-      </main>
-    )
-  }
-
-  redirect(`/c/${tokenRow.token}`)
+  // Linked — session-based portal handles the rest
+  redirect('/c')
 }
