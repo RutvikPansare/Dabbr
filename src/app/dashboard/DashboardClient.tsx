@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { dismissNotification, dismissAllNotifications } from './actions'
+import { dismissNotification, dismissAllNotifications, resolveCancellation } from './actions'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
@@ -578,14 +578,17 @@ function NotificationRow({
   n,
   onDismiss,
   onClose,
+  onResolve,
 }: {
   n: ProviderNotification
   onDismiss: () => void
   onClose: () => void
+  onResolve?: (action: 'approve' | 'reject') => void
 }) {
   const meta = NOTIF_META[n.type] ?? { badge: n.type, badgeClass: 'text-gray-500' }
   const customerId: string | undefined = n.payload?.customer_id
   const isUnread = n.read_at === null
+  const isCancellation = n.type === 'cancellation_request'
 
   return (
     <div className={`flex items-start gap-3 px-5 py-4 transition-colors ${isUnread ? 'bg-orange-50/40' : ''}`}>
@@ -601,7 +604,25 @@ function NotificationRow({
         <p className="text-[10px] text-gray-400 mt-1">
           {new Date(n.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
-        {n.type === 'cancellation_request' && customerId && (
+        {/* Cancellation: quick approve / reject actions */}
+        {isCancellation && onResolve && (
+          <div className="mt-2.5 flex items-center gap-2">
+            <button
+              onClick={() => onResolve('approve')}
+              className="flex-1 rounded-xl bg-red-500 py-1.5 text-[11px] font-black text-white hover:bg-red-600 active:scale-95 transition-all"
+            >
+              Confirm cancellation
+            </button>
+            <button
+              onClick={() => onResolve('reject')}
+              className="flex-1 rounded-xl bg-gray-100 py-1.5 text-[11px] font-black text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+            >
+              Keep active
+            </button>
+          </div>
+        )}
+        {/* Cancellation: view customer link (fallback when no onResolve) */}
+        {isCancellation && !onResolve && customerId && (
           <a
             href={`/customers?open=${customerId}`}
             onClick={onClose}
@@ -2639,6 +2660,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         n={n}
                         onDismiss={() => dismissOne(n.id)}
                         onClose={() => setCancelBellOpen(false)}
+                        onResolve={n.type === 'cancellation_request' ? async (action) => {
+                          // Optimistically remove, then call server action
+                          setNotifications(prev => prev.filter(x => x.id !== n.id))
+                          const result = await resolveCancellation(n.id, action)
+                          if (!result.ok) {
+                            // Put it back if the action failed
+                            setNotifications(prev => [n, ...prev])
+                          }
+                        } : undefined}
                       />
                     ))}
                   </div>

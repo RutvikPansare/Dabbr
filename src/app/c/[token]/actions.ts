@@ -219,6 +219,7 @@ export async function requestCancellation(
   if (insertErr) return { ok: false, error: 'Failed to submit request. Please try again.' }
 
   // Notify the provider
+
   const { data: customer } = await db
     .from('customers')
     .select('name')
@@ -237,6 +238,46 @@ export async function requestCancellation(
       reason: trimmedReason,
     },
   })
+
+  return { ok: true }
+}
+
+// ── Withdraw cancellation request ────────────────────────────────────────────
+
+export async function withdrawCancellation(token: string): Promise<ActionResult> {
+  const ctx = await validateToken(token)
+  if (!ctx) return { ok: false, error: 'Invalid or expired link.' }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any
+
+  // Find the subscription (any status — pending-cancel keeps subscription active)
+  const { data: sub } = await db
+    .from('subscriptions')
+    .select('id')
+    .eq('customer_id', ctx.customer_id)
+    .single()
+
+  if (!sub) return { ok: false, error: 'No subscription found.' }
+
+  // Mark the pending request as withdrawn
+  const { error } = await db
+    .from('cancellation_requests')
+    .update({ status: 'withdrawn' })
+    .eq('subscription_id', sub.id)
+    .eq('status', 'pending')
+
+  if (error) return { ok: false, error: 'Could not withdraw the request. Please try again.' }
+
+  // Dismiss the matching provider notification so it clears from the bell
+  const now = new Date().toISOString()
+  await db
+    .from('provider_notifications')
+    .update({ dismissed_at: now, read_at: now })
+    .eq('provider_id', ctx.provider_id)
+    .eq('type', 'cancellation_request')
+    .contains('payload', { customer_id: ctx.customer_id })
+    .is('dismissed_at', null)
 
   return { ok: true }
 }

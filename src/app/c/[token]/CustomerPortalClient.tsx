@@ -15,7 +15,7 @@ import {
   cutoffMessage, formatDisplayDate, formatShortDate,
   formatDayLabel, formatDayNumber, getEffectiveChangeDate,
 } from '@/lib/cutoff'
-import { pauseSubscription, resumeSubscription, requestCancellation } from './actions'
+import { pauseSubscription, resumeSubscription, requestCancellation, withdrawCancellation } from './actions'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -255,6 +255,7 @@ export default function CustomerPortalClient({
   const [cancelReason, setCancelReason] = useState('')
   const [cancelResult, setCancelResult] = useState<{ ok: boolean; error?: string } | null>(null)
   const [resumeResult, setResumeResult] = useState<{ ok: boolean; error?: string } | null>(null)
+  const [withdrawResult, setWithdrawResult] = useState<{ ok: boolean; error?: string } | null>(null)
 
   const isCurrentlyPaused = !!(subscription?.active_pause)
   const canPause = subscription?.status === 'active' && !isCurrentlyPaused && !subscription.pending_cancel
@@ -282,6 +283,13 @@ export default function CustomerPortalClient({
     startTransition(async () => {
       const result = await requestCancellation(token, cancelReason)
       setCancelResult(result)
+    })
+  }
+
+  function handleWithdraw() {
+    startTransition(async () => {
+      const result = await withdrawCancellation(token)
+      setWithdrawResult(result)
     })
   }
 
@@ -416,9 +424,31 @@ export default function CustomerPortalClient({
 
                 {/* Pending cancel banner */}
                 {sub.pending_cancel && (
-                  <div className="mt-3 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-400 shrink-0" />
-                    <p className="text-sm text-gray-600 font-medium">Cancellation request pending — your provider will confirm.</p>
+                  <div className="mt-3 rounded-2xl bg-gray-50 border border-gray-200 px-4 py-3">
+                    {withdrawResult?.ok ? (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                        <p className="text-sm text-green-700 font-medium">Request withdrawn — your subscription is still active.</p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-600 font-medium">Cancellation request pending — your provider will confirm.</p>
+                          {withdrawResult?.error && (
+                            <p className="text-xs text-red-500 font-medium mt-1">{withdrawResult.error}</p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleWithdraw}
+                            disabled={isPending}
+                            className="mt-2 text-xs font-bold text-gray-500 hover:text-gray-700 underline underline-offset-2 disabled:opacity-50 transition-colors"
+                          >
+                            {isPending ? 'Withdrawing…' : 'Changed your mind? Withdraw request'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
