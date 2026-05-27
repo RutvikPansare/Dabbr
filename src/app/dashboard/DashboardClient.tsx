@@ -231,7 +231,8 @@ function DeliveryRow({ c, index, isLast, hideArea, status, onMark, onOpen, onAdd
           } ${
             isDelivered ? 'bg-green-500 text-white hover:bg-green-600' :
             isSkipped   ? 'bg-amber-500 text-white hover:bg-amber-600' :
-                          'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            onMark      ? 'border-2 border-gray-300 bg-white text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50' :
+                          'bg-gray-100 text-gray-500'
           }`}
         >
           {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
@@ -452,7 +453,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
             className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
               isDelivered ? 'bg-green-500 text-white hover:bg-green-600' :
               isSkipped   ? 'bg-amber-500 text-white hover:bg-amber-600' :
-                            'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            'border-2 border-gray-300 bg-white text-gray-400 hover:border-green-400 hover:text-green-500 hover:bg-green-50'
             }`}
           >
             {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
