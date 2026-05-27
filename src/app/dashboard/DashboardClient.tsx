@@ -663,7 +663,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [showSkipped, setShowSkipped] = useState(false)
   const [cookListOpen, setCookListOpen] = useState(true)
   const [packingListOpen, setPackingListOpen] = useState(true)
-  const [slotFilter, setSlotFilter] = useState<'all' | MealSlot>('all')
+  const [slotFilter, setSlotFilter] = useState<'all' | MealSlot>('lunch')
 
   // Persist slot selection across navigation
   useEffect(() => {
