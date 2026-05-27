@@ -183,6 +183,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         { data: holidayData },
         { data: riders },
         { data: rawNotifications },
+        { data: rawAssignments },
         trial,
       ] = await Promise.all([
         db.from('customers').select('*, pauses(*), subscriptions(*)').eq('provider_id', userId).order('name'),
@@ -197,6 +198,10 @@ export function getCachedDashboardData(userId: string, today: string) {
           .is('dismissed_at', null)
           .order('created_at', { ascending: false })
           .limit(50),
+        db.from('rider_assignments')
+          .select('id, rider_id, scope, area_name, delivery_riders(name)')
+          .eq('provider_id', userId)
+          .eq('assignment_date', today),
         getTrialStatus(db, userId),
       ])
 
@@ -235,6 +240,14 @@ export function getCachedDashboardData(userId: string, today: string) {
         read_at: n.read_at as string | null,
       }))
 
+      const todayAssignments = (rawAssignments ?? []).map((a: any) => ({
+        id: a.id as string,
+        rider_id: a.rider_id as string,
+        rider_name: (a.delivery_riders?.name ?? '') as string,
+        scope: a.scope as 'full' | 'area',
+        area_name: (a.area_name ?? null) as string | null,
+      }))
+
       return {
         customers: enrichedCustomers,
         provider: provider ?? null,
@@ -243,6 +256,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         deliveryStatuses,
         todayHoliday,
         notifications,
+        todayAssignments,
       }
     },
     [`dashboard-data-${userId}-${today}`],

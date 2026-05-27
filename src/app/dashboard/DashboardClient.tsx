@@ -113,6 +113,7 @@ interface InitialData {
   todayHoliday: { label: string | null } | null
   todayMenus?: TodayMenu[]
   notifications?: ProviderNotification[]
+  todayAssignments?: { id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]
 }
 
 interface Props {
@@ -841,7 +842,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [riderModal, setRiderModal] = useState<{ area: string; members: Customer[] } | null>(null)
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
   const [assignModal, setAssignModal] = useState(false)
-  const [assignments, setAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
+  const [assignments, setAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>(initialData.todayAssignments ?? [])
   const assignmentsRef = useRef(assignments)
   assignmentsRef.current = assignments
   // Start Run dispatch state
@@ -1541,16 +1542,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     setRunGrouping(deliveryView) // default to current dashboard grouping
     setPickerOpen(null)
     setAssignModal(true)
-    // Load today's + yesterday's assignments in parallel
+    // Today's assignments already seeded from server — only fetch yesterday's for hints
     const yesterday = new Date(today + 'T00:00:00')
     yesterday.setDate(yesterday.getDate() - 1)
     const yd = yesterday.toISOString().split('T')[0]
     try {
-      const [todayRes, ydRes] = await Promise.all([
-        fetch(`/api/rider/assignments?date=${today}`),
-        fetch(`/api/rider/assignments?date=${yd}`),
-      ])
-      if (todayRes.ok) setAssignments(await todayRes.json())
+      const ydRes = await fetch(`/api/rider/assignments?date=${yd}`)
       if (ydRes.ok) setYesterdayAssignments(await ydRes.json())
     } catch { /* ignore */ }
   }
