@@ -849,7 +849,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [runGrouping, setRunGrouping] = useState<'list' | 'area'>('list')
   const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
   const [pickerOpen, setPickerOpen] = useState<string | null>(null) // area key or 'full' — which row's rider picker is open
-  const [noAssignFlash, setNoAssignFlash] = useState(false) // flashes rows red when user tries to start without assigning
+  const [noAssignFlash, setNoAssignFlash] = useState(false) // flashes rows when user hits Start Deliveries with nothing assigned
+  // draftAssignments: staged inside the modal only — no API calls until "Start Deliveries" is pressed
+  const [draftAssignments, setDraftAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
   const runIsActive = assignments.length > 0
   const [runCompleted, setRunCompleted] = useState(false)
 
@@ -1543,6 +1545,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     setRunGrouping(deliveryView) // default to current dashboard grouping
     setPickerOpen(null)
     setNoAssignFlash(false)
+    setDraftAssignments([...assignments]) // seed draft from current committed state
     setAssignModal(true)
     // Today's assignments already seeded from server — only fetch yesterday's for hints
     const yesterday = new Date(today + 'T00:00:00')
@@ -3086,13 +3089,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Start Run bottom sheet ── */}
       {assignModal && (() => {
-        // Helpers scoped to this render
-        function getAreaRider(areaKey: string): typeof assignments[0] | undefined {
-          // Check exact area assignment first
-          const areaA = assignments.find(a => a.scope === 'area' && a.area_name === areaKey)
-          if (areaA) return areaA
-          // Fall back to full-scope assignment
-          return assignments.find(a => a.scope === 'full')
+        // ── Draft helpers — operate on draftAssignments only, no API calls ──
+        // API calls happen only when "Start Deliveries" is pressed.
+        function getDraftRider(areaKey: string): typeof draftAssignments[0] | undefined {
+          return draftAssignments.find(a => a.scope === 'area' && a.area_name === areaKey)
+            ?? draftAssignments.find(a => a.scope === 'full')
         }
         function getYdHint(areaKey: string | null): string | null {
           if (yesterdayAssignments.length === 0) return null
@@ -3102,49 +3103,75 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             : yesterdayAssignments.find(a => a.scope === 'full')
           return yd ? yd.rider_name : null
         }
-        function assignRow(scope: 'full' | 'area', areaKey: string | null, riderId: string) {
-          // Optimistic: remove existing + add new — both fire in background, all instant
-          const toRemove = assignments.filter(a =>
-            scope === 'full' ? a.scope === 'full' : (a.scope === 'area' && a.area_name === areaKey)
-          )
-          toRemove.forEach(a => removeAssignment(a.id))
-          assignRider(riderId, scope, areaKey)
+        function draftAssignRow(scope: 'full' | 'area', areaKey: string | null, riderId: string) {
+          const rider = riders.find(r => r.id === riderId)
+          setDraftAssignments(prev => [
+            ...prev.filter(a => !(a.scope === scope && (scope === 'full' || a.area_name === areaKey))),
+            { id: `draft-${riderId}-${scope}-${areaKey}`, rider_id: riderId, rider_name: rider?.name ?? '', scope, area_name: areaKey },
+          ])
           setPickerOpen(null)
         }
-        function unassignRow(scope: 'full' | 'area', areaKey: string | null) {
-          const toRemove = assignments.filter(a =>
-            scope === 'full' ? a.scope === 'full' : (a.scope === 'area' && a.area_name === areaKey)
-          )
-          toRemove.forEach(a => removeAssignment(a.id))
+        function draftUnassignRow(scope: 'full' | 'area', areaKey: string | null) {
+          setDraftAssignments(prev => prev.filter(a =>
+            scope === 'full' ? a.scope !== 'full' : !(a.scope === 'area' && a.area_name === areaKey)
+          ))
           setPickerOpen(null)
         }
         function reuseYesterday() {
-          for (const ya of yesterdayAssignments) {
-            const already = assignments.some(a =>
-              a.rider_id === ya.rider_id && a.scope === ya.scope && a.area_name === ya.area_name
-            )
-            if (!already) assignRider(ya.rider_id, ya.scope, ya.area_name)
-          }
+          setDraftAssignments(prev => {
+            const next = [...prev]
+            for (const ya of yesterdayAssignments) {
+              const already = next.some(a => a.rider_id === ya.rider_id && a.scope === ya.scope && a.area_name === ya.area_name)
+              if (!already) next.push({ id: `draft-${ya.rider_id}-${ya.scope}-${ya.area_name}`, rider_id: ya.rider_id, rider_name: ya.rider_name, scope: ya.scope, area_name: ya.area_name })
+            }
+            return next
+          })
         }
         function autoAssign() {
-          // For each area, assign the rider who was most recently assigned there (from yesterday)
-          const allAreas = sortedAreas.map(([area]) => area)
-          for (const area of allAreas) {
-            const alreadyAssigned = assignments.some(a =>
-              (a.scope === 'area' && a.area_name === area) || a.scope === 'full'
-            )
-            if (alreadyAssigned) continue
-            const hint = getYdHint(area)
-            if (hint) {
-              const rider = riders.find(r => r.name === hint)
-              if (rider) assignRider(rider.id, 'area', area)
+          setDraftAssignments(prev => {
+            const next = [...prev]
+            for (const [area] of sortedAreas) {
+              const already = next.some(a => (a.scope === 'area' && a.area_name === area) || a.scope === 'full')
+              if (already) continue
+              const hint = getYdHint(area)
+              if (hint) {
+                const rider = riders.find(r => r.name === hint)
+                if (rider) next.push({ id: `draft-${rider.id}-area-${area}`, rider_id: rider.id, rider_name: rider.name, scope: 'area', area_name: area })
+              }
             }
+            if (sortedAreas.length === 0 && next.length === 0 && yesterdayAssignments.length > 0) {
+              const ya = yesterdayAssignments.find(a => a.scope === 'full')
+              if (ya) next.push({ id: `draft-${ya.rider_id}-full-null`, rider_id: ya.rider_id, rider_name: ya.rider_name, scope: 'full', area_name: null })
+            }
+            return next
+          })
+        }
+        // Commit draft → make API calls → update committed assignments → close
+        function commitRun(overrideDraft?: typeof draftAssignments) {
+          const draft = overrideDraft ?? draftAssignments
+          if (draft.length === 0) {
+            setNoAssignFlash(true)
+            setTimeout(() => setNoAssignFlash(false), 1200)
+            return
           }
-          // If no areas, try full
-          if (allAreas.length === 0 && assignments.length === 0 && yesterdayAssignments.length > 0) {
-            const ya = yesterdayAssignments.find(a => a.scope === 'full')
-            if (ya) assignRider(ya.rider_id, 'full', null)
-          }
+          // Optimistically commit
+          setAssignments(draft)
+          setAssignModal(false)
+          setPickerOpen(null)
+          // Remove stale assignments (in committed but not in draft)
+          assignments.filter(a => !draft.some(d => d.rider_id === a.rider_id && d.scope === a.scope && d.area_name === a.area_name))
+            .forEach(a => fetch('/api/rider/unassign', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_id: a.id }) }).catch(() => {}))
+          // Add new assignments (in draft but not in committed)
+          draft.filter(d => !assignments.some(a => a.rider_id === d.rider_id && a.scope === d.scope && a.area_name === d.area_name))
+            .forEach(d => {
+              fetch('/api/rider/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rider_id: d.rider_id, assignment_date: today, scope: d.scope, area_name: d.area_name }) })
+                .then(async res => {
+                  if (res.ok) {
+                    const { assignment } = await res.json()
+                    setAssignments(prev => prev.map(a => a.id === d.id ? { ...a, id: assignment.id } : a))
+                  }
+                }).catch(() => {})
+            })
         }
 
         const dispatchRows: { key: string; label: string; count: number; scope: 'full' | 'area'; areaKey: string | null }[] =
@@ -3245,7 +3272,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   ) : (
                     <div className="divide-y divide-gray-50">
                       {dispatchRows.map(row => {
-                        const assigned = getAreaRider(row.key)
+                        const assigned = getDraftRider(row.key)
                         const hint = getYdHint(row.areaKey)
                         const isOpen = pickerOpen === row.key
 
@@ -3299,8 +3326,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                       <button
                                         key={rider.id}
                                         onClick={() => isAssigned
-                                          ? unassignRow(row.scope, row.areaKey)
-                                          : assignRow(row.scope, row.areaKey, rider.id)
+                                          ? draftUnassignRow(row.scope, row.areaKey)
+                                          : draftAssignRow(row.scope, row.areaKey, rider.id)
                                         }
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
                                           isAssigned
@@ -3318,7 +3345,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                   })}
                                   {assigned && (
                                     <button
-                                      onClick={() => unassignRow(row.scope, row.areaKey)}
+                                      onClick={() => draftUnassignRow(row.scope, row.areaKey)}
                                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-gray-400 border border-gray-200 bg-white hover:border-red-200 hover:text-red-500 active:scale-95 transition-all disabled:opacity-50"
                                     >
                                       <X className="w-3 h-3" />Remove
@@ -3337,7 +3364,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {/* Footer */}
                 {riders.length > 0 && (
                   <div className="px-5 py-4 border-t border-gray-100 shrink-0 space-y-2">
-                    {noAssignFlash && !runIsActive && (
+                    {noAssignFlash && draftAssignments.length === 0 && (
                       <p className="text-center text-xs font-bold text-red-500 animate-pulse">
                         Assign a rider to each row first ↑
                       </p>
@@ -3351,26 +3378,22 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           Stop Run
                         </button>
                         <button
-                          onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                          onClick={() => commitRun()}
                           className="rounded-2xl bg-green-500 py-3.5 text-sm font-black text-white shadow-lg shadow-green-500/25 active:scale-[0.98] transition-all"
                         >
-                          ✓ Run is active
+                          ✓ Update Run
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={() => {
-                          if (runIsActive) {
-                            setAssignModal(false); setPickerOpen(null); return
+                          // Auto-assign single rider if nothing staged yet
+                          if (draftAssignments.length === 0 && riders.length === 1) {
+                            const rider = riders[0]
+                            commitRun([{ id: `draft-${rider.id}-full-null`, rider_id: rider.id, rider_name: rider.name, scope: 'full', area_name: null }])
+                            return
                           }
-                          // One rider → auto-assign and start
-                          if (riders.length === 1) {
-                            assignRider(riders[0].id, 'full', null)
-                            setAssignModal(false); setPickerOpen(null); return
-                          }
-                          // Multiple riders, none assigned → flash rows
-                          setNoAssignFlash(true)
-                          setTimeout(() => setNoAssignFlash(false), 1200)
+                          commitRun()
                         }}
                         className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
                       >
