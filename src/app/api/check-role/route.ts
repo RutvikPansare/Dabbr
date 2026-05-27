@@ -24,23 +24,36 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
-  // Provider override: if the user has ANY meal plans they are a provider,
-  // regardless of whether they are also a rider for someone else.
-  const { count: planCount } = await db
-    .from('meal_plans')
-    .select('id', { count: 'exact', head: true })
-    .eq('provider_id', user.id)
+  // Provider check: meal plans OR a providers row with a name set.
+  // Both signals mean the user has intentionally set up as a provider.
+  // Querying providers directly is important — a provider who deleted all their
+  // meal plans still has their name set and should see provider UI.
+  const [{ count: planCount }, { data: providerRow }] = await Promise.all([
+    db
+      .from('meal_plans')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', user.id),
+    db
+      .from('providers')
+      .select('name')
+      .eq('id', user.id)
+      .maybeSingle(),
+  ])
 
-  if ((planCount ?? 0) > 0) {
+  const isProvider =
+    (planCount ?? 0) > 0 ||
+    (typeof providerRow?.name === 'string' && providerRow.name.trim().length > 0)
+
+  if (isProvider) {
     return NextResponse.json({ role: 'provider' })
   }
 
-  // No meal plans — attempt rider linking and check
+  // No provider setup — attempt rider linking and check
   const riderInfo = await findAndLinkRider(user.id, user.phone ?? null, user.email ?? null)
   if (riderInfo) {
     return NextResponse.json({ role: 'rider' })
   }
 
-  // New user, no plans, no rider match → provider onboarding
+  // Brand new user, no provider setup, no rider match → provider onboarding
   return NextResponse.json({ role: 'provider' })
 }

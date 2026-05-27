@@ -13,23 +13,28 @@ export default async function DashboardPage() {
   // ── Role resolution ────────────────────────────────────────────────────────
   // Always use findAndLinkRider so a rider's first login gets their row linked
   // by phone/email before we check. Provider status (meal plans) overrides rider.
-  const mealPlans = await getCachedMealPlans(user.id)
-  const hasProviderSetup = mealPlans && mealPlans.length > 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any
+
+  // Resolve provider status: has meal plans OR has set a business name.
+  // Both signals are checked so a provider who deleted all plans still gets
+  // provider UI, and a new rider who never touched provider setup gets rider UI.
+  const [mealPlans, { data: providerRow }] = await Promise.all([
+    getCachedMealPlans(user.id),
+    db.from('providers').select('name, onboarding_done').eq('id', user.id).maybeSingle(),
+  ])
+
+  const hasProviderSetup =
+    (mealPlans && mealPlans.length > 0) ||
+    (typeof providerRow?.name === 'string' && providerRow.name.trim().length > 0)
 
   if (!hasProviderSetup) {
-    // No meal plans yet — check if this is a rider
+    // No provider setup — check if this is a rider (links on first login)
     const riderInfo = await findAndLinkRider(user.id, user.phone ?? null, user.email ?? null)
     if (riderInfo) redirect('/rider')
 
-    // New provider — check onboarding_done flag (cross-device safe)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createAdminClient() as any
-    const { data: prov } = await db
-      .from('providers')
-      .select('onboarding_done')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (!prov?.onboarding_done) redirect('/onboarding')
+    // New provider — send to onboarding unless already completed
+    if (!providerRow?.onboarding_done) redirect('/onboarding')
   }
 
   // Use IST (UTC+5:30) so Indian providers always get the correct local date

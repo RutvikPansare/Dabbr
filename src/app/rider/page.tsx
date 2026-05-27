@@ -15,14 +15,18 @@ export default async function RiderPage() {
   const riderInfo = await findAndLinkRider(user.id, phone, email)
   if (!riderInfo) redirect('/dashboard') // not a rider → provider dashboard
 
-  // Provider override: if the rider also has meal plans they are a provider —
-  // send them to the provider dashboard instead.
+  // Provider override: if the rider also has provider setup (meal plans OR
+  // business name set), send them to the provider dashboard instead.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { count: planCount } = await (createAdminClient() as any)
-    .from('meal_plans')
-    .select('id', { count: 'exact', head: true })
-    .eq('provider_id', user.id)
-  if ((planCount ?? 0) > 0) redirect('/dashboard')
+  const db2 = createAdminClient() as any
+  const [{ count: planCount }, { data: provRow }] = await Promise.all([
+    db2.from('meal_plans').select('id', { count: 'exact', head: true }).eq('provider_id', user.id),
+    db2.from('providers').select('name').eq('id', user.id).maybeSingle(),
+  ])
+  const isAlsoProvider =
+    (planCount ?? 0) > 0 ||
+    (typeof provRow?.name === 'string' && provRow.name.trim().length > 0)
+  if (isAlsoProvider) redirect('/dashboard')
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
