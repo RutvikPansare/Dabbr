@@ -775,6 +775,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     initialData.notifications ?? [],
   )
   const [cancelBellOpen, setCancelBellOpen] = useState(false)
+  const bellRef = useRef<HTMLButtonElement>(null)
+  const [bellDropPos, setBellDropPos] = useState<{ top: number; right: number } | null>(null)
+
+  function openBell() {
+    if (bellRef.current) {
+      const rect = bellRef.current.getBoundingClientRect()
+      setBellDropPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+    }
+    setCancelBellOpen(o => !o)
+  }
 
   const totalBellCount = notifications.length
 
@@ -1664,7 +1674,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           <div className="shrink-0 flex items-center gap-2">
             {/* Notification bell */}
             <button
-              onClick={() => setCancelBellOpen(o => !o)}
+              ref={bellRef}
+              onClick={openBell}
               className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 hover:bg-white/25 active:scale-95 transition-all"
               title="Notifications"
             >
@@ -2727,85 +2738,71 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       )}
 
-      {/* ── Cancellation notifications panel ── */}
-      {cancelBellOpen && (
+      {/* ── Cancellation notifications dropdown (anchored to bell button) ── */}
+      {cancelBellOpen && bellDropPos && (
         <>
-          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setCancelBellOpen(false)} />
           <div
-            className="fixed inset-0 z-40"
-            onClick={() => setCancelBellOpen(false)}
-          />
-          {/* Panel — bottom sheet on mobile, top-right dropdown on desktop */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 lg:bottom-auto lg:top-[60px] lg:left-auto lg:right-6 lg:w-96 animate-in slide-in-from-bottom-4 lg:slide-in-from-top-2">
-            <div className="rounded-t-3xl lg:rounded-3xl bg-white shadow-2xl border border-gray-100 overflow-hidden">
-              {/* Handle bar (mobile only) */}
-              <div className="flex justify-center pt-3 pb-1 lg:hidden">
-                <div className="w-10 h-1 rounded-full bg-gray-200" />
-              </div>
-
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                <div className="flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-gray-600" />
-                  <p className="text-sm font-black text-gray-900">Notifications</p>
-                  {notifications.length > 0 && (
-                    <span className="flex items-center justify-center h-5 px-1.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">
-                      {notifications.length}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {notifications.length > 1 && (
-                    <button
-                      onClick={dismissAll}
-                      className="text-[11px] font-bold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      Clear all
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setCancelBellOpen(false)}
-                    className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
-                {notifications.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-10 px-5 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
-                      <Bell className="w-5 h-5 text-gray-300" />
-                    </div>
-                    <p className="text-sm font-bold text-gray-400">All clear — no pending notifications</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {notifications.map(n => (
-                      <NotificationRow
-                        key={n.id}
-                        n={n}
-                        onDismiss={() => dismissOne(n.id)}
-                        onClose={() => setCancelBellOpen(false)}
-                        onResolve={n.type === 'cancellation_request' ? async (action) => {
-                          // Optimistically remove, then call server action
-                          setNotifications(prev => prev.filter(x => x.id !== n.id))
-                          const result = await resolveCancellation(n.id, action)
-                          if (!result.ok) {
-                            // Put it back if the action failed
-                            setNotifications(prev => [n, ...prev])
-                          }
-                        } : undefined}
-                      />
-                    ))}
-                  </div>
+            className="fixed z-50 w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            style={{ top: bellDropPos.top, right: bellDropPos.right }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-gray-600" />
+                <p className="text-sm font-black text-gray-900">Notifications</p>
+                {notifications.length > 0 && (
+                  <span className="flex items-center justify-center h-5 px-1.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">
+                    {notifications.length}
+                  </span>
                 )}
               </div>
+              <div className="flex items-center gap-2">
+                {notifications.length > 1 && (
+                  <button
+                    onClick={dismissAll}
+                    className="text-[11px] font-bold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+                <button
+                  onClick={() => setCancelBellOpen(false)}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
 
-              {/* Bottom padding for safe area on mobile */}
-              <div className="h-[env(safe-area-inset-bottom)] lg:hidden" />
+            {/* Content */}
+            <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
+              {notifications.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-10 px-5 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
+                    <Bell className="w-5 h-5 text-gray-300" />
+                  </div>
+                  <p className="text-sm font-bold text-gray-400">All clear — no pending notifications</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {notifications.map(n => (
+                    <NotificationRow
+                      key={n.id}
+                      n={n}
+                      onDismiss={() => dismissOne(n.id)}
+                      onClose={() => setCancelBellOpen(false)}
+                      onResolve={n.type === 'cancellation_request' ? async (action) => {
+                        setNotifications(prev => prev.filter(x => x.id !== n.id))
+                        const result = await resolveCancellation(n.id, action)
+                        if (!result.ok) {
+                          setNotifications(prev => [n, ...prev])
+                        }
+                      } : undefined}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </>
