@@ -62,7 +62,6 @@ export default function RiderClient({ riderName, today, customers, initialStatus
     initialStatuses as Record<string, DeliveryStatus>
   )
   const statusesRef = useRef(statuses)
-  const [showDone, setShowDone] = useState(false)
   const lastTouchMs = useRef<Record<string, number>>({})
 
   // ── Notifications ──────────────────────────────────────────────────────────
@@ -163,7 +162,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
   const activeCustomers = customers.filter(c => !isPaused(c, today))
   const pausedCustomers = customers.filter(c => isPaused(c, today))
 
-  // Slot-level summary
+  // Overall progress (across all slots × all customers)
   const allSlotKeys = activeCustomers.flatMap(c => getSlots(c).map(s => `${c.id}:${s}`))
   const totalSlots = allSlotKeys.length
   const deliveredSlots = allSlotKeys.filter(k => (statuses[k] ?? 'pending') === 'delivered').length
@@ -171,12 +170,16 @@ export default function RiderClient({ riderName, today, customers, initialStatus
   const pendingSlots = totalSlots - deliveredSlots - skippedSlots
   const allDone = totalSlots > 0 && pendingSlots === 0
 
-  const pendingCustomers = activeCustomers.filter(c =>
-    getSlots(c).some(s => (statuses[`${c.id}:${s}`] ?? 'pending') === 'pending')
-  )
-  const doneCustomers = activeCustomers.filter(c =>
-    getSlots(c).every(s => (statuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
-  )
+  // Group by slot — customers appear once per slot they subscribe to
+  const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner']
+  const slotGroups = SLOT_ORDER
+    .map(slot => {
+      const slotCustomers = activeCustomers.filter(c => getSlots(c).includes(slot))
+      const pending = slotCustomers.filter(c => (statuses[`${c.id}:${slot}`] ?? 'pending') === 'pending')
+      const done    = slotCustomers.filter(c => (statuses[`${c.id}:${slot}`] ?? 'pending') !== 'pending')
+      return { slot, slotCustomers, pending, done }
+    })
+    .filter(g => g.slotCustomers.length > 0)
 
   return (
     <div className="min-h-screen bg-[#FDF8F3]">
@@ -243,59 +246,24 @@ export default function RiderClient({ riderName, today, customers, initialStatus
           </div>
         )}
 
-        {/* Pending customers */}
-        {pendingCustomers.length > 0 && (
-          <section className="space-y-2">
-            <p className="text-xs font-black text-gray-500 uppercase tracking-wide px-1">
-              Pending · {pendingCustomers.length}
-            </p>
-            <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
-              {pendingCustomers.map(c => (
-                <CustomerRow
-                  key={c.id}
-                  c={c}
-                  today={today}
-                  statuses={statuses}
-                  onMark={markDelivery}
-                  lastTouchMs={lastTouchMs}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Done customers (collapsible) */}
-        {doneCustomers.length > 0 && (
-          <section className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowDone(v => !v)}
-              className="flex items-center gap-2 px-1 w-full"
-            >
-              <p className="text-xs font-black text-gray-500 uppercase tracking-wide flex-1 text-left">
-                Done · {doneCustomers.length}
-              </p>
-              {showDone
-                ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
-                : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-              }
-            </button>
-            {showDone && (
-              <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
-                {doneCustomers.map(c => (
-                  <CustomerRow
-                    key={c.id}
-                    c={c}
-                    today={today}
-                    statuses={statuses}
-                    onMark={markDelivery}
-                    lastTouchMs={lastTouchMs}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+        {/* Slot groups */}
+        {hasAssignment && slotGroups.map(({ slot, slotCustomers, pending, done }) => {
+          const slotAllDone = pending.length === 0
+          return (
+            <SlotSection
+              key={slot}
+              slot={slot}
+              total={slotCustomers.length}
+              pending={pending}
+              done={done}
+              slotAllDone={slotAllDone}
+              today={today}
+              statuses={statuses}
+              onMark={markDelivery}
+              lastTouchMs={lastTouchMs}
+            />
+          )
+        })}
 
         {/* Paused customers */}
         {pausedCustomers.length > 0 && (
@@ -428,18 +396,113 @@ function RiderNotificationRow({ n, onDismiss }: { n: RiderNotification; onDismis
   )
 }
 
+// ── Slot section ────────────────────────────────────────────────────────────────
+
+const SLOT_EMOJI: Record<MealSlot, string> = {
+  breakfast: '🌅',
+  lunch:     '☀️',
+  dinner:    '🌙',
+}
+
+function SlotSection({
+  slot, total, pending, done, slotAllDone, today, statuses, onMark, lastTouchMs,
+}: {
+  slot: MealSlot
+  total: number
+  pending: Customer[]
+  done: Customer[]
+  slotAllDone: boolean
+  today: string
+  statuses: Record<string, DeliveryStatus>
+  onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
+  lastTouchMs: React.MutableRefObject<Record<string, number>>
+}) {
+  const [showDone, setShowDone] = useState(false)
+
+  return (
+    <section className="space-y-2">
+      {/* Slot header */}
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-base leading-none">{SLOT_EMOJI[slot]}</span>
+        <p className="text-xs font-black text-gray-500 uppercase tracking-wide flex-1">
+          {slotLabel(slot)}
+        </p>
+        <span className={`text-xs font-black ${slotAllDone ? 'text-green-600' : 'text-gray-400'}`}>
+          {total - pending.length}/{total}
+        </span>
+        {slotAllDone && (
+          <span className="text-[10px] font-black text-green-600 uppercase tracking-wide bg-green-50 px-2 py-0.5 rounded-full">
+            Done
+          </span>
+        )}
+      </div>
+
+      {/* Pending rows */}
+      {pending.length > 0 && (
+        <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
+          {pending.map(c => (
+            <CustomerRow
+              key={c.id}
+              c={c}
+              today={today}
+              statuses={statuses}
+              onMark={onMark}
+              lastTouchMs={lastTouchMs}
+              filterSlot={slot}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Done rows (collapsible) */}
+      {done.length > 0 && (
+        <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowDone(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+            <span className="text-xs font-black text-green-700 flex-1">
+              {done.length} {done.length === 1 ? 'delivery' : 'deliveries'} done
+            </span>
+            {showDone
+              ? <ChevronUp className="w-3.5 h-3.5 text-green-500" />
+              : <ChevronDown className="w-3.5 h-3.5 text-green-500" />}
+          </button>
+          {showDone && (
+            <div className="divide-y divide-green-50/50 border-t border-green-100">
+              {done.map(c => (
+                <CustomerRow
+                  key={c.id}
+                  c={c}
+                  today={today}
+                  statuses={statuses}
+                  onMark={onMark}
+                  lastTouchMs={lastTouchMs}
+                  filterSlot={slot}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Customer row ────────────────────────────────────────────────────────────────
 
 function CustomerRow({
-  c, today, statuses, onMark, lastTouchMs,
+  c, today, statuses, onMark, lastTouchMs, filterSlot,
 }: {
   c: Customer
   today: string
   statuses: Record<string, DeliveryStatus>
   onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
   lastTouchMs: React.MutableRefObject<Record<string, number>>
+  filterSlot?: MealSlot
 }) {
-  const slots = getSlots(c)
+  const slots = filterSlot ? [filterSlot] : getSlots(c)
   const allDone = slots.every(s => (statuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
 
   return (
