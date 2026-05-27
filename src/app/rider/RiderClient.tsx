@@ -2,11 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut, MapPin } from 'lucide-react'
+import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut, MapPin, Check, Sparkles } from 'lucide-react'
 import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
 
 type MealSlot = 'breakfast' | 'lunch' | 'dinner'
 type DeliveryStatus = 'pending' | 'delivered' | 'skipped'
+
+const SWIPE_THRESHOLD = 72
+
+interface ExtraItem { item: string; amount: number }
 
 interface Customer {
   id: string
@@ -67,9 +71,10 @@ interface Props {
   notifications: RiderNotification[]
   isAlsoProvider?: boolean
   isAreaBased: boolean
+  extras: Record<string, ExtraItem[]>
 }
 
-export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider, isAreaBased }: Props) {
+export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider, isAreaBased, extras }: Props) {
   const router = useRouter()
   const [statuses, setStatuses] = useState<Record<string, DeliveryStatus>>(
     initialStatuses as Record<string, DeliveryStatus>
@@ -338,6 +343,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
             statuses={statuses}
             onMark={markDelivery}
             lastTouchMs={lastTouchMs}
+            extras={extras}
           />
         ))}
 
@@ -353,6 +359,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
             statuses={statuses}
             onMark={markDelivery}
             lastTouchMs={lastTouchMs}
+            extras={extras}
           />
         ))}
 
@@ -491,7 +498,7 @@ const SLOT_EMOJI: Record<MealSlot, string> = {
 }
 
 function SlotSection({
-  slot, total, pending, delivered, skipped, statuses, onMark, lastTouchMs,
+  slot, total, pending, delivered, skipped, statuses, onMark, lastTouchMs, extras,
 }: {
   slot: MealSlot
   total: number
@@ -501,6 +508,7 @@ function SlotSection({
   statuses: Record<string, DeliveryStatus>
   onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
   lastTouchMs: React.MutableRefObject<Record<string, number>>
+  extras: Record<string, ExtraItem[]>
 }) {
   const [showDelivered, setShowDelivered] = useState(false)
   const [showSkipped, setShowSkipped] = useState(false)
@@ -535,6 +543,7 @@ function SlotSection({
               onMark={onMark}
               lastTouchMs={lastTouchMs}
               filterSlot={slot}
+              extras={extras}
             />
           ))}
         </div>
@@ -565,6 +574,7 @@ function SlotSection({
                   onMark={onMark}
                   lastTouchMs={lastTouchMs}
                   filterSlot={slot}
+                  extras={extras}
                 />
               ))}
             </div>
@@ -597,6 +607,7 @@ function SlotSection({
                   onMark={onMark}
                   lastTouchMs={lastTouchMs}
                   filterSlot={slot}
+                  extras={extras}
                 />
               ))}
             </div>
@@ -610,7 +621,7 @@ function SlotSection({
 // ── Area section ─────────────────────────────────────────────────────────────
 
 function AreaSection({
-  area, total, pending, delivered, skipped, statuses, onMark, lastTouchMs,
+  area, total, pending, delivered, skipped, statuses, onMark, lastTouchMs, extras,
 }: {
   area: string
   total: number
@@ -620,6 +631,7 @@ function AreaSection({
   statuses: Record<string, DeliveryStatus>
   onMark: (id: string, slot: MealSlot, status: DeliveryStatus) => void
   lastTouchMs: React.MutableRefObject<Record<string, number>>
+  extras: Record<string, ExtraItem[]>
 }) {
   const [showDelivered, setShowDelivered] = useState(false)
   const [showSkipped, setShowSkipped] = useState(false)
@@ -645,7 +657,7 @@ function AreaSection({
       {pending.length > 0 && (
         <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
           {pending.map(c => (
-            <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView />
+            <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView extras={extras} />
           ))}
         </div>
       )}
@@ -661,7 +673,7 @@ function AreaSection({
           {showDelivered && (
             <div className="divide-y divide-green-50/50 border-t border-green-100">
               {delivered.map(c => (
-                <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView />
+                <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView extras={extras} />
               ))}
             </div>
           )}
@@ -679,7 +691,7 @@ function AreaSection({
           {showSkipped && (
             <div className="divide-y divide-amber-50/50 border-t border-amber-100">
               {skipped.map(c => (
-                <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView />
+                <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView extras={extras} />
               ))}
             </div>
           )}
@@ -692,7 +704,7 @@ function AreaSection({
 // ── Customer row ────────────────────────────────────────────────────────────────
 
 function CustomerRow({
-  c, statuses, onMark, lastTouchMs, filterSlot, areaView,
+  c, statuses, onMark, lastTouchMs, filterSlot, areaView, extras,
 }: {
   c: Customer
   statuses: Record<string, DeliveryStatus>
@@ -700,40 +712,115 @@ function CustomerRow({
   lastTouchMs: React.MutableRefObject<Record<string, number>>
   filterSlot?: MealSlot
   areaView?: boolean
+  extras: Record<string, ExtraItem[]>
 }) {
   const slots = filterSlot ? [filterSlot] : getSlots(c)
   const allDone = slots.every(s => (statuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
+  const customerExtras = extras[c.id] ?? []
 
   // Slot view: subtitle = area.  Area view: subtitle = meal names (area is the section header).
   const subtitle = areaView
     ? slots.map(s => `${SLOT_EMOJI[s]} ${slotLabel(s)}`).join(' · ')
     : c.area
 
+  // ── Swipe state ──────────────────────────────────────────────────────────
+  const startX = useRef(0)
+  const startY = useRef(0)
+  const [deltaX, setDeltaX] = useState(0)
+  const [tracking, setTracking] = useState(false)
+  const swipeProgress = Math.min(Math.abs(deltaX) / SWIPE_THRESHOLD, 1)
+
+  function handleSwipeMark(newStatus: 'delivered' | 'skipped') {
+    slots.forEach(slot => {
+      if ((statuses[`${c.id}:${slot}`] ?? 'pending') === 'pending') {
+        onMark(c.id, slot, newStatus)
+      }
+    })
+  }
+
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 transition-colors ${allDone ? 'bg-green-50/50' : ''}`}>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-bold truncate ${allDone ? 'text-green-800' : 'text-gray-900'}`}>
-          {c.name}
-        </p>
-        {subtitle && (
-          <p className="text-xs font-semibold text-gray-400">{subtitle}</p>
-        )}
+    <div
+      className="relative overflow-hidden select-none touch-pan-y"
+      onTouchStart={(e) => {
+        startX.current = e.touches[0].clientX
+        startY.current = e.touches[0].clientY
+        setTracking(true)
+        setDeltaX(0)
+      }}
+      onTouchMove={(e) => {
+        if (!tracking) return
+        const dx = e.touches[0].clientX - startX.current
+        const dy = e.touches[0].clientY - startY.current
+        if (Math.abs(dx) > Math.abs(dy) + 8) setDeltaX(dx)
+      }}
+      onTouchEnd={() => {
+        if (!tracking) return
+        setTracking(false)
+        if (deltaX > SWIPE_THRESHOLD) handleSwipeMark('delivered')
+        else if (deltaX < -SWIPE_THRESHOLD) handleSwipeMark('skipped')
+        setDeltaX(0)
+      }}
+    >
+      {/* Green reveal: swipe right = delivered */}
+      <div
+        className="absolute inset-0 flex items-center justify-start pl-4 pointer-events-none"
+        style={{ opacity: deltaX > 0 ? swipeProgress : 0, background: `rgba(34,197,94,${swipeProgress * 0.22})` }}
+      >
+        <Check className="w-4 h-4 text-green-600" />
+        <span className="ml-1.5 text-xs font-bold text-green-700" style={{ opacity: swipeProgress > 0.6 ? 1 : 0 }}>Delivered</span>
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        {slots.map(slot => {
-          const key = `${c.id}:${slot}`
-          const status: DeliveryStatus = statuses[key] ?? 'pending'
-          return (
-            <SlotButton
-              key={slot}
-              customerId={c.id}
-              slot={slot}
-              status={status}
-              onMark={onMark}
-              lastTouchMs={lastTouchMs}
-            />
-          )
-        })}
+      {/* Orange reveal: swipe left = skipped */}
+      <div
+        className="absolute inset-0 flex items-center justify-end pr-4 pointer-events-none"
+        style={{ opacity: deltaX < 0 ? swipeProgress : 0, background: `rgba(251,146,60,${swipeProgress * 0.22})` }}
+      >
+        <span className="mr-1.5 text-xs font-bold text-orange-600" style={{ opacity: swipeProgress > 0.6 ? 1 : 0 }}>Skip</span>
+        <X className="w-4 h-4 text-orange-500" />
+      </div>
+
+      {/* Row content */}
+      <div
+        className={`flex items-center gap-3 px-4 py-3 transition-colors ${allDone ? 'bg-green-50/50' : ''}`}
+        style={{
+          transform: tracking ? `translateX(${deltaX * 0.45}px)` : 'translateX(0)',
+          transition: tracking ? 'none' : 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)',
+        }}
+      >
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-bold truncate ${allDone ? 'text-green-800' : 'text-gray-900'}`}>
+            {c.name}
+          </p>
+          {subtitle && (
+            <p className="text-xs font-semibold text-gray-400">{subtitle}</p>
+          )}
+          {/* Extras chips — read-only for rider */}
+          {customerExtras.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {customerExtras.map((e, i) => (
+                <span key={i} className="inline-flex items-center gap-1 bg-orange-50 border border-orange-100 text-orange-600 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
+                  <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                  {e.item}{e.amount > 0 ? ` ₹${e.amount}` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {slots.map(slot => {
+            const key = `${c.id}:${slot}`
+            const status: DeliveryStatus = statuses[key] ?? 'pending'
+            return (
+              <SlotButton
+                key={slot}
+                customerId={c.id}
+                slot={slot}
+                status={status}
+                onMark={onMark}
+                lastTouchMs={lastTouchMs}
+              />
+            )
+          })}
+        </div>
       </div>
     </div>
   )

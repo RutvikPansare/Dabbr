@@ -33,8 +33,8 @@ export default async function RiderPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
-  // Fetch assignments + customers + delivery logs + notifications in parallel
-  const [assignments, { data: allCustomers }, { data: mealPlans }, { data: logsData }, { data: rawNotifications }] =
+  // Fetch assignments + customers + delivery logs + notifications + extras in parallel
+  const [assignments, { data: allCustomers }, { data: mealPlans }, { data: logsData }, { data: rawNotifications }, { data: extrasData }] =
     await Promise.all([
       getRiderAssignments(riderInfo.id, today),
       db
@@ -55,6 +55,12 @@ export default async function RiderPage() {
         .is('dismissed_at', null)
         .order('created_at', { ascending: false })
         .limit(50),
+      db
+        .from('delivery_extras')
+        .select('customer_id, item, amount')
+        .eq('provider_id', riderInfo.provider_id)
+        .eq('delivery_date', today)
+        .eq('status', 'pending'),
     ])
 
   // Determine which customers this rider handles today
@@ -81,6 +87,12 @@ export default async function RiderPage() {
     deliveryStatuses[`${log.customer_id}:${log.meal_slot}`] = log.status
   }
 
+  const extrasMap: Record<string, { item: string; amount: number }[]> = {}
+  for (const row of (extrasData ?? [])) {
+    if (!extrasMap[row.customer_id]) extrasMap[row.customer_id] = []
+    extrasMap[row.customer_id].push({ item: row.item, amount: row.amount })
+  }
+
   const notifications = (rawNotifications ?? []).map((n: any) => ({
     id: n.id as string,
     type: n.type as string,
@@ -101,6 +113,7 @@ export default async function RiderPage() {
       notifications={notifications}
       isAlsoProvider={isAlsoProvider}
       isAreaBased={!hasFull}
+      extras={extrasMap}
     />
   )
 }
