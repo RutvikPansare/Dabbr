@@ -15,18 +15,18 @@ export default async function RiderPage() {
   const riderInfo = await findAndLinkRider(user.id, phone, email)
   if (!riderInfo) redirect('/dashboard') // not a rider → provider dashboard
 
-  // Provider override: if the rider also has provider setup (meal plans OR
-  // business name set), send them to the provider dashboard instead.
+  // Check if this rider is also a real provider (has actual meal plans).
+  // We do NOT auto-redirect — instead we show a "Switch to Provider View"
+  // button so they can choose. Auto-redirecting caused an infinite loop because
+  // Google SSO auto-populates providers.name for riders too, which would make
+  // isAlsoProvider true and bounce them straight back to /dashboard.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db2 = createAdminClient() as any
-  const [{ count: planCount }, { data: provRow }] = await Promise.all([
-    db2.from('meal_plans').select('id', { count: 'exact', head: true }).eq('provider_id', user.id),
-    db2.from('providers').select('name').eq('id', user.id).maybeSingle(),
-  ])
-  const isAlsoProvider =
-    (planCount ?? 0) > 0 ||
-    (typeof provRow?.name === 'string' && provRow.name.trim().length > 0)
-  if (isAlsoProvider) redirect('/dashboard')
+  const { count: planCount } = await db2
+    .from('meal_plans')
+    .select('id', { count: 'exact', head: true })
+    .eq('provider_id', user.id)
+  const isAlsoProvider = (planCount ?? 0) > 0
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
@@ -99,6 +99,7 @@ export default async function RiderPage() {
       initialStatuses={deliveryStatuses}
       hasAssignment={assignments.length > 0}
       notifications={notifications}
+      isAlsoProvider={isAlsoProvider}
     />
   )
 }

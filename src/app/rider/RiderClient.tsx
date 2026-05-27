@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X } from 'lucide-react'
+import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard } from 'lucide-react'
 import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
 
 type MealSlot = 'breakfast' | 'lunch' | 'dinner'
@@ -55,9 +55,10 @@ interface Props {
   initialStatuses: Record<string, string>
   hasAssignment: boolean
   notifications: RiderNotification[]
+  isAlsoProvider?: boolean
 }
 
-export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications }: Props) {
+export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider }: Props) {
   const [statuses, setStatuses] = useState<Record<string, DeliveryStatus>>(
     initialStatuses as Record<string, DeliveryStatus>
   )
@@ -199,6 +200,17 @@ export default function RiderClient({ riderName, today, customers, initialStatus
               <p className="text-sm font-black text-gray-900">{deliveredSlots}/{totalSlots}</p>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">done</p>
             </div>
+          )}
+          {/* Switch to provider view — only shown when this user is also a provider */}
+          {isAlsoProvider && (
+            <a
+              href="/api/set-view?view=provider"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-orange-200 bg-orange-50 text-orange-600 text-xs font-bold hover:bg-orange-100 active:scale-95 transition-all"
+              title="Switch to Provider Dashboard"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Provider</span>
+            </a>
           )}
           {/* Bell */}
           <button

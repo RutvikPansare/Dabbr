@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getCachedDashboardData, getCachedMealPlans, getTodayMenus } from '@/lib/queries'
 import { findAndLinkRider } from '@/lib/rider'
@@ -16,12 +17,19 @@ export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
+  // ── View-override cookie ───────────────────────────────────────────────────
+  // A user who is both a provider and a rider can use /api/set-view to pick
+  // which dashboard they want. The cookie persists for 1 year.
+  const cookieStore = await cookies()
+  const viewOverride = cookieStore.get('dabbr_view')?.value // 'provider' | 'rider' | undefined
+
   // ── Rider check — always runs first ──────────────────────────────────────
   // Must happen before the provider-setup heuristic because a rider may have a
   // providers row with a name set (e.g. auto-populated by Google SSO), which
   // would incorrectly flip hasProviderSetup and strand them on the provider UI.
+  // Skipped when the user has explicitly chosen provider view via the cookie.
   const riderInfo = await findAndLinkRider(user.id, user.phone ?? null, user.email ?? null)
-  if (riderInfo) redirect('/rider')
+  if (riderInfo && viewOverride !== 'provider') redirect('/rider')
 
   // ── Provider setup check ──────────────────────────────────────────────────
   // Has meal plans OR has set a business name → treat as provider.
