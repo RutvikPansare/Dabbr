@@ -686,15 +686,25 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   // ── Cancellation notification state ───────────────────────────────────────
   const [cancelRequests] = useState<CancellationRequest[]>(initialData.cancellationRequests ?? [])
-  const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
+  const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
+  const [cancelDismissMounted, setCancelDismissMounted] = useState(false)
+  const [cancelBellOpen, setCancelBellOpen] = useState(false)
+
+  // Read dismissed IDs from localStorage after hydration — can't do it in
+  // useState initializer because the server renders with window=undefined and
+  // React hydrates using that empty set, ignoring the client-side localStorage.
+  useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('dismissed_cancel_requests') ?? '[]')
-      return new Set(Array.isArray(stored) ? stored : [])
-    } catch { return new Set() }
-  })
-  const [cancelBellOpen, setCancelBellOpen] = useState(false)
-  const visibleCancelRequests = cancelRequests.filter(r => !dismissedCancelIds.has(r.id))
+      setDismissedCancelIds(new Set(Array.isArray(stored) ? stored : []))
+    } catch {}
+    setCancelDismissMounted(true)
+  }, [])
+
+  // Don't compute visible requests until localStorage has been read (avoids badge flash)
+  const visibleCancelRequests = cancelDismissMounted
+    ? cancelRequests.filter(r => !dismissedCancelIds.has(r.id))
+    : []
 
   function dismissCancelRequest(id: string) {
     setDismissedCancelIds(prev => {
