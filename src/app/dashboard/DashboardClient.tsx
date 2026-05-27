@@ -961,6 +961,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
     if (prevStatus === newStatus) return
 
+    // Moving a delivery back to pending reopens the run — clear the completed chip
+    if (newStatus === 'pending') setRunCompleted(false)
+
     const customer = customersRef.current.find(c => c.id === customerId)
 
     // ── Optimistic update ────────────────────────────────────────────────────
