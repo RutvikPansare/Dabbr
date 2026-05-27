@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { dismissProviderNotification } from './actions'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
@@ -694,65 +695,48 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
 
-  // ── Cancellation notification state ───────────────────────────────────────
-  const [cancelRequests] = useState<CancellationRequest[]>(initialData.cancellationRequests ?? [])
-  const [dismissedCancelIds, setDismissedCancelIds] = useState<Set<string>>(new Set())
-  const [cancelDismissMounted, setCancelDismissMounted] = useState(false)
+  // ── Cancellation & pause notification state ──────────────────────────────
+  // Server-side query already filters provider_seen = false, so these are
+  // only the unseen notifications. We remove entries optimistically on dismiss
+  // and call the server action to persist the seen state to the DB.
+  const [visibleCancelRequests, setVisibleCancelRequests] = useState<CancellationRequest[]>(
+    initialData.cancellationRequests ?? [],
+  )
+  const [visiblePauseNotifs, setVisiblePauseNotifs] = useState<PauseNotification[]>(
+    initialData.pauseNotifications ?? [],
+  )
   const [cancelBellOpen, setCancelBellOpen] = useState(false)
 
-  // Read dismissed IDs from localStorage after hydration — can't do it in
-  // useState initializer because the server renders with window=undefined and
-  // React hydrates using that empty set, ignoring the client-side localStorage.
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('dismissed_cancel_requests') ?? '[]')
-      setDismissedCancelIds(new Set(Array.isArray(stored) ? stored : []))
-    } catch {}
-    setCancelDismissMounted(true)
-  }, [])
-
-  // Don't compute visible requests until localStorage has been read (avoids badge flash)
-  const visibleCancelRequests = cancelDismissMounted
-    ? cancelRequests.filter(r => !dismissedCancelIds.has(r.id))
-    : []
-
-  // ── Pause notification state ───────────────────────────────────────────────
-  const [pauseNotifications] = useState<PauseNotification[]>(initialData.pauseNotifications ?? [])
-  const [dismissedPauseIds, setDismissedPauseIds] = useState<Set<string>>(new Set())
-  const [pauseDismissMounted, setPauseDismissMounted] = useState(false)
-
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('dismissed_pause_notifs') ?? '[]')
-      setDismissedPauseIds(new Set(Array.isArray(stored) ? stored : []))
-    } catch {}
-    setPauseDismissMounted(true)
-  }, [])
-
-  const visiblePauseNotifs = pauseDismissMounted
-    ? pauseNotifications.filter(p => !dismissedPauseIds.has(p.id))
-    : []
-
   function dismissPauseNotif(id: string) {
-    setDismissedPauseIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      try { localStorage.setItem('dismissed_pause_notifs', JSON.stringify([...next])) } catch {}
-      return next
-    })
+    setVisiblePauseNotifs(prev => prev.filter(p => p.id !== id))
+    dismissProviderNotification('pause', id).catch(() => {/* fire-and-forget — optimistic is fine */})
   }
 
   function dismissAllPauseNotifs() {
-    const allIds = new Set(pauseNotifications.map(p => p.id))
-    setDismissedPauseIds(allIds)
-    try { localStorage.setItem('dismissed_pause_notifs', JSON.stringify([...allIds])) } catch {}
+    const ids = visiblePauseNotifs.map(p => p.id)
+    setVisiblePauseNotifs([])
+    ids.forEach(id => dismissProviderNotification('pause', id).catch(() => {}))
+  }
+
+  function dismissCancelRequest(id: string) {
+    setVisibleCancelRequests(prev => prev.filter(r => r.id !== id))
+    dismissProviderNotification('cancel', id).catch(() => {})
+  }
+
+  function dismissAllCancelRequests() {
+    const ids = visibleCancelRequests.map(r => r.id)
+    setVisibleCancelRequests([])
+    ids.forEach(id => dismissProviderNotification('cancel', id).catch(() => {}))
+    setCancelBellOpen(false)
   }
 
   // ── Fire native Android notification for new pause events ─────────────────
+  const nativeNotifFiredRef = useRef(false)
   useEffect(() => {
-    if (!pauseDismissMounted || visiblePauseNotifs.length === 0) return
+    if (nativeNotifFiredRef.current || visiblePauseNotifs.length === 0) return
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
     if (!isNative) return
+    nativeNotifFiredRef.current = true
 
     async function fireNativeNotifications() {
       try {
@@ -760,28 +744,15 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         const perm = await LocalNotifications.requestPermissions()
         if (perm.display !== 'granted') return
 
-        // Only fire for IDs we haven't already fired (track in localStorage)
-        const firedKey = 'fired_pause_notif_ids'
-        let alreadyFired: Set<string>
-        try {
-          alreadyFired = new Set(JSON.parse(localStorage.getItem(firedKey) ?? '[]'))
-        } catch { alreadyFired = new Set() }
-
-        const toFire = visiblePauseNotifs.filter(p => !alreadyFired.has(p.id))
-        if (toFire.length === 0) return
-
         await LocalNotifications.schedule({
-          notifications: toFire.map((p, i) => ({
-            id: Math.abs(p.id.split('').reduce((a, c) => (a << 5) - a + c.charCodeAt(0), 0)) % 2147483647 || (i + 1),
+          notifications: visiblePauseNotifs.map((p, i) => ({
+            id: Math.abs(p.id.split('').reduce((a: number, c: string) => (a << 5) - a + c.charCodeAt(0), 0)) % 2147483647 || (i + 1),
             title: '⏸️ Delivery Paused',
             body: `${p.customer_name} paused from ${new Date(p.start_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} to ${new Date(p.end_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${p.reason ? ` · ${p.reason}` : ''}`,
             schedule: { at: new Date(Date.now() + 1000) },
             channelId: 'dabbr-alerts',
           })),
         })
-
-        const newFired = new Set([...alreadyFired, ...toFire.map(p => p.id)])
-        try { localStorage.setItem(firedKey, JSON.stringify([...newFired])) } catch {}
       } catch (e) {
         console.warn('Local notification error:', e)
       }
@@ -789,23 +760,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
     fireNativeNotifications()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pauseDismissMounted])
-
-  function dismissCancelRequest(id: string) {
-    setDismissedCancelIds(prev => {
-      const next = new Set(prev)
-      next.add(id)
-      try { localStorage.setItem('dismissed_cancel_requests', JSON.stringify([...next])) } catch {}
-      return next
-    })
-  }
-
-  function dismissAllCancelRequests() {
-    const allIds = new Set(cancelRequests.map(r => r.id))
-    setDismissedCancelIds(allIds)
-    try { localStorage.setItem('dismissed_cancel_requests', JSON.stringify([...allIds])) } catch {}
-    setCancelBellOpen(false)
-  }
+  }, [])
 
   const totalBellCount = visibleCancelRequests.length + visiblePauseNotifs.length
 
@@ -1618,9 +1573,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
-            {visibleCancelRequests.length > 0 && (
+            {totalBellCount > 0 && (
               <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
-                {visibleCancelRequests.length}
+                {totalBellCount}
               </span>
             )}
           </button>

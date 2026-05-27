@@ -196,10 +196,12 @@ export function getCachedDashboardData(userId: string, today: string) {
           .select('id, customer_id, reason, created_at, customers(name)')
           .eq('provider_id', userId)
           .eq('status', 'pending')
+          .eq('provider_seen', false)
           .order('created_at', { ascending: false }),
         db.from('subscription_pauses')
           .select('id, start_date, end_date, reason, created_at, subscriptions(customer_id, customers(name))')
           .eq('provider_id', userId)
+          .eq('provider_seen', false)
           .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
           .order('created_at', { ascending: false }),
         getTrialStatus(db, userId),
