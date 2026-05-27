@@ -13,7 +13,7 @@ import {
   SlidersHorizontal, HandCoins, Trash2,
 } from 'lucide-react'
 import type { PlanType, Frequency, CustomerStatus, MealSlot, SubscriptionStatus, MealPlanStatus } from '@/types/database'
-import { formatMealSlots } from '@/lib/meals'
+import { formatMealSlots, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { computeBalance, DUE_COLORS, balanceStateLabel, fmtRupees, fmtDays } from '@/lib/udhar'
 import { generateCustomerToken } from '@/lib/customer-token'
 import { invalidateCustomers } from '@/lib/revalidate'
@@ -101,6 +101,8 @@ interface LedgerEvent {
   type: LedgerEventType
   amount?: number       // payments only
   notes?: string | null // payments only
+  mealSlot?: string | null  // delivery events only
+  markedAt?: string | null  // delivery events only (ISO timestamp)
 }
 
 interface FormState {
@@ -454,7 +456,7 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
         .order('recorded_at', { ascending: false }),
       db
         .from('delivery_logs')
-        .select('id, date, status')
+        .select('id, date, status, meal_slot, marked_at')
         .eq('customer_id', c.id)
         .gte('date', cutoff.toISOString().split('T')[0])
         .order('date', { ascending: false }),
@@ -501,10 +503,16 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
     // Delivery events from delivery_logs
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const d of ((deliveryData ?? []) as any[])) {
+      // Use marked_at as the event timestamp if available (shows actual delivery time),
+      // otherwise fall back to date + a slot-appropriate default hour
+      const slotHour = d.meal_slot === 'breakfast' ? 8 : d.meal_slot === 'dinner' ? 20 : 12
+      const eventDate = d.marked_at ?? `${d.date}T${String(slotHour).padStart(2,'0')}:00:00`
       events.push({
         id: `dl-${d.id}`,
-        date: `${d.date}T12:00:00`,
+        date: eventDate,
         type: d.status === 'delivered' ? 'delivery_delivered' : 'delivery_skipped',
+        mealSlot: d.meal_slot ?? null,
+        markedAt: d.marked_at ?? null,
       })
     }
 
@@ -2242,8 +2250,21 @@ export default function CustomersClient({ initialCustomers, initialMealPlans, pr
                               {event.type === 'pause_start'        && 'Deliveries paused'}
                               {event.type === 'pause_end'          && 'Deliveries resumed'}
                               {event.type === 'balance_low'        && 'Balance running low'}
-                              {event.type === 'delivery_delivered' && 'Meal delivered'}
-                              {event.type === 'delivery_skipped'   && 'Skipped today'}
+                              {event.type === 'delivery_delivered' && (
+                                <>
+                                  {event.mealSlot ? `${MEAL_SLOT_EMOJI[event.mealSlot as keyof typeof MEAL_SLOT_EMOJI] ?? ''} ${MEAL_SLOT_LABEL[event.mealSlot as keyof typeof MEAL_SLOT_LABEL] ?? event.mealSlot}` : 'Meal'} delivered
+                                  {event.markedAt && (
+                                    <span className="text-gray-400 font-semibold ml-1">
+                                      · {new Date(event.markedAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                              {event.type === 'delivery_skipped' && (
+                                <>
+                                  {event.mealSlot ? `${MEAL_SLOT_EMOJI[event.mealSlot as keyof typeof MEAL_SLOT_EMOJI] ?? ''} ${MEAL_SLOT_LABEL[event.mealSlot as keyof typeof MEAL_SLOT_LABEL] ?? event.mealSlot}` : 'Meal'} skipped
+                                </>
+                              )}
                               {event.type === 'delivery_extra'     && <>Extra charged {event.amount ? <span className="text-orange-600">₹{event.amount}</span> : ''}</>}
                               {event.type === 'customer_created'   && 'Customer added'}
                             </p>
