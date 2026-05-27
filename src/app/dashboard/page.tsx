@@ -16,9 +16,17 @@ export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
-  // Resolve provider status: has meal plans OR has set a business name.
+  // ── Rider check — always runs first ──────────────────────────────────────
+  // Must happen before the provider-setup heuristic because a rider may have a
+  // providers row with a name set (e.g. auto-populated by Google SSO), which
+  // would incorrectly flip hasProviderSetup and strand them on the provider UI.
+  const riderInfo = await findAndLinkRider(user.id, user.phone ?? null, user.email ?? null)
+  if (riderInfo) redirect('/rider')
+
+  // ── Provider setup check ──────────────────────────────────────────────────
+  // Has meal plans OR has set a business name → treat as provider.
   // Both signals are checked so a provider who deleted all plans still gets
-  // provider UI, and a new rider who never touched provider setup gets rider UI.
+  // provider UI.
   const [mealPlans, { data: providerRow }] = await Promise.all([
     getCachedMealPlans(user.id),
     db.from('providers').select('name, onboarding_done').eq('id', user.id).maybeSingle(),
@@ -29,12 +37,7 @@ export default async function DashboardPage() {
     (typeof providerRow?.name === 'string' && providerRow.name.trim().length > 0)
 
   if (!hasProviderSetup) {
-    // No provider setup — check if this is a rider (links on first login)
-    const riderInfo = await findAndLinkRider(user.id, user.phone ?? null, user.email ?? null)
-    if (riderInfo) redirect('/rider')
-
     // Check if this user is a customer (linked to a customer record via user_id)
-    // If so, redirect them to their portal instead of the provider dashboard
     const { data: customerRow } = await db
       .from('customers')
       .select('id')
