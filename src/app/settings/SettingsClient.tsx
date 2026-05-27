@@ -51,6 +51,8 @@ interface DeliveryRider {
   id: string
   name: string
   whatsapp_number: string
+  email: string | null
+  invite_status: string
 }
 
 function darkenForPreview(hex: string, by: number) {
@@ -408,6 +410,7 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
   const [riders, setRiders] = useState<DeliveryRider[]>(initialRiders)
   const [newRiderName, setNewRiderName] = useState('')
   const [newRiderPhone, setNewRiderPhone] = useState('')
+  const [newRiderEmail, setNewRiderEmail] = useState('')
   const [riderSaving, setRiderSaving] = useState(false)
   const [riderError, setRiderError] = useState('')
   const [showRiderContactImport, setShowRiderContactImport] = useState(false)
@@ -737,20 +740,27 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       setRiderError('Enter a valid name and 10-digit WhatsApp number.')
       return
     }
+    const email = newRiderEmail.trim().toLowerCase() || null
     setRiderSaving(true)
     setRiderError('')
     const { data, error: addErr } = await db
       .from('delivery_riders')
-      .insert({ provider_id: providerId, name, whatsapp_number: phone })
-      .select('id, name, whatsapp_number')
+      .insert({ provider_id: providerId, name, whatsapp_number: phone, email, invite_status: 'pending' })
+      .select('id, name, whatsapp_number, email, invite_status')
       .single()
     setRiderSaving(false)
     if (addErr) { setRiderError(addErr.message); return }
     if (data) setRiders(prev => [...prev, data])
     setNewRiderName('')
     setNewRiderPhone('')
+    setNewRiderEmail('')
     await invalidateSettings(providerId)
     router.refresh()
+  }
+
+  function sendRiderInvite(rider: DeliveryRider) {
+    const msg = `Hi ${rider.name}! You've been added as a delivery rider. Open https://dabbr.in in your browser and log in with this number to see your daily delivery list. 🛵`
+    window.open(`https://wa.me/91${rider.whatsapp_number}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   async function handleDeleteRider(id: string) {
@@ -766,11 +776,12 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       provider_id: providerId,
       name: c.name.trim(),
       whatsapp_number: c.phone.replace(/^(91|0)(\d{10})$/, '$2'),
+      invite_status: 'pending',
     }))
     const { data, error } = await db
       .from('delivery_riders')
       .insert(inserts)
-      .select()
+      .select('id, name, whatsapp_number, email, invite_status')
     if (!error && data) {
       setRiders(prev => [...prev, ...data])
       await invalidateSettings(providerId)
@@ -1678,28 +1689,46 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
             </button>
           </div>
           <p className="mb-5 text-xs font-semibold text-gray-400 leading-relaxed">
-            Add your delivery riders so you can send area-wise lists directly to their WhatsApp from the home page.
+            Add riders so you can send delivery lists via WhatsApp and assign them routes. Riders log in at dabbr.in with their phone number to see their list.
           </p>
 
           {/* Existing riders */}
           {riders.length > 0 && (
             <div className="mb-4 space-y-2">
               {riders.map(rider => (
-                <div key={rider.id} className="flex items-center gap-3 rounded-2xl bg-gray-50 px-4 py-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
-                    <Bike className="w-4 h-4" />
+                <div key={rider.id} className="rounded-2xl bg-gray-50 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600">
+                      <Bike className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-gray-900 truncate">{rider.name}</p>
+                        {rider.invite_status === 'active' && (
+                          <span className="text-[9px] font-black uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full shrink-0">Active</span>
+                        )}
+                      </div>
+                      <p className="text-xs font-medium text-gray-400">{rider.whatsapp_number}{rider.email ? ` · ${rider.email}` : ''}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {rider.invite_status !== 'active' && (
+                        <button
+                          type="button"
+                          onClick={() => sendRiderInvite(rider)}
+                          className="flex items-center gap-1 rounded-xl bg-green-50 border border-green-200 px-2.5 py-1.5 text-[11px] font-bold text-green-700 active:scale-95 transition-all"
+                        >
+                          Invite
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRider(rider.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{rider.name}</p>
-                    <p className="text-xs font-medium text-gray-400">{rider.whatsapp_number}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteRider(rider.id)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               ))}
             </div>
@@ -1732,6 +1761,13 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
                 {riderSaving ? <span className="text-xs">…</span> : <Plus className="w-4 h-4" />}
               </button>
             </div>
+            <input
+              type="email"
+              placeholder="Email (optional — for Google login)"
+              value={newRiderEmail}
+              onChange={e => { setNewRiderEmail(e.target.value); setRiderError('') }}
+              className="input-modern"
+            />
             {riderError && (
               <p className="text-xs font-semibold text-red-500">{riderError}</p>
             )}

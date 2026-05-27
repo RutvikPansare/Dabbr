@@ -82,6 +82,8 @@ interface DeliveryRider {
   id: string
   name: string
   whatsapp_number: string
+  email: string | null
+  invite_status: string
 }
 
 interface TodayMenu {
@@ -689,6 +691,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const todayMenus: TodayMenu[] = initialData.todayMenus ?? []
   const [riderModal, setRiderModal] = useState<{ area: string; members: Customer[] } | null>(null)
   const [areaCopied, setAreaCopied] = useState<string | null>(null)
+  const [assignModal, setAssignModal] = useState(false)
+  const [assignments, setAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
+  const [assignSaving, setAssignSaving] = useState(false)
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(
@@ -1335,6 +1340,50 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     setRiderModal(null)
   }
 
+  async function openAssignModal() {
+    setAssignModal(true)
+    // Load today's assignments
+    try {
+      const res = await fetch(`/api/rider/assignments?date=${today}`)
+      if (res.ok) setAssignments(await res.json())
+    } catch { /* ignore */ }
+  }
+
+  async function assignRider(riderId: string, scope: 'full' | 'area', areaName: string | null) {
+    setAssignSaving(true)
+    try {
+      const res = await fetch('/api/rider/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rider_id: riderId, assignment_date: today, scope, area_name: areaName }),
+      })
+      if (res.ok) {
+        const { assignment } = await res.json()
+        const rider = riders.find(r => r.id === riderId)
+        setAssignments(prev => [
+          ...prev.filter(a => !(a.rider_id === riderId && a.scope === scope && a.area_name === areaName)),
+          { id: assignment.id, rider_id: riderId, rider_name: rider?.name ?? '', scope, area_name: areaName },
+        ])
+      }
+    } finally {
+      setAssignSaving(false)
+    }
+  }
+
+  async function removeAssignment(assignmentId: string) {
+    setAssignSaving(true)
+    try {
+      const res = await fetch('/api/rider/unassign', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignment_id: assignmentId }),
+      })
+      if (res.ok) setAssignments(prev => prev.filter(a => a.id !== assignmentId))
+    } finally {
+      setAssignSaving(false)
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const themeVars = getThemeVars(provider?.accent_color)
@@ -1873,13 +1922,22 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 </div>
               </div>
               {riders.length > 0 && workspaceCustomers.length > 0 && (
-                <button
-                  onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
-                  className="flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-black uppercase tracking-wide bg-orange-500 text-white shadow-[0_4px_14px_rgba(244,98,42,0.35)] active:scale-95 transition-all duration-200 shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                  Send
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={openAssignModal}
+                    className="flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black bg-white border border-gray-200 text-gray-700 active:scale-95 transition-all duration-200"
+                  >
+                    <Bike className="w-4 h-4" />
+                    Assign
+                  </button>
+                  <button
+                    onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
+                    className="flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-black uppercase tracking-wide bg-orange-500 text-white shadow-[0_4px_14px_rgba(244,98,42,0.35)] active:scale-95 transition-all duration-200"
+                  >
+                    <Send className="w-4 h-4" />
+                    Send
+                  </button>
+                </div>
               )}
             </div>
 
@@ -2640,6 +2698,136 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 className="w-full rounded-2xl bg-gray-100 py-3 text-sm font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Assign Rider modal ── */}
+      {assignModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          onClick={() => setAssignModal(false)}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm rounded-3xl bg-white shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100 shrink-0">
+                <Bike className="w-4 h-4 text-orange-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-gray-900">Assign rider for today</p>
+                <p className="text-xs font-semibold text-gray-400">{today} · tap a rider to assign</p>
+              </div>
+              <button
+                onClick={() => setAssignModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 active:scale-95 transition-all shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Current assignments */}
+            {assignments.length > 0 && (
+              <div className="px-5 pt-4 pb-2 space-y-1.5">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Active today</p>
+                {assignments.map(a => (
+                  <div key={a.id} className="flex items-center gap-2 rounded-2xl bg-orange-50 border border-orange-100 px-3 py-2">
+                    <Bike className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900 truncate">{a.rider_name}</p>
+                      <p className="text-[10px] font-semibold text-gray-500">
+                        {a.scope === 'full' ? 'All deliveries' : `Area: ${a.area_name}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => removeAssignment(a.id)}
+                      disabled={assignSaving}
+                      className="flex h-6 w-6 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 active:scale-95 transition-all shrink-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Rider list */}
+            <div
+              className="overflow-y-auto overscroll-contain"
+              style={{ maxHeight: 'min(50vh, 360px)' }}
+            >
+              {riders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center px-6 py-10 gap-3 text-center">
+                  <Bike className="w-8 h-8 text-gray-300" />
+                  <div>
+                    <p className="text-sm font-black text-gray-700">No riders yet</p>
+                    <p className="text-xs font-medium text-gray-400 mt-0.5">Add riders in Settings first.</p>
+                  </div>
+                  <button
+                    onClick={() => { setAssignModal(false); router.push('/settings') }}
+                    className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white active:scale-95 transition-all"
+                  >
+                    Go to Settings
+                  </button>
+                </div>
+              ) : (
+                riders.map(rider => {
+                  const riderAssignments = assignments.filter(a => a.rider_id === rider.id)
+                  const hasFullAssignment = riderAssignments.some(a => a.scope === 'full')
+                  return (
+                    <div key={rider.id} className="border-t border-gray-50 px-5 py-3">
+                      <p className="text-sm font-bold text-gray-900 mb-2">{rider.name}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {/* Full scope */}
+                        <button
+                          onClick={() => assignRider(rider.id, 'full', null)}
+                          disabled={assignSaving || hasFullAssignment}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                            hasFullAssignment
+                              ? 'bg-orange-500 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-orange-50 hover:text-orange-600'
+                          }`}
+                        >
+                          All deliveries
+                        </button>
+                        {/* Per-area scope */}
+                        {sortedAreas.filter(([area]) => area !== 'Other').map(([area]) => {
+                          const hasArea = riderAssignments.some(a => a.scope === 'area' && a.area_name === area)
+                          return (
+                            <button
+                              key={area}
+                              onClick={() => assignRider(rider.id, 'area', area)}
+                              disabled={assignSaving || hasArea}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                                hasArea
+                                  ? 'bg-orange-500 text-white'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-orange-50 hover:text-orange-600'
+                              }`}
+                            >
+                              {area}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setAssignModal(false)}
+                className="w-full rounded-2xl bg-gray-100 py-3 text-sm font-bold text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+              >
+                Done
               </button>
             </div>
           </div>

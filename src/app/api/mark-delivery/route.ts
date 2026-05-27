@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getRiderInfo } from '@/lib/rider'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -16,12 +17,16 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
 
+  // Resolve provider_id — either the logged-in provider, or the provider a rider belongs to
+  const riderInfo = await getRiderInfo(user.id)
+  const providerId = riderInfo ? riderInfo.provider_id : user.id
+
   // Ownership guard + fetch balance info
   const { data: customer, error: custErr } = await db
     .from('customers')
     .select('id, balance, price_per_month')
     .eq('id', customer_id)
-    .eq('provider_id', user.id)
+    .eq('provider_id', providerId)
     .single()
 
   if (custErr || !customer) {
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
     const { error } = await db
       .from('delivery_logs')
       .upsert(
-        { customer_id, provider_id: user.id, date, meal_slot, status },
+        { customer_id, provider_id: providerId, date, meal_slot, status },
         { onConflict: 'customer_id,date,meal_slot' }
       )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

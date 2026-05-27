@@ -1,12 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getCachedDashboardData, getCachedMealPlans, getTodayMenus } from '@/lib/queries'
+import { getRiderInfo } from '@/lib/rider'
 import DashboardClient from './DashboardClient'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // Riders get their own delivery view
+  const riderInfo = await getRiderInfo(user.id)
+  if (riderInfo) redirect('/rider')
 
   // If the user has no meal plans they haven't completed setup yet — send to onboarding.
   const mealPlans = await getCachedMealPlans(user.id)

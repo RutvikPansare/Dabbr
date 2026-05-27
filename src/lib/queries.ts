@@ -153,7 +153,7 @@ export function getCachedSettingsData(userId: string, today: string) {
           .order('date'),
         db
           .from('delivery_riders')
-          .select('id, name, whatsapp_number')
+          .select('id, name, whatsapp_number, email, invite_status')
           .eq('provider_id', userId)
           .order('created_at'),
       ])
@@ -189,7 +189,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         db.from('providers').select('*').eq('id', userId).single(),
         db.from('delivery_logs').select('customer_id, meal_slot, status').eq('provider_id', userId).eq('date', today),
         db.from('provider_holidays').select('label').eq('provider_id', userId).eq('date', today).maybeSingle(),
-        db.from('delivery_riders').select('id, name, whatsapp_number').eq('provider_id', userId).order('created_at'),
+        db.from('delivery_riders').select('id, name, whatsapp_number, email, invite_status').eq('provider_id', userId).order('created_at'),
         getTrialStatus(db, userId),
       ])
 
