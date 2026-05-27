@@ -183,6 +183,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         { data: holidayData },
         { data: riders },
         { data: cancelRequests },
+        { data: pauseNotifs },
         trial,
       ] = await Promise.all([
         db.from('customers').select('*, pauses(*), subscriptions(*)').eq('provider_id', userId).order('name'),
@@ -195,6 +196,11 @@ export function getCachedDashboardData(userId: string, today: string) {
           .select('id, customer_id, reason, created_at, customers(name)')
           .eq('provider_id', userId)
           .eq('status', 'pending')
+          .order('created_at', { ascending: false }),
+        db.from('subscription_pauses')
+          .select('id, start_date, end_date, reason, created_at, subscriptions(customer_id, customers(name))')
+          .eq('provider_id', userId)
+          .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
           .order('created_at', { ascending: false }),
         getTrialStatus(db, userId),
       ])
@@ -233,6 +239,16 @@ export function getCachedDashboardData(userId: string, today: string) {
         customer_name: (r.customers as any)?.name as string ?? 'Unknown',
       }))
 
+      // Flatten pause notifications — embed customer name via subscription join
+      const pauseNotifications = (pauseNotifs ?? []).map((p: any) => ({
+        id: p.id as string,
+        start_date: p.start_date as string,
+        end_date: p.end_date as string,
+        reason: p.reason as string | null,
+        created_at: p.created_at as string,
+        customer_name: (p.subscriptions as any)?.customers?.name as string ?? 'Unknown',
+      }))
+
       return {
         customers: enrichedCustomers,
         provider: provider ?? null,
@@ -241,6 +257,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         deliveryStatuses,
         todayHoliday,
         cancellationRequests,
+        pauseNotifications,
       }
     },
     [`dashboard-data-${userId}-${today}`],

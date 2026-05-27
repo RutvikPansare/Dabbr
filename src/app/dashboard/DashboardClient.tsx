@@ -101,6 +101,15 @@ interface CancellationRequest {
   created_at: string
 }
 
+interface PauseNotification {
+  id: string
+  customer_name: string
+  start_date: string
+  end_date: string
+  reason: string | null
+  created_at: string
+}
+
 interface InitialData {
   customers: any[]
   provider: any
@@ -110,6 +119,7 @@ interface InitialData {
   todayHoliday: { label: string | null } | null
   todayMenus?: TodayMenu[]
   cancellationRequests?: CancellationRequest[]
+  pauseNotifications?: PauseNotification[]
 }
 
 interface Props {
@@ -706,6 +716,81 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     ? cancelRequests.filter(r => !dismissedCancelIds.has(r.id))
     : []
 
+  // ── Pause notification state ───────────────────────────────────────────────
+  const [pauseNotifications] = useState<PauseNotification[]>(initialData.pauseNotifications ?? [])
+  const [dismissedPauseIds, setDismissedPauseIds] = useState<Set<string>>(new Set())
+  const [pauseDismissMounted, setPauseDismissMounted] = useState(false)
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('dismissed_pause_notifs') ?? '[]')
+      setDismissedPauseIds(new Set(Array.isArray(stored) ? stored : []))
+    } catch {}
+    setPauseDismissMounted(true)
+  }, [])
+
+  const visiblePauseNotifs = pauseDismissMounted
+    ? pauseNotifications.filter(p => !dismissedPauseIds.has(p.id))
+    : []
+
+  function dismissPauseNotif(id: string) {
+    setDismissedPauseIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      try { localStorage.setItem('dismissed_pause_notifs', JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+
+  function dismissAllPauseNotifs() {
+    const allIds = new Set(pauseNotifications.map(p => p.id))
+    setDismissedPauseIds(allIds)
+    try { localStorage.setItem('dismissed_pause_notifs', JSON.stringify([...allIds])) } catch {}
+  }
+
+  // ── Fire native Android notification for new pause events ─────────────────
+  useEffect(() => {
+    if (!pauseDismissMounted || visiblePauseNotifs.length === 0) return
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
+    if (!isNative) return
+
+    async function fireNativeNotifications() {
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications')
+        const perm = await LocalNotifications.requestPermissions()
+        if (perm.display !== 'granted') return
+
+        // Only fire for IDs we haven't already fired (track in localStorage)
+        const firedKey = 'fired_pause_notif_ids'
+        let alreadyFired: Set<string>
+        try {
+          alreadyFired = new Set(JSON.parse(localStorage.getItem(firedKey) ?? '[]'))
+        } catch { alreadyFired = new Set() }
+
+        const toFire = visiblePauseNotifs.filter(p => !alreadyFired.has(p.id))
+        if (toFire.length === 0) return
+
+        await LocalNotifications.schedule({
+          notifications: toFire.map((p, i) => ({
+            id: Math.abs(p.id.split('').reduce((a, c) => (a << 5) - a + c.charCodeAt(0), 0)) % 2147483647 || (i + 1),
+            title: '⏸️ Delivery Paused',
+            body: `${p.customer_name} paused from ${new Date(p.start_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} to ${new Date(p.end_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${p.reason ? ` · ${p.reason}` : ''}`,
+            schedule: { at: new Date(Date.now() + 1000) },
+            channelId: 'dabbr-alerts',
+          })),
+        })
+
+        const newFired = new Set([...alreadyFired, ...toFire.map(p => p.id)])
+        try { localStorage.setItem(firedKey, JSON.stringify([...newFired])) } catch {}
+      } catch (e) {
+        console.warn('Local notification error:', e)
+      }
+    }
+
+    fireNativeNotifications()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pauseDismissMounted])
+
   function dismissCancelRequest(id: string) {
     setDismissedCancelIds(prev => {
       const next = new Set(prev)
@@ -721,6 +806,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     try { localStorage.setItem('dismissed_cancel_requests', JSON.stringify([...allIds])) } catch {}
     setCancelBellOpen(false)
   }
+
+  const totalBellCount = visibleCancelRequests.length + visiblePauseNotifs.length
 
   // ── Extras state ──────────────────────────────────────────────────────────
   const [extraPresets, setExtraPresets] = useState<ExtraPreset[]>([])
@@ -1485,9 +1572,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
-              {visibleCancelRequests.length > 0 && (
+              {totalBellCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
-                  {visibleCancelRequests.length}
+                  {totalBellCount}
                 </span>
               )}
             </button>
@@ -2523,16 +2610,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-gray-600" />
                   <p className="text-sm font-black text-gray-900">Notifications</p>
-                  {visibleCancelRequests.length > 0 && (
+                  {totalBellCount > 0 && (
                     <span className="flex items-center justify-center h-5 px-1.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">
-                      {visibleCancelRequests.length}
+                      {totalBellCount}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {visibleCancelRequests.length > 1 && (
+                  {totalBellCount > 1 && (
                     <button
-                      onClick={dismissAllCancelRequests}
+                      onClick={() => { dismissAllCancelRequests(); dismissAllPauseNotifs() }}
                       className="text-[11px] font-bold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                       Clear all
@@ -2549,7 +2636,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
               {/* Content */}
               <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
-                {visibleCancelRequests.length === 0 ? (
+                {totalBellCount === 0 ? (
                   <div className="flex flex-col items-center gap-2 py-10 px-5 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
                       <Bell className="w-5 h-5 text-gray-300" />
@@ -2558,6 +2645,37 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
+                    {/* Pause notifications */}
+                    {visiblePauseNotifs.map(p => {
+                      const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                      return (
+                        <div key={p.id} className="flex items-start gap-3 px-5 py-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">⏸ Delivery Paused</span>
+                            </div>
+                            <p className="text-sm font-black text-gray-900 truncate">{p.customer_name}</p>
+                            <p className="text-xs font-semibold text-gray-600 mt-0.5">
+                              {fmtDate(p.start_date)} → {fmtDate(p.end_date)}
+                            </p>
+                            {p.reason && (
+                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">"{p.reason}"</p>
+                            )}
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              {new Date(p.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => dismissPauseNotif(p.id)}
+                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+                            title="Dismiss"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                    {/* Cancellation requests */}
                     {visibleCancelRequests.map(req => (
                       <div key={req.id} className="flex items-start gap-3 px-5 py-4">
                         <div className="flex-1 min-w-0">
