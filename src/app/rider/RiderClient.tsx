@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut, MapPin, Check, Sparkles } from 'lucide-react'
 import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
+import { fetchWithRetry } from '@/lib/fetch-retry'
 
 type MealSlot = 'breakfast' | 'lunch' | 'dinner'
 type DeliveryStatus = 'pending' | 'delivered' | 'skipped'
@@ -81,6 +82,8 @@ export default function RiderClient({ riderName, today, customers, initialStatus
   )
   const statusesRef = useRef(statuses)
   const lastTouchMs = useRef<Record<string, number>>({})
+  // Keys currently being written to the server — prevents duplicate in-flight requests
+  const inFlightRef = useRef<Set<string>>(new Set())
 
   // ── Notifications ──────────────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<RiderNotification[]>(initialNotifications)
@@ -177,33 +180,57 @@ export default function RiderClient({ riderName, today, customers, initialStatus
   // This picks up new customer assignments without a manual page reload.
   // Delivery statuses are kept in local state (updated by realtime + user
   // interaction) so they aren't reset by router.refresh().
+  //
+  // Midnight guard: if the IST date changes while the app is open (rider
+  // working past midnight), `today` becomes yesterday. We detect this and
+  // hard-reload so the component gets a fresh `today` prop from the server —
+  // otherwise deliveries would be logged to the wrong date.
   useEffect(() => {
+    const todayAtMount = today
     function onVisible() {
       if (document.visibilityState === 'visible') router.refresh()
     }
     document.addEventListener('visibilitychange', onVisible)
-    const timer = setInterval(() => router.refresh(), 60_000)
+    const timer = setInterval(() => {
+      const nowDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+      if (nowDate !== todayAtMount) {
+        // New IST day — hard reload to get fresh server props
+        window.location.reload()
+      } else {
+        router.refresh()
+      }
+    }, 60_000)
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       clearInterval(timer)
     }
-  }, [router])
+  }, [router, today])
 
   const markDelivery = useCallback(async (customerId: string, slot: MealSlot, newStatus: DeliveryStatus) => {
     const key = `${customerId}:${slot}`
+
+    // Idempotency guard — ignore tap if a request for this slot is already in flight
+    if (inFlightRef.current.has(key)) return
+
     const prev = statusesRef.current[key] ?? 'pending'
+    if (prev === newStatus) return  // already in target state, nothing to do
+
+    inFlightRef.current.add(key)
     setStatuses(s => ({ ...s, [key]: newStatus }))
     try {
-      const res = await fetch('/api/mark-delivery', {
+      const res = await fetchWithRetry(() => fetch('/api/mark-delivery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_id: customerId, date: today, meal_slot: slot, status: newStatus }),
-      })
+      }))
       if (!res.ok) {
         setStatuses(s => ({ ...s, [key]: prev }))
       }
     } catch {
+      // Network unreachable after all retries — revert to previous state
       setStatuses(s => ({ ...s, [key]: prev }))
+    } finally {
+      inFlightRef.current.delete(key)
     }
   }, [today])
 

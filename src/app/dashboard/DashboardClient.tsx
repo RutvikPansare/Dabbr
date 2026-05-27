@@ -10,6 +10,7 @@ import {
   MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle, Play, RotateCcw, Zap, ChevronUp, List,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
+import { fetchWithRetry } from '@/lib/fetch-retry'
 import { computeBalance, fmtRupees, fmtDays } from '@/lib/udhar'
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
@@ -998,12 +999,26 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       undoTimerRef.current = setTimeout(() => setUndoSnackbar(null), 4000)
     }
 
-    // ── Server write ─────────────────────────────────────────────────────────
-    const res = await fetch('/api/mark-delivery', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer_id: customerId, date: today, meal_slot: slot, status: newStatus }),
-    })
+    // ── Server write (with retry on transient failures) ───────────────────────
+    let res: Response
+    try {
+      res = await fetchWithRetry(() => fetch('/api/mark-delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customerId, date: today, meal_slot: slot, status: newStatus }),
+      }))
+    } catch {
+      // Network unreachable after all retries — revert
+      console.error('[mark-delivery] network failure after retries')
+      setDeliveryStatuses(prev => {
+        const next = { ...prev }
+        if (prevStatus === 'pending') delete next[key]
+        else next[key] = prevStatus
+        return next
+      })
+      setUndoSnackbar(prev => (prev?.id === customerId && prev?.slot === slot ? null : prev))
+      return
+    }
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}))
@@ -1028,14 +1043,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       return next
     })
 
-    // Update local balance display: balance_delta is ±1 day; convert to rupees
-    const balanceDelta: number = json.balance_delta ?? 0
-    if (balanceDelta !== 0) {
-      setCustomers(prev => prev.map(c => {
-        if (c.id !== customerId) return c
-        const perDayCost = (c.price_per_month ?? 0) / 30
-        return { ...c, balance: c.balance + balanceDelta * perDayCost }
-      }))
+    // Update local balance display.
+    // Prefer new_balance (authoritative server value) over local math with balance_delta.
+    if (json.new_balance !== undefined && json.new_balance !== null) {
+      setCustomers(prev => prev.map(c => c.id !== customerId ? c : { ...c, balance: json.new_balance }))
+    } else {
+      // Fallback: local estimate using balance_delta (±1 day unit → rupees)
+      const balanceDelta: number = json.balance_delta ?? 0
+      if (balanceDelta !== 0) {
+        setCustomers(prev => prev.map(c => {
+          if (c.id !== customerId) return c
+          const perDayCost = (c.price_per_month ?? 0) / 30
+          return { ...c, balance: c.balance + balanceDelta * perDayCost }
+        }))
+      }
     }
 
     if (newStatus === 'delivered' && pendingExtras[customerId]?.length) {
@@ -1616,12 +1637,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     setAssignments([])
     setAssignModal(false)
     setPickerOpen(null)
+    // Retry unassign calls — idempotent (DELETE is safe to repeat)
     toRemove.forEach(a => {
-      fetch('/api/rider/unassign', {
+      fetchWithRetry(() => fetch('/api/rider/unassign', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assignment_id: a.id }),
-      }).catch(() => {})
+      })).catch(err => console.warn('[stopRun] unassign failed after retries:', err))
     })
   }
 
@@ -3158,19 +3180,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           setAssignments(draft)
           setAssignModal(false)
           setPickerOpen(null)
-          // Remove stale assignments (in committed but not in draft)
+          // Remove stale assignments (in committed but not in draft) — retry, idempotent
           assignments.filter(a => !draft.some(d => d.rider_id === a.rider_id && d.scope === a.scope && d.area_name === a.area_name))
-            .forEach(a => fetch('/api/rider/unassign', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_id: a.id }) }).catch(() => {}))
-          // Add new assignments (in draft but not in committed)
+            .forEach(a => fetchWithRetry(() => fetch('/api/rider/unassign', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_id: a.id }) }))
+              .catch(err => console.warn('[commitRun] unassign failed after retries:', err)))
+          // Add new assignments (in draft but not in committed) — retry, upsert-safe
           draft.filter(d => !assignments.some(a => a.rider_id === d.rider_id && a.scope === d.scope && a.area_name === d.area_name))
             .forEach(d => {
-              fetch('/api/rider/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rider_id: d.rider_id, assignment_date: today, scope: d.scope, area_name: d.area_name }) })
+              fetchWithRetry(() => fetch('/api/rider/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rider_id: d.rider_id, assignment_date: today, scope: d.scope, area_name: d.area_name }) }))
                 .then(async res => {
                   if (res.ok) {
                     const { assignment } = await res.json()
                     setAssignments(prev => prev.map(a => a.id === d.id ? { ...a, id: assignment.id } : a))
                   }
-                }).catch(() => {})
+                }).catch(err => console.warn('[commitRun] assign failed after retries:', err))
             })
         }
 
