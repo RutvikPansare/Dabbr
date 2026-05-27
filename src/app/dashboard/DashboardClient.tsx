@@ -237,7 +237,7 @@ function DeliveryRow({ c, index, isLast, hideArea, status, onMark, onOpen, onAdd
           {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
         </span>
         {onMark && (
-          <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-75 group-hover/dot:opacity-100 z-50">
+          <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-75 group-hover/dot:opacity-100 z-50">
             {isDelivered ? 'Mark skipped' : isSkipped ? 'Reset to pending' : 'Mark delivered'}
           </span>
         )}
@@ -457,7 +457,7 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
           >
             {isDelivered ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <X className="w-3 h-3" /> : index + 1}
           </span>
-          <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-75 group-hover/dot:opacity-100 z-50">
+          <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 whitespace-nowrap rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-75 group-hover/dot:opacity-100 z-50">
             {status === 'pending' ? 'Mark delivered' : status === 'delivered' ? 'Mark skipped' : 'Reset to pending'}
           </span>
         </span>
