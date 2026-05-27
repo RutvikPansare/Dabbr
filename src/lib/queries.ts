@@ -182,8 +182,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         { data: logsData },
         { data: holidayData },
         { data: riders },
-        { data: cancelRequests },
-        { data: pauseNotifs },
+        { data: rawNotifications },
         trial,
       ] = await Promise.all([
         db.from('customers').select('*, pauses(*), subscriptions(*)').eq('provider_id', userId).order('name'),
@@ -192,18 +191,12 @@ export function getCachedDashboardData(userId: string, today: string) {
         db.from('delivery_logs').select('customer_id, meal_slot, status').eq('provider_id', userId).eq('date', today),
         db.from('provider_holidays').select('label').eq('provider_id', userId).eq('date', today).maybeSingle(),
         db.from('delivery_riders').select('id, name, whatsapp_number, email, invite_status').eq('provider_id', userId).order('created_at'),
-        db.from('cancellation_requests')
-          .select('id, customer_id, reason, created_at, customers(name)')
+        db.from('provider_notifications')
+          .select('id, type, title, message, payload, created_at, read_at, dismissed_at')
           .eq('provider_id', userId)
-          .eq('status', 'pending')
-          .eq('provider_seen', false)
-          .order('created_at', { ascending: false }),
-        db.from('subscription_pauses')
-          .select('id, start_date, end_date, reason, created_at, subscriptions(customer_id, customers(name))')
-          .eq('provider_id', userId)
-          .eq('provider_seen', false)
-          .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-          .order('created_at', { ascending: false }),
+          .is('dismissed_at', null)
+          .order('created_at', { ascending: false })
+          .limit(50),
         getTrialStatus(db, userId),
       ])
 
@@ -232,23 +225,14 @@ export function getCachedDashboardData(userId: string, today: string) {
           ? { label: 'Weekly off day' }
           : null
 
-      // Flatten cancellation requests — embed customer name from join
-      const cancellationRequests = (cancelRequests ?? []).map((r: any) => ({
-        id: r.id as string,
-        customer_id: r.customer_id as string,
-        reason: r.reason as string | null,
-        created_at: r.created_at as string,
-        customer_name: (r.customers as any)?.name as string ?? 'Unknown',
-      }))
-
-      // Flatten pause notifications — embed customer name via subscription join
-      const pauseNotifications = (pauseNotifs ?? []).map((p: any) => ({
-        id: p.id as string,
-        start_date: p.start_date as string,
-        end_date: p.end_date as string,
-        reason: p.reason as string | null,
-        created_at: p.created_at as string,
-        customer_name: (p.subscriptions as any)?.customers?.name as string ?? 'Unknown',
+      const notifications = (rawNotifications ?? []).map((n: any) => ({
+        id: n.id as string,
+        type: n.type as string,
+        title: n.title as string,
+        message: n.message as string,
+        payload: n.payload as Record<string, any> | null,
+        created_at: n.created_at as string,
+        read_at: n.read_at as string | null,
       }))
 
       return {
@@ -258,8 +242,7 @@ export function getCachedDashboardData(userId: string, today: string) {
         trial,
         deliveryStatuses,
         todayHoliday,
-        cancellationRequests,
-        pauseNotifications,
+        notifications,
       }
     },
     [`dashboard-data-${userId}-${today}`],

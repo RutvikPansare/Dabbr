@@ -103,6 +103,30 @@ export async function pauseSubscription(
     .update({ status: 'paused', paused_at: new Date().toISOString() })
     .eq('id', sub.id)
 
+  // Notify the provider
+  const { data: customer } = await db
+    .from('customers')
+    .select('name')
+    .eq('id', ctx.customer_id)
+    .single()
+  const customerName: string = customer?.name ?? 'A customer'
+  const fmtDate = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  const trimmedReason = reason.trim() || null
+  await db.from('provider_notifications').insert({
+    provider_id: ctx.provider_id,
+    type: 'pause',
+    title: customerName,
+    message: `Paused ${fmtDate(effectiveStart)} – ${fmtDate(endDate)}${trimmedReason ? ` · ${trimmedReason}` : ''}`,
+    payload: {
+      customer_id: ctx.customer_id,
+      customer_name: customerName,
+      start_date: effectiveStart,
+      end_date: endDate,
+      reason: trimmedReason,
+    },
+  })
+
   return { ok: true }
 }
 
@@ -193,6 +217,26 @@ export async function requestCancellation(
   })
 
   if (insertErr) return { ok: false, error: 'Failed to submit request. Please try again.' }
+
+  // Notify the provider
+  const { data: customer } = await db
+    .from('customers')
+    .select('name')
+    .eq('id', ctx.customer_id)
+    .single()
+  const customerName: string = customer?.name ?? 'A customer'
+  const trimmedReason = reason.trim() || null
+  await db.from('provider_notifications').insert({
+    provider_id: ctx.provider_id,
+    type: 'cancellation_request',
+    title: customerName,
+    message: `Requested cancellation${trimmedReason ? ` · ${trimmedReason}` : ''}`,
+    payload: {
+      customer_id: ctx.customer_id,
+      customer_name: customerName,
+      reason: trimmedReason,
+    },
+  })
 
   return { ok: true }
 }

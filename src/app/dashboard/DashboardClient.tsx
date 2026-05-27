@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { dismissProviderNotification } from './actions'
+import { dismissNotification, dismissAllNotifications } from './actions'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
@@ -94,21 +94,14 @@ interface TodayMenu {
   quantities: Record<string, number> | null
 }
 
-interface CancellationRequest {
+interface ProviderNotification {
   id: string
-  customer_id: string
-  customer_name: string
-  reason: string | null
+  type: string  // 'pause' | 'cancellation_request' | …
+  title: string // customer name
+  message: string
+  payload: Record<string, any> | null
   created_at: string
-}
-
-interface PauseNotification {
-  id: string
-  customer_name: string
-  start_date: string
-  end_date: string
-  reason: string | null
-  created_at: string
+  read_at: string | null
 }
 
 interface InitialData {
@@ -119,8 +112,7 @@ interface InitialData {
   deliveryStatuses: Record<string, string>
   todayHoliday: { label: string | null } | null
   todayMenus?: TodayMenu[]
-  cancellationRequests?: CancellationRequest[]
-  pauseNotifications?: PauseNotification[]
+  notifications?: ProviderNotification[]
 }
 
 interface Props {
@@ -575,6 +567,61 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   )
 }
 
+// ── NotificationRow ────────────────────────────────────────────────────────
+
+const NOTIF_META: Record<string, { badge: string; badgeClass: string }> = {
+  pause:                { badge: '⏸ Delivery Paused',   badgeClass: 'text-amber-500' },
+  cancellation_request: { badge: 'Cancellation Request', badgeClass: 'text-red-500'   },
+}
+
+function NotificationRow({
+  n,
+  onDismiss,
+  onClose,
+}: {
+  n: ProviderNotification
+  onDismiss: () => void
+  onClose: () => void
+}) {
+  const meta = NOTIF_META[n.type] ?? { badge: n.type, badgeClass: 'text-gray-500' }
+  const customerId: string | undefined = n.payload?.customer_id
+  const isUnread = n.read_at === null
+
+  return (
+    <div className={`flex items-start gap-3 px-5 py-4 transition-colors ${isUnread ? 'bg-orange-50/40' : ''}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1">
+          {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />}
+          <span className={`text-[10px] font-black uppercase tracking-wider ${meta.badgeClass}`}>
+            {meta.badge}
+          </span>
+        </div>
+        <p className="text-sm font-black text-gray-900 truncate">{n.title}</p>
+        <p className="text-xs font-semibold text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+        <p className="text-[10px] text-gray-400 mt-1">
+          {new Date(n.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </p>
+        {n.type === 'cancellation_request' && customerId && (
+          <a
+            href={`/customers?open=${customerId}`}
+            onClick={onClose}
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 hover:text-orange-700"
+          >
+            View customer →
+          </a>
+        )}
+      </div>
+      <button
+        onClick={onDismiss}
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+        title="Dismiss"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function DashboardClient({ userId, userEmail, initialData }: Props) {
@@ -695,45 +742,33 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [todayHoliday, setTodayHoliday] = useState<{ label: string | null } | null>(initialData.todayHoliday)
   const [riders, setRiders] = useState<DeliveryRider[]>(initialData.riders)
 
-  // ── Cancellation & pause notification state ──────────────────────────────
-  // Server-side query already filters provider_seen = false, so these are
-  // only the unseen notifications. We remove entries optimistically on dismiss
-  // and call the server action to persist the seen state to the DB.
-  const [visibleCancelRequests, setVisibleCancelRequests] = useState<CancellationRequest[]>(
-    initialData.cancellationRequests ?? [],
-  )
-  const [visiblePauseNotifs, setVisiblePauseNotifs] = useState<PauseNotification[]>(
-    initialData.pauseNotifications ?? [],
+  // ── Notification state ────────────────────────────────────────────────────
+  // Server already filters dismissed_at IS NULL, so initial data = inbox.
+  // Dismissal: optimistically removes from local list + calls server action
+  // to set dismissed_at (never deletes the row — soft state).
+  const [notifications, setNotifications] = useState<ProviderNotification[]>(
+    initialData.notifications ?? [],
   )
   const [cancelBellOpen, setCancelBellOpen] = useState(false)
 
-  function dismissPauseNotif(id: string) {
-    setVisiblePauseNotifs(prev => prev.filter(p => p.id !== id))
-    dismissProviderNotification('pause', id).catch(() => {/* fire-and-forget — optimistic is fine */})
+  const totalBellCount = notifications.length
+
+  function dismissOne(id: string) {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    dismissNotification(id).catch(() => {})
   }
 
-  function dismissAllPauseNotifs() {
-    const ids = visiblePauseNotifs.map(p => p.id)
-    setVisiblePauseNotifs([])
-    ids.forEach(id => dismissProviderNotification('pause', id).catch(() => {}))
-  }
-
-  function dismissCancelRequest(id: string) {
-    setVisibleCancelRequests(prev => prev.filter(r => r.id !== id))
-    dismissProviderNotification('cancel', id).catch(() => {})
-  }
-
-  function dismissAllCancelRequests() {
-    const ids = visibleCancelRequests.map(r => r.id)
-    setVisibleCancelRequests([])
-    ids.forEach(id => dismissProviderNotification('cancel', id).catch(() => {}))
+  function dismissAll() {
+    setNotifications([])
+    dismissAllNotifications().catch(() => {})
     setCancelBellOpen(false)
   }
 
-  // ── Fire native Android notification for new pause events ─────────────────
+  // ── Fire native Android notification for unread push events ──────────────
   const nativeNotifFiredRef = useRef(false)
   useEffect(() => {
-    if (nativeNotifFiredRef.current || visiblePauseNotifs.length === 0) return
+    const unread = notifications.filter(n => n.read_at === null)
+    if (nativeNotifFiredRef.current || unread.length === 0) return
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
     if (!isNative) return
     nativeNotifFiredRef.current = true
@@ -745,10 +780,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         if (perm.display !== 'granted') return
 
         await LocalNotifications.schedule({
-          notifications: visiblePauseNotifs.map((p, i) => ({
-            id: Math.abs(p.id.split('').reduce((a: number, c: string) => (a << 5) - a + c.charCodeAt(0), 0)) % 2147483647 || (i + 1),
-            title: '⏸️ Delivery Paused',
-            body: `${p.customer_name} paused from ${new Date(p.start_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} to ${new Date(p.end_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${p.reason ? ` · ${p.reason}` : ''}`,
+          notifications: unread.map((n, i) => ({
+            id: Math.abs(n.id.split('').reduce((a: number, c: string) => (a << 5) - a + c.charCodeAt(0), 0)) % 2147483647 || (i + 1),
+            title: n.title,
+            body: n.message,
             schedule: { at: new Date(Date.now() + 1000) },
             channelId: 'dabbr-alerts',
           })),
@@ -761,8 +796,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     fireNativeNotifications()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const totalBellCount = visibleCancelRequests.length + visiblePauseNotifs.length
 
   // ── Extras state ──────────────────────────────────────────────────────────
   const [extraPresets, setExtraPresets] = useState<ExtraPreset[]>([])
@@ -1569,7 +1602,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           {/* Desktop notification bell */}
           <button
             onClick={() => setCancelBellOpen(o => !o)}
-            className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-95 transition-all"
+            className="relative flex items-center justify-center h-9 w-9 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
@@ -2565,16 +2598,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-gray-600" />
                   <p className="text-sm font-black text-gray-900">Notifications</p>
-                  {totalBellCount > 0 && (
+                  {notifications.length > 0 && (
                     <span className="flex items-center justify-center h-5 px-1.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">
-                      {totalBellCount}
+                      {notifications.length}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {totalBellCount > 1 && (
+                  {notifications.length > 1 && (
                     <button
-                      onClick={() => { dismissAllCancelRequests(); dismissAllPauseNotifs() }}
+                      onClick={dismissAll}
                       className="text-[11px] font-bold text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                       Clear all
@@ -2591,7 +2624,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
               {/* Content */}
               <div className="max-h-[60vh] overflow-y-auto overscroll-contain">
-                {totalBellCount === 0 ? (
+                {notifications.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 py-10 px-5 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center">
                       <Bell className="w-5 h-5 text-gray-300" />
@@ -2600,66 +2633,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {/* Pause notifications */}
-                    {visiblePauseNotifs.map(p => {
-                      const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                      return (
-                        <div key={p.id} className="flex items-start gap-3 px-5 py-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">⏸ Delivery Paused</span>
-                            </div>
-                            <p className="text-sm font-black text-gray-900 truncate">{p.customer_name}</p>
-                            <p className="text-xs font-semibold text-gray-600 mt-0.5">
-                              {fmtDate(p.start_date)} → {fmtDate(p.end_date)}
-                            </p>
-                            {p.reason && (
-                              <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">"{p.reason}"</p>
-                            )}
-                            <p className="text-[10px] text-gray-400 mt-1">
-                              {new Date(p.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => dismissPauseNotif(p.id)}
-                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
-                            title="Dismiss"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )
-                    })}
-                    {/* Cancellation requests */}
-                    {visibleCancelRequests.map(req => (
-                      <div key={req.id} className="flex items-start gap-3 px-5 py-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-red-500">Cancellation Request</span>
-                          </div>
-                          <p className="text-sm font-black text-gray-900 truncate">{req.customer_name}</p>
-                          {req.reason && (
-                            <p className="text-xs text-gray-500 font-medium mt-0.5 line-clamp-2">"{req.reason}"</p>
-                          )}
-                          <p className="text-[10px] text-gray-400 mt-1">
-                            {new Date(req.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </p>
-                          <a
-                            href={`/customers?open=${req.customer_id}`}
-                            onClick={() => setCancelBellOpen(false)}
-                            className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-orange-600 hover:text-orange-700"
-                          >
-                            View customer →
-                          </a>
-                        </div>
-                        <button
-                          onClick={() => dismissCancelRequest(req.id)}
-                          className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
-                          title="Dismiss"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                    {notifications.map(n => (
+                      <NotificationRow
+                        key={n.id}
+                        n={n}
+                        onDismiss={() => dismissOne(n.id)}
+                        onClose={() => setCancelBellOpen(false)}
+                      />
                     ))}
                   </div>
                 )}
