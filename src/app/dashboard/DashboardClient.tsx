@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { fetchWithRetry } from '@/lib/fetch-retry'
+import { useSwipeGesture } from '@/lib/use-swipe-gesture'
 import { computeBalance, fmtRupees, fmtDays } from '@/lib/udhar'
 import BottomNav from '@/components/BottomNav'
 import SummarySection from './SummarySection'
@@ -341,8 +342,6 @@ interface PendingExtraItem {
 
 // ── SwipeableDeliveryRow (delivery tracking ON) ────────────────────────────
 
-const SWIPE_THRESHOLD = 72
-
 function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulkMode, selected, onToggleSelect, onOpen, onAddExtra, onViewExtras, pendingExtraCount }: {
   c: Customer
   index: number
@@ -358,49 +357,25 @@ function SwipeableDeliveryRow({ c, index, isLast, hideArea, status, onMark, bulk
   onViewExtras?: () => void
   pendingExtraCount?: number
 }) {
-  const startX = useRef(0)
-  const startY = useRef(0)
-  const [deltaX, setDeltaX] = useState(0)
-  const [deltaY, setDeltaY] = useState(0)
-  const [tracking, setTracking] = useState(false)
   const lastCircleTouchMs = useRef(0)
+
+  const { deltaX, deltaY, tracking, swipeProgress, handlers: swipeHandlers } = useSwipeGesture({
+    onSwipeRight: () => onMark('delivered'),
+    onSwipeLeft:  () => onMark('skipped'),
+    onTap: onOpen,
+    disabled: bulkMode,
+  })
 
   const plan = customerPlan(c)
   const slots = plan?.meal_slots ?? c.meal_slots ?? ['lunch']
   const planType = plan?.plan_type ?? c.plan_type
   const isDelivered = status === 'delivered'
   const isSkipped = status === 'skipped'
-  const swipeProgress = Math.min(Math.abs(deltaX) / SWIPE_THRESHOLD, 1)
 
   return (
     <div
       className={`relative overflow-hidden select-none touch-pan-y ${!isLast ? 'border-b border-gray-100/50' : ''}`}
-      onTouchStart={(e) => {
-        if (bulkMode) return
-        startX.current = e.touches[0].clientX
-        startY.current = e.touches[0].clientY
-        setTracking(true)
-        setDeltaX(0)
-        setDeltaY(0)
-      }}
-      onTouchMove={(e) => {
-        if (!tracking || bulkMode) return
-        const dx = e.touches[0].clientX - startX.current
-        const dy = e.touches[0].clientY - startY.current
-        setDeltaY(dy)
-        if (Math.abs(dx) > Math.abs(dy) + 8) {
-          setDeltaX(dx)
-        }
-      }}
-      onTouchEnd={() => {
-        if (!tracking) return
-        setTracking(false)
-        if (deltaX > SWIPE_THRESHOLD) onMark('delivered')
-        else if (deltaX < -SWIPE_THRESHOLD) onMark('skipped')
-        else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 12) onOpen?.()
-        setDeltaX(0)
-        setDeltaY(0)
-      }}
+      {...swipeHandlers}
     >
       {/* Green reveal: swipe right = delivered */}
       <div

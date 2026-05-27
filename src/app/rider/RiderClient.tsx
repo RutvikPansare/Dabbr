@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle2, PackageX, Clock3, ChevronDown, ChevronUp, Truck, Bell, X, LayoutDashboard, LogOut, MapPin, Check, Sparkles } from 'lucide-react'
 import { dismissRiderNotification, dismissAllRiderNotifications } from './actions'
 import { fetchWithRetry } from '@/lib/fetch-retry'
+import { useSwipeGesture } from '@/lib/use-swipe-gesture'
 
 type MealSlot = 'breakfast' | 'lunch' | 'dinner'
 type DeliveryStatus = 'pending' | 'delivered' | 'skipped'
-
-const SWIPE_THRESHOLD = 72
 
 interface ExtraItem { item: string; amount: number }
 
@@ -750,13 +749,6 @@ function CustomerRow({
     ? slots.map(s => `${SLOT_EMOJI[s]} ${slotLabel(s)}`).join(' · ')
     : c.area
 
-  // ── Swipe state ──────────────────────────────────────────────────────────
-  const startX = useRef(0)
-  const startY = useRef(0)
-  const [deltaX, setDeltaX] = useState(0)
-  const [tracking, setTracking] = useState(false)
-  const swipeProgress = Math.min(Math.abs(deltaX) / SWIPE_THRESHOLD, 1)
-
   function handleSwipeMark(newStatus: 'delivered' | 'skipped') {
     slots.forEach(slot => {
       if ((statuses[`${c.id}:${slot}`] ?? 'pending') === 'pending') {
@@ -765,28 +757,15 @@ function CustomerRow({
     })
   }
 
+  const { deltaX, tracking, swipeProgress, handlers: swipeHandlers } = useSwipeGesture({
+    onSwipeRight: () => handleSwipeMark('delivered'),
+    onSwipeLeft:  () => handleSwipeMark('skipped'),
+  })
+
   return (
     <div
       className="relative overflow-hidden select-none touch-pan-y"
-      onTouchStart={(e) => {
-        startX.current = e.touches[0].clientX
-        startY.current = e.touches[0].clientY
-        setTracking(true)
-        setDeltaX(0)
-      }}
-      onTouchMove={(e) => {
-        if (!tracking) return
-        const dx = e.touches[0].clientX - startX.current
-        const dy = e.touches[0].clientY - startY.current
-        if (Math.abs(dx) > Math.abs(dy) + 8) setDeltaX(dx)
-      }}
-      onTouchEnd={() => {
-        if (!tracking) return
-        setTracking(false)
-        if (deltaX > SWIPE_THRESHOLD) handleSwipeMark('delivered')
-        else if (deltaX < -SWIPE_THRESHOLD) handleSwipeMark('skipped')
-        setDeltaX(0)
-      }}
+      {...swipeHandlers}
     >
       {/* Green reveal: swipe right = delivered */}
       <div
