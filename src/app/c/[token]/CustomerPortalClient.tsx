@@ -8,6 +8,7 @@ import {
   Package,
 } from 'lucide-react'
 import type { CustomerPortalData, MenuSlot, DayMenu, SlotDelivery, DayHistory } from '@/lib/customer-token'
+import PortalLoginButton from './PortalLoginButton'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, PLAN_TYPE_LABEL } from '@/lib/meals'
 import {
   cutoffMessage, formatDisplayDate, formatShortDate,
@@ -304,6 +305,13 @@ export default function CustomerPortalClient({
         >
           <div className="absolute -right-8 -top-8 w-36 h-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
           <div className="relative mx-auto max-w-md">
+            {/* Sign In button — top right, only when not authenticated */}
+            {!isLoggedIn && (
+              <div className="absolute top-0 right-0">
+                <PortalLoginButton />
+              </div>
+            )}
+
             {provider.logo_url && (
               <img
                 src={provider.logo_url}
