@@ -1735,43 +1735,43 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
           )}
 
           {/* Add rider */}
-          <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Rider name (e.g. Raju)"
-              value={newRiderName}
-              onChange={e => { setNewRiderName(e.target.value); setRiderError('') }}
-              className="input-modern"
-            />
-            <div className="flex gap-2">
+          <div className="rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              <input
+                type="text"
+                placeholder="Name (e.g. Raju)"
+                value={newRiderName}
+                onChange={e => { setNewRiderName(e.target.value); setRiderError('') }}
+                className="w-full px-4 py-3 text-sm font-semibold text-gray-900 placeholder-gray-400 bg-white outline-none focus:bg-orange-50/30"
+              />
               <input
                 type="tel"
                 placeholder="WhatsApp number"
                 value={newRiderPhone}
                 onChange={e => { setNewRiderPhone(e.target.value); setRiderError('') }}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRider() } }}
-                className="input-modern flex-1"
+                className="w-full px-4 py-3 text-sm font-semibold text-gray-900 placeholder-gray-400 bg-white outline-none focus:bg-orange-50/30"
               />
-              <button
-                type="button"
-                onClick={handleAddRider}
-                disabled={riderSaving || !newRiderName.trim() || !newRiderPhone.trim()}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm disabled:bg-gray-200 transition-colors"
-              >
-                {riderSaving ? <span className="text-xs">…</span> : <Plus className="w-4 h-4" />}
-              </button>
+              <input
+                type="email"
+                placeholder="Email (optional — for Google login)"
+                value={newRiderEmail}
+                onChange={e => { setNewRiderEmail(e.target.value); setRiderError('') }}
+                className="w-full px-4 py-3 text-sm font-semibold text-gray-900 placeholder-gray-400 bg-white outline-none focus:bg-orange-50/30"
+              />
             </div>
-            <input
-              type="email"
-              placeholder="Email (optional — for Google login)"
-              value={newRiderEmail}
-              onChange={e => { setNewRiderEmail(e.target.value); setRiderError('') }}
-              className="input-modern"
-            />
-            {riderError && (
-              <p className="text-xs font-semibold text-red-500">{riderError}</p>
-            )}
+            <button
+              type="button"
+              onClick={handleAddRider}
+              disabled={riderSaving || !newRiderName.trim() || !newRiderPhone.trim()}
+              className="w-full flex items-center justify-center gap-2 py-3 text-sm font-black text-white bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 transition-colors active:bg-orange-600"
+            >
+              {riderSaving ? <span>Adding…</span> : <><Plus className="w-4 h-4" /> Add Rider</>}
+            </button>
           </div>
+          {riderError && (
+            <p className="text-xs font-semibold text-red-500 mt-2">{riderError}</p>
+          )}
         </div>
 
         {/* Billing */}

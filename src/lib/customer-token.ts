@@ -86,12 +86,26 @@ export interface DayMenu {
   holidayLabel?: string | null
 }
 
+export type DeliveryStatus = 'delivered' | 'skipped' | 'pending'
+
+export interface SlotDelivery {
+  slot: MealSlot
+  status: DeliveryStatus
+}
+
+export interface DayHistory {
+  date: string       // YYYY-MM-DD
+  slots: SlotDelivery[]
+}
+
 export interface CustomerPortalData {
   customer: PortalCustomer
   provider: PortalProvider
   subscription: PortalSubscription | null
   todayMenu: MenuSlot[]
   weekMenu: DayMenu[]  // today + next 6 days
+  todayDeliveries: SlotDelivery[]   // delivery status per slot for today
+  deliveryHistory: DayHistory[]     // last 30 days newest-first
   token: string
 }
 
@@ -210,9 +224,14 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
     }
   }
 
-  // 5. Fetch menus + holidays in parallel
+  // 5. Fetch menus, holidays, and delivery logs in parallel
   const dates = getWeekDates(7)
-  const [{ data: menuRows }, { data: holidayRows }] = await Promise.all([
+  const today = dates[0]
+  const historyFrom = new Date(today)
+  historyFrom.setDate(historyFrom.getDate() - 29)
+  const historyFromStr = historyFrom.toISOString().split('T')[0]
+
+  const [{ data: menuRows }, { data: holidayRows }, { data: deliveryRows }] = await Promise.all([
     db
       .from('daily_menus')
       .select('menu_date, meal_slot, dish_name, plan_type, notes')
@@ -227,6 +246,13 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       .eq('provider_id', tokenRow.provider_id)
       .gte('date', dates[0])
       .lte('date', dates[dates.length - 1]),
+    db
+      .from('delivery_logs')
+      .select('date, meal_slot, status')
+      .eq('customer_id', tokenRow.customer_id)
+      .gte('date', historyFromStr)
+      .lte('date', today)
+      .order('date', { ascending: false }),
   ])
 
   // Build holiday lookup
@@ -260,6 +286,42 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
       }))
   }
 
+  // Build delivery status lookup: date → slot → status
+  const deliveryMap: Record<string, Record<string, 'delivered' | 'skipped'>> = {}
+  for (const row of (deliveryRows ?? [])) {
+    if (!deliveryMap[row.date]) deliveryMap[row.date] = {}
+    deliveryMap[row.date][row.meal_slot] = row.status
+  }
+
+  // Today's delivery status — one entry per slot the customer is subscribed to
+  const planSlots: MealSlot[] = mealPlanData?.meal_slots ?? []
+  const todayDeliveries: SlotDelivery[] = planSlots.length > 0
+    ? planSlots.map(slot => ({
+        slot,
+        status: (deliveryMap[today]?.[slot] as DeliveryStatus) ?? 'pending',
+      }))
+    : SLOT_ORDER
+        .filter(slot => deliveryMap[today]?.[slot])
+        .map(slot => ({
+          slot,
+          status: deliveryMap[today][slot] as DeliveryStatus,
+        }))
+
+  // History: last 30 days (only days with at least one delivery/skip event), newest first
+  const historyDates = Object.keys(deliveryMap)
+    .filter(d => d < today || d === today)
+    .sort((a, b) => b.localeCompare(a))
+
+  const deliveryHistory: DayHistory[] = historyDates.map(date => ({
+    date,
+    slots: SLOT_ORDER
+      .filter(slot => deliveryMap[date]?.[slot])
+      .map(slot => ({
+        slot,
+        status: deliveryMap[date][slot] as DeliveryStatus,
+      })),
+  })).filter(d => d.slots.length > 0)
+
   const todayMenu = buildDayMenu(dates[0])
   const weekMenu: DayMenu[] = dates.map(date => {
     const holiday = isProviderHoliday(date, offDays, Object.keys(holidayMap))
@@ -283,6 +345,8 @@ export async function getPortalData(token: string): Promise<CustomerPortalData |
     subscription,
     todayMenu,
     weekMenu,
+    todayDeliveries,
+    deliveryHistory,
     token,
   }
 }

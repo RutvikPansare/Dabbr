@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MessageCircle, Phone, Leaf, Drumstick, IndianRupee } from 'lucide-react'
 import MenuSection from './MenuSection'
+import LoginButton from './LoginButton'
 import { isProviderHoliday } from '@/lib/holidays'
 
 const SLOT_ORDER = ['breakfast', 'lunch', 'dinner'] as const
@@ -100,6 +101,11 @@ export default async function ProviderLandingPage({ params }: { params: Promise<
         <div className="absolute -left-10 bottom-0 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
 
         <div className="relative">
+          {/* Login button — top right */}
+          <div className="absolute top-0 right-0">
+            <LoginButton providerSlug={slug} />
+          </div>
+
           {p.logo_url ? (
             <img
               src={p.logo_url}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Loader2, X, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -55,6 +55,23 @@ function isActiveStep(s: string | null): s is StepKey {
 
 const ACTIVE_STEPS: StepKey[] = ['1', '2', '3']
 
+// ── Persist completion to DB ──────────────────────────────────────────────────
+
+async function markOnboardingDoneInDB() {
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from('providers')
+      .update({ onboarding_done: true })
+      .eq('id', user.id)
+  } catch {
+    // Best-effort — localStorage is the fallback
+  }
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function OnboardingGuide() {
@@ -66,26 +83,72 @@ export default function OnboardingGuide() {
   const [error, setError] = useState('')
   const [celebrating, setCelebrating] = useState(false)
   const [confirmExit, setConfirmExit] = useState(false)
+  // null = not resolved yet; false = not a rider; true = is a rider
+  const [isRider, setIsRider] = useState<boolean | null>(null)
+  const initDone = useRef(false)
 
-
-  // Read step from localStorage once on mount
+  // ── Init: check rider status + DB completion state on mount ────────────────
   useEffect(() => {
-    const stored = localStorage.getItem('dabbr_onboarding_step')
-    setStep(stored)
+    if (initDone.current) return
+    initDone.current = true
+
+    async function init() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        setIsRider(false)
+        setStep(null)
+        return
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any
+
+      // Check if this user is a rider — riders never see the onboarding guide
+      const { data: riderRow } = await db
+        .from('delivery_riders')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (riderRow) {
+        setIsRider(true)
+        return
+      }
+      setIsRider(false)
+
+      // Check DB onboarding_done flag (handles cross-device case)
+      const { data: provider } = await db
+        .from('providers')
+        .select('onboarding_done')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (provider?.onboarding_done) {
+        localStorage.setItem('dabbr_onboarding_step', 'done')
+        setStep('done')
+        return
+      }
+
+      // Fall back to localStorage
+      const stored = localStorage.getItem('dabbr_onboarding_step')
+      setStep(stored)
+    }
+
+    init()
   }, [])
 
-
-  // After celebration, just hide the celebration flash — no forced navigation
+  // After celebration, hide the flash
   useEffect(() => {
     if (!celebrating) return
-    const timer = setTimeout(() => {
-      setCelebrating(false)
-    }, 900)
+    const timer = setTimeout(() => setCelebrating(false), 900)
     return () => clearTimeout(timer)
   }, [celebrating])
 
-  // Don't render on /onboarding page or when not in an active step
+  // Don't render on /onboarding page, for riders, or when not in an active step
   if (pathname === '/onboarding') return null
+  if (isRider === null || isRider === true) return null
   if (!isActiveStep(step)) return null
 
   const def = STEPS[step]
@@ -107,6 +170,7 @@ export default function OnboardingGuide() {
         return
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any
 
       if (step === '1') {
@@ -142,10 +206,14 @@ export default function OnboardingGuide() {
         }
       }
 
-      // Advance step in localStorage immediately
       const nextStep = def.nextStep
       localStorage.setItem('dabbr_onboarding_step', nextStep)
       setStep(nextStep)
+
+      // Persist completion to DB when all 3 steps are done
+      if (nextStep === 'done') {
+        markOnboardingDoneInDB()
+      }
 
       setChecking(false)
       setCelebrating(true)
@@ -159,13 +227,14 @@ export default function OnboardingGuide() {
     const nextStep = def.nextStep
     localStorage.setItem('dabbr_onboarding_step', nextStep)
     setStep(nextStep)
-    // Don't force navigation — user stays where they are
+    if (nextStep === 'done') markOnboardingDoneInDB()
   }
 
   function confirmExitGuide() {
     localStorage.setItem('dabbr_onboarding_step', 'done')
     setStep('done')
     setConfirmExit(false)
+    markOnboardingDoneInDB()
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────

@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react'
 import {
   ArrowLeft, Leaf, Drumstick, CheckCircle2, PauseCircle, XCircle,
   AlertTriangle, MessageCircle, ChevronRight, Utensils,
-  BadgeCheck, Clock, RotateCcw, MapPin,
+  BadgeCheck, Clock, RotateCcw, MapPin, ChevronDown, ChevronUp,
+  Package,
 } from 'lucide-react'
-import type { CustomerPortalData, MenuSlot, DayMenu } from '@/lib/customer-token'
+import type { CustomerPortalData, MenuSlot, DayMenu, SlotDelivery, DayHistory } from '@/lib/customer-token'
 import { MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL, PLAN_TYPE_LABEL } from '@/lib/meals'
 import {
   cutoffMessage, formatDisplayDate, formatShortDate,
@@ -43,6 +44,92 @@ function statusLabel(status: string, activePause: boolean) {
   if (status === 'active') return { text: 'Active', cls: 'bg-green-100 text-green-700', icon: <CheckCircle2 className="w-3.5 h-3.5" /> }
   if (status === 'paused') return { text: 'Paused', cls: 'bg-amber-100 text-amber-700', icon: <PauseCircle className="w-3.5 h-3.5" /> }
   return { text: 'Cancelled', cls: 'bg-gray-100 text-gray-600', icon: <XCircle className="w-3.5 h-3.5" /> }
+}
+
+// ── Delivery status helpers ────────────────────────────────────────────────
+
+const SLOT_EMOJI: Record<string, string> = { breakfast: '🌅', lunch: '☀️', dinner: '🌙' }
+const SLOT_LABEL: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' }
+
+function SlotStatusPill({ slot, status }: { slot: string; status: string }) {
+  const base = 'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold'
+  if (status === 'delivered') {
+    return (
+      <div className={`${base} bg-green-50 border border-green-200`}>
+        <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+        <span className="text-green-700">{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}</span>
+        <span className="text-green-500 ml-0.5">✓</span>
+      </div>
+    )
+  }
+  if (status === 'skipped') {
+    return (
+      <div className={`${base} bg-amber-50 border border-amber-200`}>
+        <XCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+        <span className="text-amber-700">{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}</span>
+        <span className="text-amber-500 ml-0.5 text-[10px] font-black">SKIP</span>
+      </div>
+    )
+  }
+  return (
+    <div className={`${base} bg-gray-50 border border-gray-200`}>
+      <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+      <span className="text-gray-500">{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]}</span>
+    </div>
+  )
+}
+
+function TodayDeliveries({ slots }: { slots: SlotDelivery[] }) {
+  const allDone = slots.every(s => s.status === 'delivered')
+  const allPending = slots.every(s => s.status === 'pending')
+
+  return (
+    <div className="rounded-3xl bg-white border border-gray-100 shadow-sm px-5 py-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Today&apos;s Deliveries</p>
+        {allDone && (
+          <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full">All delivered 🎉</span>
+        )}
+        {allPending && (
+          <span className="text-[10px] font-semibold text-gray-400">Not yet delivered</span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {slots.map(s => (
+          <SlotStatusPill key={s.slot} slot={s.slot} status={s.status} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function HistoryRow({ day }: { day: DayHistory }) {
+  const date = new Date(day.date + 'T00:00:00')
+  const label = date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+  const allDelivered = day.slots.every(s => s.status === 'delivered')
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <div className="w-10 text-center shrink-0">
+        <p className="text-[10px] font-bold text-gray-400 uppercase">{date.toLocaleDateString('en-IN', { weekday: 'short' })}</p>
+        <p className="text-sm font-black text-gray-800">{date.getDate()}</p>
+        <p className="text-[10px] font-semibold text-gray-400">{date.toLocaleDateString('en-IN', { month: 'short' })}</p>
+      </div>
+      <div className="flex-1 flex flex-wrap gap-1.5">
+        {day.slots.map(s => (
+          <span
+            key={s.slot}
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              s.status === 'delivered' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+            }`}
+          >
+            {SLOT_EMOJI[s.slot]} {s.status === 'delivered' ? '✓' : '✗'}
+          </span>
+        ))}
+      </div>
+      {allDelivered && <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />}
+    </div>
+  )
 }
 
 // ── Menu slot display ──────────────────────────────────────────────────────
@@ -128,11 +215,12 @@ export default function CustomerPortalClient({
   data: CustomerPortalData
   isLoggedIn?: boolean
 }) {
-  const { customer, provider, subscription, weekMenu, token } = data
+  const { customer, provider, subscription, weekMenu, token, todayDeliveries, deliveryHistory } = data
   const [screen, setScreen] = useState<Screen>('home')
   const [selectedDayIdx, setSelectedDayIdx] = useState(0)
   const [isPending, startTransition] = useTransition()
   const [ctaDismissed, setCtaDismissed] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Pause form state
   const effectiveStart = getEffectiveChangeDate(provider.cutoff_hour, provider.cutoff_tz)
@@ -339,6 +427,38 @@ export default function CustomerPortalClient({
                   <p className="text-xs text-gray-400 mt-1">Since {new Date(sub.start_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── Today's Deliveries ── */}
+          {todayDeliveries.length > 0 && (
+            <TodayDeliveries slots={todayDeliveries} />
+          )}
+
+          {/* ── Delivery History ── */}
+          {deliveryHistory.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowHistory(v => !v)}
+                className="w-full flex items-center justify-between gap-2 py-1"
+              >
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-black text-gray-900 uppercase tracking-wide">Delivery History</span>
+                </div>
+                {showHistory
+                  ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                  : <ChevronDown className="w-4 h-4 text-gray-400" />
+                }
+              </button>
+              {showHistory && (
+                <div className="mt-3 rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
+                  {deliveryHistory.slice(0, 30).map(day => (
+                    <HistoryRow key={day.date} day={day} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

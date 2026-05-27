@@ -14,8 +14,19 @@ export default async function DashboardPage() {
   if (riderInfo) redirect('/rider')
 
   // If the user has no meal plans they haven't completed setup yet — send to onboarding.
+  // But skip the redirect if they've already explicitly completed/dismissed onboarding.
   const mealPlans = await getCachedMealPlans(user.id)
-  if (!mealPlans || mealPlans.length === 0) redirect('/onboarding')
+  if (!mealPlans || mealPlans.length === 0) {
+    // Check if they've already completed onboarding (cross-device safe)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (await import('@/lib/supabase/admin')).createAdminClient() as any
+    const { data: prov } = await db
+      .from('providers')
+      .select('onboarding_done')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (!prov?.onboarding_done) redirect('/onboarding')
+  }
 
   // Use IST (UTC+5:30) so Indian providers always get the correct local date
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
