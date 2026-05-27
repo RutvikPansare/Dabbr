@@ -751,7 +751,7 @@ export default function CustomerPortalClient({
                     {/* Inline inputs */}
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">First day paused</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">Pause Start</label>
                         <input
                           type="date"
                           required
@@ -765,7 +765,7 @@ export default function CustomerPortalClient({
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">First day back *</label>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-wide block mb-1">Pause End</label>
                         <input
                           type="date"
                           required
@@ -810,7 +810,7 @@ export default function CustomerPortalClient({
                   <p className="text-xs text-orange-600 mt-0.5">
                     {pauseStart < effectiveStart
                       ? `Note: earliest pause date is ${formatShortDate(effectiveStart)} due to your provider's cutoff time.`
-                      : `Deliveries resume on ${formatShortDate(pauseEnd)}.`
+                      : `Deliveries start again from ${formatShortDate(addDays(pauseEnd, 1))}.`
                     }
                   </p>
                 </div>
