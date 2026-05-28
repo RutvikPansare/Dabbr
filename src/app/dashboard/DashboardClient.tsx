@@ -637,6 +637,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [customerModal, setCustomerModal] = useState<Customer | null>(null)
   const [showDelivered, setShowDelivered] = useState(true)
   const [showSkipped, setShowSkipped] = useState(false)
+  // Per-area collapsed state for delivered/skipped sub-sections in area view
+  const [areaShowDelivered, setAreaShowDelivered] = useState<Record<string, boolean>>({})
+  const [areaShowSkipped, setAreaShowSkipped] = useState<Record<string, boolean>>({})
   const [cookListOpen, setCookListOpen] = useState(true)
   const [packingListOpen, setPackingListOpen] = useState(true)
   const [slotFilter, setSlotFilter] = useState<'all' | MealSlot>('lunch')
@@ -2498,13 +2501,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {sortedAreas.map(([area, allMembers]) => {
                   const members = allMembers.filter(c => customerMealSlots(c).includes(slotFilter as MealSlot))
                   if (!members.length) return null
-                  const areaActive = deliveryTrackingEnabled
-                    ? members.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] !== 'delivered')
-                    : members
-                  const areaDelivered = deliveryTrackingEnabled
-                    ? members.filter(c => deliveryStatuses[`${c.id}:${slotFilter}`] === 'delivered')
-                    : []
-                  const allAreaDone = deliveryTrackingEnabled && areaActive.length === 0
+                  const getStatus = (c: Customer) => deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'
+                  const areaPending   = deliveryTrackingEnabled ? members.filter(c => getStatus(c) === 'pending')   : members
+                  const areaDelivered = deliveryTrackingEnabled ? members.filter(c => getStatus(c) === 'delivered') : []
+                  const areaSkipped   = deliveryTrackingEnabled ? members.filter(c => getStatus(c) === 'skipped')   : []
+                  const pendingLeft   = areaPending.length
+                  const allAreaDone   = deliveryTrackingEnabled && pendingLeft === 0
+                  const showDel = areaShowDelivered[area] ?? false
+                  const showSkip = areaShowSkipped[area] ?? false
                   return (
                     <div key={area} className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
 
@@ -2514,11 +2518,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           <MapPin className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                           <span className="text-[14px] font-black text-gray-900 truncate">{area}</span>
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold shrink-0 ${
-                            allAreaDone
-                              ? 'bg-emerald-50 text-emerald-600'
-                              : 'bg-orange-50 text-orange-600'
+                            allAreaDone ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
                           }`}>
-                            {allAreaDone ? `${members.length} ✓` : `${areaActive.length} left`}
+                            {allAreaDone ? `${members.length} ✓` : `${pendingLeft} left`}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -2542,37 +2544,91 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         </div>
                       </div>
 
-                      {/* Customer rows */}
-                      <div className="divide-y divide-gray-50">
-                        {areaActive.map((c, i) =>
-                          deliveryTrackingEnabled ? (
-                            <SwipeableDeliveryRow
+                      {/* Pending rows */}
+                      {areaPending.length > 0 && (
+                        <div className="divide-y divide-gray-50">
+                          {areaPending.map((c, i) =>
+                            deliveryTrackingEnabled ? (
+                              <SwipeableDeliveryRow
+                                key={c.id} c={c} index={i}
+                                isLast={i === areaPending.length - 1 && areaDelivered.length === 0 && areaSkipped.length === 0}
+                                hideArea
+                                status="pending"
+                                onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                                bulkMode={bulkMode} selected={selectedIds.has(c.id)}
+                                onToggleSelect={() => toggleSelect(c.id)}
+                                onOpen={() => setCustomerModal(c)}
+                                onAddExtra={() => openExtraModal(c)}
+                                pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                                onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                              />
+                            ) : (
+                              <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaPending.length - 1} hideArea status="pending" onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
+                            )
+                          )}
+                        </div>
+                      )}
+
+                      {/* Delivered section — collapsible, same pattern as list view */}
+                      {areaDelivered.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => setAreaShowDelivered(prev => ({ ...prev, [area]: !showDel }))}
+                            className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-t border-green-100 transition-colors active:bg-green-100/60"
+                          >
+                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-green-500 shrink-0">
+                              <Check className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <span className="text-sm font-black text-green-800">Delivered</span>
+                            <span className="rounded-lg bg-green-100 border border-green-200 px-2 py-0.5 text-xs font-bold text-green-700">{areaDelivered.length}</span>
+                            <span className="ml-auto mr-2 text-[11px] font-medium text-green-500/70">tap circle to undo</span>
+                            <ChevronDown className={`w-4 h-4 text-green-500 transition-transform duration-200 ${showDel ? 'rotate-180' : ''}`} />
+                          </button>
+                          {showDel && areaDelivered.map((c, i) => (
+                            <DeliveryRow
                               key={c.id} c={c} index={i}
-                              isLast={i === areaActive.length - 1 && areaDelivered.length === 0}
+                              isLast={i === areaDelivered.length - 1 && areaSkipped.length === 0}
                               hideArea
-                              status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'}
+                              status="delivered"
                               onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                              bulkMode={bulkMode} selected={selectedIds.has(c.id)}
-                              onToggleSelect={() => toggleSelect(c.id)}
                               onOpen={() => setCustomerModal(c)}
                               onAddExtra={() => openExtraModal(c)}
-                              pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                              pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                              onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
                             />
-                          ) : (
-                            <DeliveryRow key={c.id} c={c} index={i} isLast={i === areaActive.length - 1} hideArea status={deliveryStatuses[`${c.id}:${slotFilter}`] ?? 'pending'} onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)} onOpen={() => setCustomerModal(c)} onAddExtra={() => openExtraModal(c)} pendingExtraCount={(pendingExtras[c.id] ?? []).length} onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })} />
-                          )
-                        )}
-                      </div>
+                          ))}
+                        </>
+                      )}
 
-                      {/* Delivered footer */}
-                      {areaDelivered.length > 0 && (
-                        <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50/60 border-t border-emerald-100/60">
-                          <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500 shrink-0">
-                            <Check className="w-3 h-3 text-white" />
-                          </div>
-                          <span className="text-xs font-bold text-emerald-700">{areaDelivered.length} delivered</span>
-                          <span className="text-xs text-emerald-500 truncate">· {areaDelivered.map(c => c.name).join(', ')}</span>
-                        </div>
+                      {/* Skipped section — collapsible, same pattern as list view */}
+                      {areaSkipped.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => setAreaShowSkipped(prev => ({ ...prev, [area]: !showSkip }))}
+                            className="w-full flex items-center gap-2 px-5 py-3.5 bg-amber-50/60 border-t border-amber-100 transition-colors active:bg-amber-100/60"
+                          >
+                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500 shrink-0">
+                              <X className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <span className="text-sm font-black text-amber-800">Skipped</span>
+                            <span className="rounded-lg bg-amber-100 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">{areaSkipped.length}</span>
+                            <span className="ml-auto mr-2 text-[11px] font-medium text-amber-500/70">tap circle to undo</span>
+                            <ChevronDown className={`w-4 h-4 text-amber-500 transition-transform duration-200 ${showSkip ? 'rotate-180' : ''}`} />
+                          </button>
+                          {showSkip && areaSkipped.map((c, i) => (
+                            <DeliveryRow
+                              key={c.id} c={c} index={i}
+                              isLast={i === areaSkipped.length - 1}
+                              hideArea
+                              status="skipped"
+                              onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                              onOpen={() => setCustomerModal(c)}
+                              onAddExtra={() => openExtraModal(c)}
+                              pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                              onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                            />
+                          ))}
+                        </>
                       )}
 
                     </div>
