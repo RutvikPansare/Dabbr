@@ -17,6 +17,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       providerId={user.id}
+      userEmail={user.email ?? null}
       provider={provider}
       initialQuickTags={quickTags}
       initialHolidays={holidays}

@@ -65,6 +65,7 @@ function darkenForPreview(hex: string, by: number) {
 
 interface Props {
   providerId: string
+  userEmail: string | null
   provider: Provider | null
   initialQuickTags: MenuQuickTag[]
   initialHolidays: ProviderHoliday[]
@@ -116,7 +117,7 @@ function groupHolidays(holidays: ProviderHoliday[]): HolidayGroup[] {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SettingsClient({ providerId, provider, initialQuickTags, initialHolidays, initialRiders }: Props) {
+export default function SettingsClient({ providerId, userEmail, provider, initialQuickTags, initialHolidays, initialRiders }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const { startCheckout, loadingPlan, error: billingError } = useBillingCheckout()
@@ -741,6 +742,18 @@ export default function SettingsClient({ providerId, provider, initialQuickTags,
       return
     }
     const email = newRiderEmail.trim().toLowerCase() || null
+
+    // Prevent provider from adding themselves as a rider
+    const providerPhone = (provider?.phone ?? '').replace(/\D/g, '').replace(/^(91|0)(\d{10})$/, '$2')
+    const providerEmail = userEmail?.trim().toLowerCase() ?? ''
+    if (providerPhone && phone === providerPhone) {
+      setRiderError("That's your own number. You can do deliveries directly from the dashboard — no need to add yourself as a rider.")
+      return
+    }
+    if (providerEmail && email && email === providerEmail) {
+      setRiderError("That's your own email. You can do deliveries directly from the dashboard — no need to add yourself as a rider.")
+      return
+    }
     setRiderSaving(true)
     setRiderError('')
     const { data, error: addErr } = await db
