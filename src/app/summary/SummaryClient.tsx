@@ -36,7 +36,7 @@ export interface SummaryData {
 function fmt(amount: number): string {
   if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`
   if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}k`
-  return `₹${amount}`
+  return `₹${Math.round(amount)}`
 }
 
 function growth(current: number, previous: number): { pct: number; dir: 'up' | 'down' | 'same' } | null {
