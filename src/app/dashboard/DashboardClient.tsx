@@ -2441,28 +2441,32 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   <>
                     <button
                       onClick={() => setShowDelivered(v => !v)}
-                      className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-t border-green-100 transition-colors active:bg-green-100/60"
+                      className="w-full flex items-center gap-3 px-5 py-3.5 bg-green-100/80 border-y border-green-200 shadow-inner transition-colors active:bg-green-100"
                     >
-                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-green-500 shrink-0">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shrink-0 shadow-sm">
                         <Check className="w-3.5 h-3.5 text-white" />
                       </div>
-                      <span className="text-sm font-black text-green-800">Delivered</span>
-                      <span className="rounded-lg bg-green-100 border border-green-200 px-2 py-0.5 text-xs font-bold text-green-700">{deliveredList.length}</span>
-                      <span className="ml-auto mr-2 text-[11px] font-medium text-green-500/70">tap circle to undo</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-green-800">Delivered customers</span>
+                      <span className="rounded-full bg-white/80 border border-green-200 px-2.5 py-0.5 text-xs font-black text-green-700">{deliveredList.length}</span>
+                      <span className="ml-auto mr-2 hidden sm:inline text-[11px] font-semibold text-green-600/70">tap circle to undo</span>
                       <ChevronDown className={`w-4 h-4 text-green-500 transition-transform duration-200 ${showDelivered ? 'rotate-180' : ''}`} />
                     </button>
-                    {showDelivered && deliveredList.map((c, i) => (
-                      <DeliveryRow
-                        key={c.id} c={c} index={i}
-                        isLast={i === deliveredList.length - 1}
-                        status="delivered"
-                        onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                        onOpen={() => setCustomerModal(c)}
-                        onAddExtra={() => openExtraModal(c)}
-                        pendingExtraCount={(pendingExtras[c.id] ?? []).length}
-                        onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
-                      />
-                    ))}
+                    {showDelivered && (
+                      <div className="border-b border-green-100 bg-green-50/20">
+                        {deliveredList.map((c, i) => (
+                          <DeliveryRow
+                            key={c.id} c={c} index={i}
+                            isLast={i === deliveredList.length - 1}
+                            status="delivered"
+                            onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                            onOpen={() => setCustomerModal(c)}
+                            onAddExtra={() => openExtraModal(c)}
+                            pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                            onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -2471,28 +2475,32 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   <>
                     <button
                       onClick={() => setShowSkipped(v => !v)}
-                      className="w-full flex items-center gap-2 px-5 py-3.5 bg-amber-50/60 border-t border-amber-100 transition-colors active:bg-amber-100/60"
+                      className="w-full flex items-center gap-3 px-5 py-3.5 bg-amber-100/80 border-y border-amber-200 shadow-inner transition-colors active:bg-amber-100"
                     >
-                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500 shrink-0">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 shrink-0 shadow-sm">
                         <X className="w-3.5 h-3.5 text-white" />
                       </div>
-                      <span className="text-sm font-black text-amber-800">Skipped</span>
-                      <span className="rounded-lg bg-amber-100 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">{skippedList.length}</span>
-                      <span className="ml-auto mr-2 text-[11px] font-medium text-amber-500/70">tap circle to undo</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800">Skipped customers</span>
+                      <span className="rounded-full bg-white/80 border border-amber-200 px-2.5 py-0.5 text-xs font-black text-amber-700">{skippedList.length}</span>
+                      <span className="ml-auto mr-2 hidden sm:inline text-[11px] font-semibold text-amber-600/70">tap circle to undo</span>
                       <ChevronDown className={`w-4 h-4 text-amber-500 transition-transform duration-200 ${showSkipped ? 'rotate-180' : ''}`} />
                     </button>
-                    {showSkipped && skippedList.map((c, i) => (
-                      <DeliveryRow
-                        key={c.id} c={c} index={i}
-                        isLast={i === skippedList.length - 1}
-                        status="skipped"
-                        onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                        onOpen={() => setCustomerModal(c)}
-                        onAddExtra={() => openExtraModal(c)}
-                        pendingExtraCount={(pendingExtras[c.id] ?? []).length}
-                        onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
-                      />
-                    ))}
+                    {showSkipped && (
+                      <div className="border-b border-amber-100 bg-amber-50/20">
+                        {skippedList.map((c, i) => (
+                          <DeliveryRow
+                            key={c.id} c={c} index={i}
+                            isLast={i === skippedList.length - 1}
+                            status="skipped"
+                            onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                            onOpen={() => setCustomerModal(c)}
+                            onAddExtra={() => openExtraModal(c)}
+                            pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                            onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -2576,29 +2584,33 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         <>
                           <button
                             onClick={() => setAreaShowDelivered(prev => ({ ...prev, [area]: !showDel }))}
-                            className="w-full flex items-center gap-2 px-5 py-3.5 bg-green-50/60 border-t border-green-100 transition-colors active:bg-green-100/60"
+                            className="w-full flex items-center gap-3 px-5 py-3.5 bg-green-100/80 border-y border-green-200 shadow-inner transition-colors active:bg-green-100"
                           >
-                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-green-500 shrink-0">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shrink-0 shadow-sm">
                               <Check className="w-3.5 h-3.5 text-white" />
                             </div>
-                            <span className="text-sm font-black text-green-800">Delivered</span>
-                            <span className="rounded-lg bg-green-100 border border-green-200 px-2 py-0.5 text-xs font-bold text-green-700">{areaDelivered.length}</span>
-                            <span className="ml-auto mr-2 text-[11px] font-medium text-green-500/70">tap circle to undo</span>
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-green-800">Delivered customers</span>
+                            <span className="rounded-full bg-white/80 border border-green-200 px-2.5 py-0.5 text-xs font-black text-green-700">{areaDelivered.length}</span>
+                            <span className="ml-auto mr-2 hidden sm:inline text-[11px] font-semibold text-green-600/70">tap circle to undo</span>
                             <ChevronDown className={`w-4 h-4 text-green-500 transition-transform duration-200 ${showDel ? 'rotate-180' : ''}`} />
                           </button>
-                          {showDel && areaDelivered.map((c, i) => (
-                            <DeliveryRow
-                              key={c.id} c={c} index={i}
-                              isLast={i === areaDelivered.length - 1 && areaSkipped.length === 0}
-                              hideArea
-                              status="delivered"
-                              onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                              onOpen={() => setCustomerModal(c)}
-                              onAddExtra={() => openExtraModal(c)}
-                              pendingExtraCount={(pendingExtras[c.id] ?? []).length}
-                              onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
-                            />
-                          ))}
+                          {showDel && (
+                            <div className="border-b border-green-100 bg-green-50/20">
+                              {areaDelivered.map((c, i) => (
+                                <DeliveryRow
+                                  key={c.id} c={c} index={i}
+                                  isLast={i === areaDelivered.length - 1 && areaSkipped.length === 0}
+                                  hideArea
+                                  status="delivered"
+                                  onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                                  onOpen={() => setCustomerModal(c)}
+                                  onAddExtra={() => openExtraModal(c)}
+                                  pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                                  onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </>
                       )}
 
@@ -2607,29 +2619,33 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         <>
                           <button
                             onClick={() => setAreaShowSkipped(prev => ({ ...prev, [area]: !showSkip }))}
-                            className="w-full flex items-center gap-2 px-5 py-3.5 bg-amber-50/60 border-t border-amber-100 transition-colors active:bg-amber-100/60"
+                            className="w-full flex items-center gap-3 px-5 py-3.5 bg-amber-100/80 border-y border-amber-200 shadow-inner transition-colors active:bg-amber-100"
                           >
-                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500 shrink-0">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 shrink-0 shadow-sm">
                               <X className="w-3.5 h-3.5 text-white" />
                             </div>
-                            <span className="text-sm font-black text-amber-800">Skipped</span>
-                            <span className="rounded-lg bg-amber-100 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">{areaSkipped.length}</span>
-                            <span className="ml-auto mr-2 text-[11px] font-medium text-amber-500/70">tap circle to undo</span>
+                            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800">Skipped customers</span>
+                            <span className="rounded-full bg-white/80 border border-amber-200 px-2.5 py-0.5 text-xs font-black text-amber-700">{areaSkipped.length}</span>
+                            <span className="ml-auto mr-2 hidden sm:inline text-[11px] font-semibold text-amber-600/70">tap circle to undo</span>
                             <ChevronDown className={`w-4 h-4 text-amber-500 transition-transform duration-200 ${showSkip ? 'rotate-180' : ''}`} />
                           </button>
-                          {showSkip && areaSkipped.map((c, i) => (
-                            <DeliveryRow
-                              key={c.id} c={c} index={i}
-                              isLast={i === areaSkipped.length - 1}
-                              hideArea
-                              status="skipped"
-                              onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
-                              onOpen={() => setCustomerModal(c)}
-                              onAddExtra={() => openExtraModal(c)}
-                              pendingExtraCount={(pendingExtras[c.id] ?? []).length}
-                              onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
-                            />
-                          ))}
+                          {showSkip && (
+                            <div className="border-b border-amber-100 bg-amber-50/20">
+                              {areaSkipped.map((c, i) => (
+                                <DeliveryRow
+                                  key={c.id} c={c} index={i}
+                                  isLast={i === areaSkipped.length - 1}
+                                  hideArea
+                                  status="skipped"
+                                  onMark={(s) => markDelivery(c.id, slotFilter as MealSlot, s)}
+                                  onOpen={() => setCustomerModal(c)}
+                                  onAddExtra={() => openExtraModal(c)}
+                                  pendingExtraCount={(pendingExtras[c.id] ?? []).length}
+                                  onViewExtras={() => setExtrasViewModal({ customer: c, extras: pendingExtras[c.id] ?? [] })}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </>
                       )}
 

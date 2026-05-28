@@ -12,11 +12,23 @@ type DeliveryStatus = 'pending' | 'delivered' | 'skipped'
 
 interface ExtraItem { item: string; amount: number }
 
+type PlanType = 'veg' | 'nonveg'
+
 interface Customer {
   id: string
   name: string
+  address: string | null
   area: string | null
-  subscriptions: { meal_plans: { meal_slots: MealSlot[] } | null }[]
+  plan_type?: PlanType | null
+  meal_slots?: MealSlot[] | null
+  subscriptions: {
+    status?: string
+    meal_plans: {
+      name: string
+      meal_slots: MealSlot[]
+      plan_type: PlanType
+    } | null
+  }[]
   pauses: { pause_date: string }[]
 }
 
@@ -27,11 +39,18 @@ function nextStatus(current: DeliveryStatus): DeliveryStatus {
   return STATUS_CYCLE[(i + 1) % STATUS_CYCLE.length]
 }
 
+function customerPlan(c: Customer) {
+  return (
+    c.subscriptions?.find(s => s.status === 'active' || s.status === 'paused')?.meal_plans ??
+    c.subscriptions?.find(s => s.meal_plans)?.meal_plans ??
+    null
+  )
+}
+
 function getSlots(c: Customer): MealSlot[] {
-  for (const sub of c.subscriptions) {
-    const slots = sub.meal_plans?.meal_slots
-    if (slots && slots.length > 0) return slots
-  }
+  const planSlots = customerPlan(c)?.meal_slots
+  if (planSlots && planSlots.length > 0) return planSlots
+  if (c.meal_slots && c.meal_slots.length > 0) return c.meal_slots
   return ['lunch']
 }
 
@@ -523,6 +542,11 @@ const SLOT_EMOJI: Record<MealSlot, string> = {
   dinner:    '🌙',
 }
 
+const PLAN_EMOJI: Record<PlanType, string> = {
+  veg: '🥦',
+  nonveg: '🍗',
+}
+
 function SlotSection({
   slot, total, pending, delivered, skipped, statuses, onMark, lastTouchMs, extras,
 }: {
@@ -580,11 +604,16 @@ function SlotSection({
         <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
           <button
             onClick={() => setShowDelivered(v => !v)}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-green-100/80 border-b border-green-200 text-left shadow-inner active:bg-green-100"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-            <span className="text-xs font-black text-green-700 flex-1">
-              {delivered.length} delivered
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shadow-sm shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-green-800 flex-1">
+              Delivered customers
+            </span>
+            <span className="rounded-full bg-white/80 border border-green-200 px-2.5 py-0.5 text-xs font-black text-green-700">
+              {delivered.length}
             </span>
             {showDelivered
               ? <ChevronUp className="w-3.5 h-3.5 text-green-500" />
@@ -613,11 +642,16 @@ function SlotSection({
         <div className="rounded-3xl border border-amber-100 bg-white shadow-sm overflow-hidden">
           <button
             onClick={() => setShowSkipped(v => !v)}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 bg-amber-100/80 border-b border-amber-200 text-left shadow-inner active:bg-amber-100"
           >
-            <PackageX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span className="text-xs font-black text-amber-700 flex-1">
-              {skipped.length} skipped
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 shadow-sm shrink-0">
+              <PackageX className="w-3.5 h-3.5 text-white" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800 flex-1">
+              Skipped customers
+            </span>
+            <span className="rounded-full bg-white/80 border border-amber-200 px-2.5 py-0.5 text-xs font-black text-amber-700">
+              {skipped.length}
             </span>
             {showSkipped
               ? <ChevronUp className="w-3.5 h-3.5 text-amber-500" />
@@ -691,9 +725,12 @@ function AreaSection({
       {/* Delivered rows (collapsible) */}
       {delivered.length > 0 && (
         <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
-          <button onClick={() => setShowDelivered(v => !v)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left">
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-            <span className="text-xs font-black text-green-700 flex-1">{delivered.length} delivered</span>
+          <button onClick={() => setShowDelivered(v => !v)} className="w-full flex items-center gap-3 px-4 py-3 bg-green-100/80 border-b border-green-200 text-left shadow-inner active:bg-green-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shadow-sm shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-green-800 flex-1">Delivered customers</span>
+            <span className="rounded-full bg-white/80 border border-green-200 px-2.5 py-0.5 text-xs font-black text-green-700">{delivered.length}</span>
             {showDelivered ? <ChevronUp className="w-3.5 h-3.5 text-green-500" /> : <ChevronDown className="w-3.5 h-3.5 text-green-500" />}
           </button>
           {showDelivered && (
@@ -709,9 +746,12 @@ function AreaSection({
       {/* Skipped rows (collapsible) */}
       {skipped.length > 0 && (
         <div className="rounded-3xl border border-amber-100 bg-white shadow-sm overflow-hidden">
-          <button onClick={() => setShowSkipped(v => !v)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left">
-            <PackageX className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span className="text-xs font-black text-amber-700 flex-1">{skipped.length} skipped</span>
+          <button onClick={() => setShowSkipped(v => !v)} className="w-full flex items-center gap-3 px-4 py-3 bg-amber-100/80 border-b border-amber-200 text-left shadow-inner active:bg-amber-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 shadow-sm shrink-0">
+              <PackageX className="w-3.5 h-3.5 text-white" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800 flex-1">Skipped customers</span>
+            <span className="rounded-full bg-white/80 border border-amber-200 px-2.5 py-0.5 text-xs font-black text-amber-700">{skipped.length}</span>
             {showSkipped ? <ChevronUp className="w-3.5 h-3.5 text-amber-500" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-500" />}
           </button>
           {showSkipped && (
@@ -740,20 +780,23 @@ function CustomerRow({
   areaView?: boolean
   extras: Record<string, ExtraItem[]>
 }) {
-  const slots = filterSlot ? [filterSlot] : getSlots(c)
-  const allDone = slots.every(s => (statuses[`${c.id}:${s}`] ?? 'pending') !== 'pending')
+  const deliverySlots = filterSlot ? [filterSlot] : getSlots(c)
+  const planSlots = getSlots(c)
+  const slotStatuses = deliverySlots.map(s => statuses[`${c.id}:${s}`] ?? 'pending')
+  const allDone = slotStatuses.every(s => s !== 'pending')
+  const allDelivered = slotStatuses.length > 0 && slotStatuses.every(s => s === 'delivered')
+  const allSkipped = slotStatuses.length > 0 && slotStatuses.every(s => s === 'skipped')
   const customerExtras = extras[c.id] ?? []
-
-  // Slot view: subtitle = area.  Area view: subtitle = meal names (area is the section header).
-  const subtitle = areaView
-    ? slots.map(s => `${SLOT_EMOJI[s]} ${slotLabel(s)}`).join(' · ')
-    : c.area
+  const plan = customerPlan(c)
+  const planType = plan?.plan_type ?? c.plan_type ?? 'veg'
+  const planName = plan?.name ?? (planType === 'nonveg' ? 'Non-Veg Plan' : 'Veg Plan')
+  const addressLine = c.address?.trim() || c.area?.trim() || null
+  const slotEmojiLine = planSlots.map(s => SLOT_EMOJI[s]).join('')
+  const slotText = planSlots.map(slotLabel).join(' + ')
 
   function handleSwipeMark(newStatus: 'delivered' | 'skipped') {
-    slots.forEach(slot => {
-      if ((statuses[`${c.id}:${slot}`] ?? 'pending') === 'pending') {
-        onMark(c.id, slot, newStatus)
-      }
+    deliverySlots.forEach(slot => {
+      onMark(c.id, slot, newStatus)
     })
   }
 
@@ -786,33 +829,73 @@ function CustomerRow({
 
       {/* Row content */}
       <div
-        className={`flex items-center gap-3 px-4 py-3 transition-colors ${allDone ? 'bg-green-50/50' : ''}`}
+        className={`flex items-start gap-3 px-4 py-4 transition-colors ${
+          allDelivered ? 'bg-green-50/70' :
+          allSkipped   ? 'bg-amber-50/70' :
+          allDone      ? 'bg-green-50/40' :
+                         'bg-white hover:bg-gray-50/40'
+        }`}
         style={{
           transform: tracking ? `translateX(${deltaX * 0.45}px)` : 'translateX(0)',
           transition: tracking ? 'none' : 'transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94)',
         }}
       >
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-bold truncate ${allDone ? 'text-green-800' : 'text-gray-900'}`}>
+          <p className={`text-[15px] font-black truncate leading-snug ${
+            allDelivered ? 'text-green-800' :
+            allSkipped   ? 'text-amber-800' :
+                           'text-gray-900'
+          }`}>
             {c.name}
           </p>
-          {subtitle && (
-            <p className="text-xs font-semibold text-gray-400">{subtitle}</p>
+
+          {addressLine && (
+            <p className={`mt-1 flex items-start gap-1.5 text-xs font-semibold leading-snug ${
+              allDelivered ? 'text-green-600/70' :
+              allSkipped   ? 'text-amber-700/70' :
+                             'text-gray-400'
+            }`}>
+              <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+              <span className="line-clamp-2">{addressLine}</span>
+            </p>
           )}
+
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 ${
+              allDelivered ? 'bg-green-100/70' :
+              allSkipped   ? 'bg-amber-100/70' :
+                             'bg-gray-100/80'
+            }`}>
+              <span className="text-[11px]">{PLAN_EMOJI[planType]}</span>
+              <span className={`max-w-[128px] truncate text-[11px] font-semibold ${
+                allDelivered ? 'text-green-700' :
+                allSkipped   ? 'text-amber-700' :
+                               'text-gray-600'
+              }`}>{planName}</span>
+              <span className="text-xs text-gray-300">·</span>
+              <span className="text-[11px]" title={slotText}>{slotEmojiLine}</span>
+            </span>
+            {areaView && c.area && c.address && (
+              <span className="inline-flex items-center rounded-lg bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-600">
+                {c.area}
+              </span>
+            )}
+          </div>
+
           {/* Extras chips — read-only for rider */}
           {customerExtras.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
               {customerExtras.map((e, i) => (
-                <span key={i} className="inline-flex items-center gap-1 bg-orange-50 border border-orange-100 text-orange-600 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
-                  <Sparkles className="w-2.5 h-2.5 shrink-0" />
+                <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-orange-100 bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-orange-600">
+                  <Sparkles className="h-2.5 w-2.5 shrink-0" />
                   {e.item}{e.amount > 0 ? ` ₹${e.amount}` : ''}
                 </span>
               ))}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {slots.map(slot => {
+        <div className="flex shrink-0 flex-wrap justify-end gap-1.5 max-w-[88px] pt-0.5">
+          {deliverySlots.map(slot => {
             const key = `${c.id}:${slot}`
             const status: DeliveryStatus = statuses[key] ?? 'pending'
             return (
