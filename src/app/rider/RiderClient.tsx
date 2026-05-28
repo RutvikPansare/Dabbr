@@ -358,7 +358,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
 
         {/* No assignment today */}
         {!hasAssignment && (
-          <div className="rounded-3xl border border-gray-100 bg-white shadow-sm p-8 text-center">
+          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-8 text-center">
             <Clock3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
             <p className="text-sm font-black text-gray-600 mb-1">No deliveries assigned today</p>
             <p className="text-xs font-semibold text-gray-400">Check back when your provider assigns you a route.</p>
@@ -367,7 +367,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
 
         {/* All done celebration */}
         {hasAssignment && allDone && (
-          <div className="rounded-3xl border border-green-100 bg-green-50 p-5 text-center">
+          <div className="rounded-2xl border border-green-100 bg-green-50 p-5 text-center">
             <p className="text-2xl mb-1">🎉</p>
             <p className="text-sm font-black text-green-800">All deliveries done!</p>
             <p className="text-xs font-semibold text-green-600 mt-0.5">
@@ -414,7 +414,7 @@ export default function RiderClient({ riderName, today, customers, initialStatus
             <p className="text-xs font-black text-gray-400 uppercase tracking-wide px-1">
               Paused today · {pausedCustomers.length}
             </p>
-            <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
+            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
               {pausedCustomers.map(c => (
                 <div key={c.id} className="flex items-center gap-3 px-4 py-3 opacity-40">
                   <div className="flex-1 min-w-0">
@@ -584,24 +584,37 @@ function SlotSection({
 
       {/* Pending rows */}
       {pending.length > 0 && (
-        <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
-          {pending.map(c => (
-            <CustomerRow
-              key={c.id}
-              c={c}
-              statuses={statuses}
-              onMark={onMark}
-              lastTouchMs={lastTouchMs}
-              filterSlot={slot}
-              extras={extras}
-            />
-          ))}
+        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/80 border-b border-gray-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 shadow-sm shrink-0">
+              <Clock3 className="w-3.5 h-3.5 text-gray-500" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-gray-600 flex-1">
+              Pending customers
+            </span>
+            <span className="rounded-full bg-white/80 border border-gray-200 px-2.5 py-0.5 text-xs font-black text-gray-500">
+              {pending.length}
+            </span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {pending.map(c => (
+              <CustomerRow
+                key={c.id}
+                c={c}
+                statuses={statuses}
+                onMark={onMark}
+                lastTouchMs={lastTouchMs}
+                filterSlot={slot}
+                extras={extras}
+              />
+            ))}
+          </div>
         </div>
       )}
 
       {/* Delivered rows (collapsible) */}
       {delivered.length > 0 && (
-        <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-green-100 bg-white shadow-sm overflow-hidden">
           <button
             onClick={() => setShowDelivered(v => !v)}
             className="w-full flex items-center gap-3 px-4 py-3 bg-green-100/80 border-b border-green-200 text-left shadow-inner active:bg-green-100"
@@ -639,7 +652,7 @@ function SlotSection({
 
       {/* Skipped rows (collapsible) */}
       {skipped.length > 0 && (
-        <div className="rounded-3xl border border-amber-100 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-amber-100 bg-white shadow-sm overflow-hidden">
           <button
             onClick={() => setShowSkipped(v => !v)}
             className="w-full flex items-center gap-3 px-4 py-3 bg-amber-100/80 border-b border-amber-200 text-left shadow-inner active:bg-amber-100"
@@ -715,16 +728,25 @@ function AreaSection({
 
       {/* Pending rows */}
       {pending.length > 0 && (
-        <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden divide-y divide-gray-50">
-          {pending.map(c => (
-            <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView extras={extras} />
-          ))}
+        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 bg-gray-50/80 border-b border-gray-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 shadow-sm shrink-0">
+              <Clock3 className="w-3.5 h-3.5 text-gray-500" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-gray-600 flex-1">Pending customers</span>
+            <span className="rounded-full bg-white/80 border border-gray-200 px-2.5 py-0.5 text-xs font-black text-gray-500">{pending.length}</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {pending.map(c => (
+              <CustomerRow key={c.id} c={c} statuses={statuses} onMark={onMark} lastTouchMs={lastTouchMs} areaView extras={extras} />
+            ))}
+          </div>
         </div>
       )}
 
       {/* Delivered rows (collapsible) */}
       {delivered.length > 0 && (
-        <div className="rounded-3xl border border-green-100 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-green-100 bg-white shadow-sm overflow-hidden">
           <button onClick={() => setShowDelivered(v => !v)} className="w-full flex items-center gap-3 px-4 py-3 bg-green-100/80 border-b border-green-200 text-left shadow-inner active:bg-green-100">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 shadow-sm shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5 text-white" />
@@ -745,7 +767,7 @@ function AreaSection({
 
       {/* Skipped rows (collapsible) */}
       {skipped.length > 0 && (
-        <div className="rounded-3xl border border-amber-100 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-amber-100 bg-white shadow-sm overflow-hidden">
           <button onClick={() => setShowSkipped(v => !v)} className="w-full flex items-center gap-3 px-4 py-3 bg-amber-100/80 border-b border-amber-200 text-left shadow-inner active:bg-amber-100">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 shadow-sm shrink-0">
               <PackageX className="w-3.5 h-3.5 text-white" />
