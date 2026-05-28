@@ -2176,33 +2176,34 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           <div className="rounded-3xl bg-white border border-gray-100 shadow-sm overflow-hidden">
 
             {/* ── Card header ── */}
-            <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 shrink-0 text-[18px] leading-none">
-                  🛵
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[15px] font-black text-gray-900 leading-tight">
-                    {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
-                  </p>
-                  <p className="text-xs font-medium text-gray-400 mt-0.5">
-                    {workspaceCustomers.length} customer{workspaceCustomers.length !== 1 ? 's' : ''}
-                    {slotFilter !== 'all' && deliveryTrackingEnabled && pendingCount > 0 && (
-                      <span className="ml-1 text-orange-500 font-bold">· {pendingCount} pending</span>
-                    )}
-                  </p>
+            <div className="px-4 py-4 border-b border-gray-100">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 shrink-0 text-[18px] leading-none">
+                    🛵
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-black text-gray-900 leading-tight">
+                      {slotFilter === 'all' ? "Today's Deliveries" : `${MEAL_SLOT_LABEL[slotFilter as MealSlot]} Deliveries`}
+                    </p>
+                    <p className="text-xs font-medium text-gray-400 mt-0.5">
+                      {workspaceCustomers.length} customer{workspaceCustomers.length !== 1 ? 's' : ''}
+                      {slotFilter !== 'all' && deliveryTrackingEnabled && pendingCount > 0 && (
+                        <span className="ml-1 text-orange-500 font-bold">· {pendingCount} pending</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-              </div>
               {riders.length > 0 && workspaceCustomers.length > 0 && (
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-1.5 sm:flex sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shrink-0">
                   {runCompleted && !runIsActive ? (
-                    <span className="flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black bg-green-100 border border-green-200 text-green-700">
+                    <span className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-black bg-green-100 border border-green-200 text-green-700 sm:rounded-2xl">
                       <CheckCheck className="w-3.5 h-3.5 shrink-0" /><span>Run Complete</span>
                     </span>
                   ) : (
                   <button
                     onClick={openAssignModal}
-                    className={`flex items-center gap-1.5 rounded-2xl px-3 py-2.5 text-sm font-black active:scale-95 transition-all duration-200 ${
+                    className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-black active:scale-95 transition-all duration-200 sm:rounded-2xl ${
                       runIsActive
                         ? 'bg-green-50 border border-green-200 text-green-700'
                         : 'bg-white border border-gray-200 text-gray-700'
@@ -2216,13 +2217,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   )}
                   <button
                     onClick={() => setRiderModal({ area: 'All deliveries', members: workspaceCustomers })}
-                    className="flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-black uppercase tracking-wide bg-orange-500 text-white shadow-[0_4px_14px_rgba(244,98,42,0.35)] active:scale-95 transition-all duration-200"
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black uppercase tracking-wide bg-orange-500 text-white shadow-[0_4px_14px_rgba(244,98,42,0.28)] active:scale-95 transition-all duration-200 sm:rounded-2xl sm:px-5"
                   >
                     <Send className="w-4 h-4" />
                     Send
                   </button>
                 </div>
               )}
+              </div>
             </div>
 
             {/* ── Overview: per-slot progress chips ── */}
@@ -3140,7 +3142,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       )}
 
-      {/* ── Start Run bottom sheet ── */}
+      {/* ── Start Run modal ── */}
       {assignModal && (() => {
         // ── Draft helpers — operate on draftAssignments only, no API calls ──
         // API calls happen only when "Start Deliveries" is pressed.
@@ -3236,18 +3238,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             : [{ key: 'full', label: 'All deliveries', count: deliveryToday.length, scope: 'full', areaKey: null }]
 
         return (
-          <>
-            <div className="fixed inset-0 z-50" onClick={() => { setAssignModal(false); setPickerOpen(null) }} />
-            <div className="fixed bottom-0 left-0 right-0 z-50 animate-in slide-in-from-bottom-4 max-h-[92vh] flex flex-col lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-md lg:max-h-[80vh] lg:rounded-3xl">
-              <div className="rounded-t-3xl lg:rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-
-                {/* Handle (mobile) */}
-                <div className="flex justify-center pt-3 pb-1 shrink-0 lg:hidden">
-                  <div className="w-10 h-1 rounded-full bg-gray-200" />
-                </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-[calc(1rem+env(safe-area-inset-top))]">
+            <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => { setAssignModal(false); setPickerOpen(null) }} />
+            <div className="relative z-10 w-full max-w-md animate-in fade-in-0 zoom-in-95 duration-200">
+              <div className="max-h-[min(82vh,720px)] rounded-[2rem] bg-white shadow-2xl border border-white/80 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-3 pb-3 shrink-0">
+                <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
                   <div>
                     <div className="flex items-center gap-2">
                       {runIsActive && <span className="w-2 h-2 rounded-full bg-green-500" />}
@@ -3457,10 +3454,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                   </div>
                 )}
 
-                <div className="h-[env(safe-area-inset-bottom)] shrink-0 lg:hidden" />
               </div>
             </div>
-          </>
+          </div>
         )
       })()}
 
