@@ -755,11 +755,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   )
   const [cancelBellOpen, setCancelBellOpen] = useState(false)
   const bellRef = useRef<HTMLButtonElement>(null)
+  const desktopBellRef = useRef<HTMLButtonElement>(null)
   const [bellDropPos, setBellDropPos] = useState<{ top: number; right: number } | null>(null)
 
   function openBell() {
-    if (bellRef.current) {
-      const rect = bellRef.current.getBoundingClientRect()
+    // Use whichever bell button is currently rendered (desktop ref has offsetParent when lg: is active)
+    const el = (desktopBellRef.current?.offsetParent != null ? desktopBellRef : bellRef).current
+    if (el) {
+      const rect = el.getBoundingClientRect()
       setBellDropPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
     }
     setCancelBellOpen(o => !o)
@@ -1721,7 +1724,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           )}
           {/* Desktop notification bell */}
           <button
-            onClick={() => setCancelBellOpen(o => !o)}
+            ref={desktopBellRef}
+            onClick={openBell}
             className="relative flex items-center justify-center h-9 w-9 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 active:scale-95 transition-all"
             title="Notifications"
           >
