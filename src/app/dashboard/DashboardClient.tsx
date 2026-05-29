@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { dismissNotification, dismissAllNotifications, resolveCancellation } from './actions'
 import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
@@ -3695,23 +3696,54 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
           {/* Items */}
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {[
-              { icon: HelpCircle, label: 'FAQs & Help',      color: 'text-blue-500',   bg: 'bg-blue-50' },
-              { icon: Gift,       label: 'Refer a Friend',   color: 'text-purple-500', bg: 'bg-purple-50' },
-              { icon: Phone,      label: 'Contact Support',  color: 'text-green-600',  bg: 'bg-green-50' },
-              { icon: Flag,       label: 'Report a Problem', color: 'text-red-500',    bg: 'bg-red-50' },
-            ].map(({ icon: Icon, label, color, bg }) => (
-              <button
-                key={label}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all"
-              >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}>
-                  <Icon className={`w-5 h-5 ${color}`} />
-                </div>
-                <span className="text-[15px] font-semibold text-gray-900 text-left">{label}</span>
-                <ChevronRight className="w-4 h-4 text-gray-300 ml-auto shrink-0" />
-              </button>
-            ))}
+            <Link
+              href="/help"
+              onClick={() => setMoreOpen(false)}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                <HelpCircle className="w-5 h-5 text-blue-500" />
+              </div>
+              <span className="text-[15px] font-semibold text-gray-900">FAQs & Help</span>
+              <ChevronRight className="w-4 h-4 text-gray-300 ml-auto shrink-0" />
+            </Link>
+
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all opacity-50 cursor-not-allowed"
+              disabled
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50">
+                <Gift className="w-5 h-5 text-purple-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-[15px] font-semibold text-gray-900">Refer a Friend</span>
+                <span className="block text-[11px] text-gray-400">Coming soon</span>
+              </div>
+            </button>
+
+            <a
+              href="mailto:rutvik.pansare@gmail.com"
+              onClick={() => setMoreOpen(false)}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50">
+                <Phone className="w-5 h-5 text-green-600" />
+              </div>
+              <span className="text-[15px] font-semibold text-gray-900">Contact Support</span>
+              <ChevronRight className="w-4 h-4 text-gray-300 ml-auto shrink-0" />
+            </a>
+
+            <Link
+              href="/report"
+              onClick={() => setMoreOpen(false)}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50">
+                <Flag className="w-5 h-5 text-red-500" />
+              </div>
+              <span className="text-[15px] font-semibold text-gray-900">Report a Problem</span>
+              <ChevronRight className="w-4 h-4 text-gray-300 ml-auto shrink-0" />
+            </Link>
           </nav>
 
           {/* Sign out */}
