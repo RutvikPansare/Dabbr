@@ -13,6 +13,8 @@ const APP_PREFIXES = [
   '/summary',
   '/meal-plans',
   '/reports',
+  '/help',
+  '/report',
 ]
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

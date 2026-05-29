@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 const VALID_CATEGORIES = new Set(['bug', 'billing', 'delivery', 'feature', 'other'])
 
@@ -23,8 +22,7 @@ export async function POST(req: NextRequest) {
   if (description.length > 2000)
     return NextResponse.json({ error: 'Description too long' }, { status: 400 })
 
-  const db = createAdminClient() as ReturnType<typeof createAdminClient>
-  const { error } = await (db as any)
+  const { error } = await (supabase as any)
     .from('problem_reports')
     .insert({ provider_id: user.id, category, description: description.trim() })
 
