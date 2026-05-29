@@ -86,12 +86,12 @@ const FAQ_DATA: FAQCategory[] = [
       {
         question: 'How do I mark a delivery as done?',
         answer:
-          'On the Home screen, your active customers are listed. Swipe a customer card to the right to mark as Delivered, or swipe left to mark as Skipped. You can also tap the card to see options. If you start a "Run", you can mark all deliveries in sequence.',
+          'On the Home screen, your active customers are listed. You can mark deliveries at any time — no need to start a Run.\n\nSwipe a customer card to the right to mark as Delivered, or swipe left to mark as Skipped. You can also tap a card to see the same options as buttons.\n\nStart Run is completely optional — marking deliveries works the same way whether a Run is active or not.',
       },
       {
         question: 'What is the "Start Run" feature?',
         answer:
-          'Tapping "Start Run" on the Home screen opens a focused delivery mode. You go through customers one by one — mark each as Delivered or Skipped, then move to the next. It\'s designed for efficient field use while you\'re on the road.',
+          'Start Run is used to assign today\'s deliveries to a rider. When you tap "Start Run" and assign it to a rider (or an area), the rider sees those customers in their own view and can mark them from their device.\n\nAs a provider, you can always mark any delivery yourself directly from the Home screen — a Run does not need to be active. Start Run is purely for delegating deliveries to your team.',
       },
       {
         question: 'How do I pause a customer\'s delivery?',
