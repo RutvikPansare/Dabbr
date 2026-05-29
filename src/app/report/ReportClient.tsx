@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft, Flag, CheckCircle2 } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 
@@ -14,6 +15,7 @@ const CATEGORIES = [
 ]
 
 export default function ReportClient() {
+  const router = useRouter()
   const [category, setCategory] = useState('bug')
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
@@ -53,12 +55,12 @@ export default function ReportClient() {
       {/* Header */}
       <header className="fixed inset-x-0 top-0 z-40 lg:left-[220px] bg-[#FAF8F5]/90 backdrop-blur-sm border-b border-orange-100/40">
         <div className="mx-auto max-w-2xl lg:max-w-none px-4 lg:px-8 h-14 flex items-center gap-3">
-          <Link
-            href="/dashboard"
+          <button
+            onClick={() => router.back()}
             className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors shrink-0"
           >
             <ChevronLeft className="w-4 h-4" />
-          </Link>
+          </button>
           <div className="flex items-center gap-2">
             <Flag className="w-4 h-4 text-red-500" />
             <h1 className="text-base font-black text-gray-900">Report a Problem</h1>
