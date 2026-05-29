@@ -1807,17 +1807,54 @@ export default function SettingsClient({ providerId, userEmail, provider, initia
             const isOnPaidTrial = !!subData?.plan_trial_ends_at && subData?.subscription_status !== 'active'
             const hasPaidPlan   = (isBillingPlanId(subData?.subscription_plan) && subData?.subscription_status === 'active')
                                || (subData?.is_subscribed && !isOnPaidTrial && isBillingPlanId(subData?.subscription_plan))
-            if (hasPaidPlan && activeBillingPlan) return (
-              <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 flex items-center gap-3">
-                <span className="text-lg shrink-0">✅</span>
-                <div>
-                  <p className="text-sm font-black text-emerald-700">Active plan: Dabbr {activeBillingPlan.name}</p>
-                  {billingRenewalDate && (
-                    <p className="mt-1 text-xs font-bold text-emerald-600">Renews {billingRenewalDate}</p>
+
+            if (hasPaidPlan && activeBillingPlan) {
+              // Find original purchase date — oldest paid transaction for this plan
+              const planPayments = ledger.filter(e => e.kind === 'payment' && (e as any).plan === subData?.subscription_plan)
+              const firstPayment = planPayments[planPayments.length - 1]
+              const purchaseDate = firstPayment
+                ? new Date((firstPayment as any).date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                : null
+
+              return (
+                <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 overflow-hidden">
+                  {/* Header row */}
+                  <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
+                        <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-emerald-900 leading-none">Dabbr {activeBillingPlan.name}</p>
+                        <p className="text-[11px] font-bold text-emerald-600 mt-0.5">₹{activeBillingPlan.amount}/month</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200">
+                      Active
+                    </span>
+                  </div>
+
+                  {/* Date pills */}
+                  {(purchaseDate || billingRenewalDate) && (
+                    <div className="flex gap-3 px-4 pb-4 border-t border-emerald-100 pt-3">
+                      {purchaseDate && (
+                        <div className="flex-1 rounded-xl bg-white/70 border border-emerald-100 px-3 py-2">
+                          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide leading-none">Purchased</p>
+                          <p className="text-xs font-black text-emerald-800 mt-1">{purchaseDate}</p>
+                        </div>
+                      )}
+                      {billingRenewalDate && (
+                        <div className="flex-1 rounded-xl bg-white/70 border border-emerald-100 px-3 py-2">
+                          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide leading-none">Renews</p>
+                          <p className="text-xs font-black text-emerald-800 mt-1">{billingRenewalDate}</p>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            )
+              )
+            }
+
             // Free = not on a paid plan (subscription_plan null or status not active, and not subscribed)
             if (!hasPaidPlan && !isOnPaidTrial) return (
               <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-3">
