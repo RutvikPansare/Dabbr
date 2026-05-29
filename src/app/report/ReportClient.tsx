@@ -154,7 +154,7 @@ export default function ReportClient() {
 
             <button
               type="submit"
-              disabled={saving || description.trim().length < 10}
+              disabled={saving || description.trim().length === 0}
               className="w-full rounded-2xl bg-orange-500 py-4 text-sm font-black text-white shadow-sm disabled:opacity-50 active:scale-[0.98] transition-all"
             >
               {saving ? 'Sending…' : 'Submit Report'}
