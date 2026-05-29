@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown, Sparkles, FileDown } from 'lucide-react'
+import { BarChart2, CalendarDays, CreditCard, Home, LogOut, Settings, Users, ChevronDown, Sparkles, FileDown, HelpCircle, Gift, Phone, Flag } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', icon: Home,        label: 'Home'      },
@@ -120,6 +120,24 @@ export default function SideNav() {
             </Link>
           )
         })}
+
+        {/* Help section */}
+        <div className="pt-2 mt-2 border-t border-gray-100">
+          {[
+            { icon: HelpCircle, label: 'FAQs & Help' },
+            { icon: Gift,       label: 'Refer a Friend' },
+            { icon: Phone,      label: 'Contact Support' },
+            { icon: Flag,       label: 'Report a Problem' },
+          ].map(({ icon: Icon, label }) => (
+            <button
+              key={label}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-400 hover:bg-gray-50/80 hover:text-gray-700 transition-all duration-150"
+            >
+              <Icon size={15} strokeWidth={2} className="shrink-0 text-gray-400" />
+              <span className="leading-none">{label}</span>
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* ── Upgrade button ───────────────────────────────────────────── */}

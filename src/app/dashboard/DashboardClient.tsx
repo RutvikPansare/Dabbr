@@ -8,6 +8,7 @@ import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
   MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle, Play, RotateCcw, Zap, ChevronUp, List,
+  ChevronLeft, HelpCircle, Gift, Phone, Flag,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { fetchWithRetry } from '@/lib/fetch-retry'
@@ -754,6 +755,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     initialData.notifications ?? [],
   )
   const [cancelBellOpen, setCancelBellOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const bellRef = useRef<HTMLButtonElement>(null)
   const desktopBellRef = useRef<HTMLButtonElement>(null)
   const [bellDropPos, setBellDropPos] = useState<{ top: number; right: number } | null>(null)
@@ -1646,13 +1648,25 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       >
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
         <div className="relative mx-auto max-w-2xl px-4 flex items-center gap-3">
-          {provider?.logo_url && (
-            <img
-              src={provider.logo_url}
-              alt={provider.name}
-              className="w-11 h-11 rounded-2xl object-cover border-2 border-white/25 shrink-0 shadow-md"
-            />
-          )}
+          <button
+            onClick={() => setMoreOpen(true)}
+            className="shrink-0 active:scale-95 transition-transform"
+            aria-label="More options"
+          >
+            {provider?.logo_url ? (
+              <img
+                src={provider.logo_url}
+                alt={provider.name}
+                className="w-11 h-11 rounded-2xl object-cover border-2 border-white/25 shadow-md"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-2xl bg-white/20 border-2 border-white/25 flex items-center justify-center shadow-md">
+                <span className="text-white text-[15px] font-black leading-none">
+                  {providerName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join('')}
+                </span>
+              </div>
+            )}
+          </button>
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-semibold text-white/60 tracking-wide leading-none mb-1">
               {formatTodayLong(today)}
@@ -3651,6 +3665,69 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           </div>
         </div>
       )}
+
+      {/* ── More / Help panel (mobile, slides in from left) ── */}
+      <div
+        className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${moreOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      >
+        {/* Scrim */}
+        <div
+          className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${moreOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => setMoreOpen(false)}
+        />
+        {/* Panel */}
+        <div
+          className={`absolute inset-y-0 left-0 w-[85vw] max-w-sm bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${moreOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-4 border-b border-gray-100">
+            <button
+              onClick={() => setMoreOpen(false)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-600 active:scale-95 transition-transform shrink-0"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-black text-gray-900 leading-none truncate">{providerName}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Kitchen Admin</p>
+            </div>
+          </div>
+
+          {/* Items */}
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            {[
+              { icon: HelpCircle, label: 'FAQs & Help',      color: 'text-blue-500',   bg: 'bg-blue-50' },
+              { icon: Gift,       label: 'Refer a Friend',   color: 'text-purple-500', bg: 'bg-purple-50' },
+              { icon: Phone,      label: 'Contact Support',  color: 'text-green-600',  bg: 'bg-green-50' },
+              { icon: Flag,       label: 'Report a Problem', color: 'text-red-500',    bg: 'bg-red-50' },
+            ].map(({ icon: Icon, label, color, bg }) => (
+              <button
+                key={label}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all"
+              >
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                  <Icon className={`w-5 h-5 ${color}`} />
+                </div>
+                <span className="text-[15px] font-semibold text-gray-900 text-left">{label}</span>
+                <ChevronRight className="w-4 h-4 text-gray-300 ml-auto shrink-0" />
+              </button>
+            ))}
+          </nav>
+
+          {/* Sign out */}
+          <div className="px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 border-t border-gray-100">
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-red-500 hover:bg-red-50 active:scale-[0.98] transition-all"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50">
+                <LogOut className="w-5 h-5 text-red-500" />
+              </div>
+              <span className="text-[15px] font-semibold">Sign out</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
