@@ -1857,11 +1857,23 @@ export default function SettingsClient({ providerId, userEmail, provider, initia
 
             // Free = not on a paid plan (subscription_plan null or status not active, and not subscribed)
             if (!hasPaidPlan && !isOnPaidTrial) return (
-              <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 flex items-center gap-3">
-                <span className="text-lg shrink-0">🆓</span>
-                <div>
-                  <p className="text-sm font-black text-gray-700">Current plan: Dabbr Free</p>
-                  <p className="text-xs font-semibold text-gray-400 mt-0.5">Up to 15 customers. Upgrade for more.</p>
+              <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 overflow-hidden">
+                <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                      <HandCoins className="w-4 h-4 text-orange-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-orange-900 leading-none">Dabbr Free</p>
+                      <p className="text-[11px] font-bold text-orange-500 mt-0.5">₹0/month</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black text-orange-600 bg-orange-100 px-2.5 py-1 rounded-full border border-orange-200">
+                    Current
+                  </span>
+                </div>
+                <div className="px-4 pb-4 border-t border-orange-100 pt-3">
+                  <p className="text-xs font-semibold text-orange-600">Up to 15 customers · Upgrade to unlock more.</p>
                 </div>
               </div>
             )
