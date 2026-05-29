@@ -50,32 +50,32 @@ const FAQ_DATA: FAQCategory[] = [
       {
         question: 'What is the difference between Prepaid and Monthly Settlement?',
         answer:
-          'Prepaid: Customers pay in advance. Each payment adds days to their balance (e.g. ₹2500 for a ₹2500/month plan = 30 days). The balance counts down daily and turns red when it runs out.\n\nMonthly Settlement: Customers pay at the end of the month. The app tracks meals delivered and calculates the outstanding amount. You record payments as they come in.',
+          'Both work through the same balance system — the difference is just when your customer pays.\n\nPrepaid: The customer pays in advance. Their balance starts positive and counts down each day as meals are delivered. Set the Overdue Limit to ₹0 so they must always keep their balance topped up.\n\nMonthly settlement: The customer pays at the end of the month. Set their Overdue Limit to a negative value (e.g. −₹3000) so the app allows up to one month\'s worth of deliveries before flagging them as overdue. You record payment when they settle.',
       },
       {
-        question: 'How does the prepaid balance work?',
+        question: 'How does the balance work?',
         answer:
-          'When you record a payment for a prepaid customer, the app converts the amount to days. For example, if their plan is ₹3000/month and they pay ₹1500, that adds 15 days to their balance. The balance depletes by one day each delivery day. You can see the balance on the customer card.',
+          'Every customer has a rupee balance. When you record a payment, the amount is added to their balance. Each day a meal is delivered, the daily cost (monthly price ÷ 30) is deducted automatically.\n\nFor example: plan is ₹3000/month → daily cost ₹100. Customer pays ₹1500 → balance becomes ₹1500 → 15 days of credit.\n\nYou can see the current balance and days remaining on every customer card.',
       },
       {
         question: 'How do I record a payment?',
         answer:
-          'Go to the Payments tab or tap a customer card and select "Record Payment". Enter the amount — quick-amount chips are shown for common values. For prepaid customers, you\'ll see a preview of how many days will be added. A WhatsApp receipt can be sent after recording.',
+          'Go to the Payments tab or tap a customer card and select "Record Payment". Enter the amount — quick-amount chips are shown for common values including their plan price. You\'ll see a live preview of the updated balance and days remaining before you confirm. A WhatsApp receipt can be sent immediately after.',
       },
       {
         question: 'What does "Overdue" mean?',
         answer:
-          'A customer is marked Overdue when their balance has run out (prepaid) or they owe more than one month\'s amount (monthly settlement). Their card turns red in the customer list. You\'ll also see an overdue summary on the Summary page.',
+          'A customer is Overdue when their balance has dropped to or below their Overdue Limit. By default the limit is ₹0, so any negative balance triggers overdue status. Their card turns red and they appear in the overdue count on the Summary page.\n\nYou can adjust a customer\'s Overdue Limit to give them a grace buffer — for example set it to −₹1500 if you\'re comfortable letting them owe up to half a month before acting.',
       },
       {
         question: 'What does "Due Soon" mean?',
         answer:
-          'Due Soon means the customer\'s balance is low — they have fewer than 5 days of credit remaining or their payment is nearly due. Their card shows an amber warning. It\'s a good time to send them a reminder.',
+          'Due Soon means the customer\'s balance is still above their Overdue Limit, but they have 5 days or fewer of deliveries remaining before it runs out. Their card shows an amber warning. This is a good time to send a payment reminder — use the WhatsApp reminder button on their card.',
       },
       {
         question: 'What is the UPI ID for?',
         answer:
-          'Your UPI ID is included in the WhatsApp payment receipt sent to customers after you record a payment. It makes it easy for customers to pay you directly. Set it in Settings → Branding.',
+          'Your UPI ID is included in the WhatsApp payment receipt sent to customers after you record a payment. It makes it easy for customers to pay you directly via any UPI app. Set it in Settings → Branding.',
       },
     ],
   },
