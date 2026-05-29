@@ -122,21 +122,41 @@ export default function SideNav() {
         })}
 
         {/* Help section */}
-        <div className="pt-2 mt-2 border-t border-gray-100">
-          {[
-            { icon: HelpCircle, label: 'FAQs & Help' },
-            { icon: Gift,       label: 'Refer a Friend' },
-            { icon: Phone,      label: 'Contact Support' },
-            { icon: Flag,       label: 'Report a Problem' },
-          ].map(({ icon: Icon, label }) => (
-            <button
-              key={label}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-400 hover:bg-gray-50/80 hover:text-gray-700 transition-all duration-150"
-            >
-              <Icon size={15} strokeWidth={2} className="shrink-0 text-gray-400" />
-              <span className="leading-none">{label}</span>
-            </button>
-          ))}
+        <div className="pt-2 mt-2 border-t border-gray-100 space-y-0.5">
+          <Link
+            href="/help"
+            prefetch
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-400 hover:bg-gray-50/80 hover:text-gray-700 transition-all duration-150"
+          >
+            <HelpCircle size={15} strokeWidth={2} className="shrink-0 text-gray-400" />
+            <span className="leading-none">FAQs & Help</span>
+          </Link>
+
+          <button
+            disabled
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-300 cursor-not-allowed"
+          >
+            <Gift size={15} strokeWidth={2} className="shrink-0 text-gray-300" />
+            <span className="leading-none">Refer a Friend</span>
+            <span className="ml-auto text-[10px] font-bold text-gray-300">Soon</span>
+          </button>
+
+          <a
+            href="mailto:rutvik.pansare@gmail.com"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-400 hover:bg-gray-50/80 hover:text-gray-700 transition-all duration-150"
+          >
+            <Phone size={15} strokeWidth={2} className="shrink-0 text-gray-400" />
+            <span className="leading-none">Contact Support</span>
+          </a>
+
+          <Link
+            href="/report"
+            prefetch
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold text-gray-400 hover:bg-gray-50/80 hover:text-gray-700 transition-all duration-150"
+          >
+            <Flag size={15} strokeWidth={2} className="shrink-0 text-gray-400" />
+            <span className="leading-none">Report a Problem</span>
+          </Link>
         </div>
       </nav>
 
