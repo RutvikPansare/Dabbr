@@ -1900,37 +1900,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               })}
             </div>
 
-            {/* Cross-slot awareness — other slots' progress when in a workspace */}
-            {slotFilter !== 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
-              <div className="flex gap-1.5 flex-wrap">
-                {MEAL_SLOTS.filter(s => s !== slotFilter).map(s => {
-                  const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
-                  if (!sCusts.length) return null
-                  const sDone = sCusts.filter(c => deliveryStatuses[`${c.id}:${s}`] === 'delivered').length
-                  const isAllDone = sDone === sCusts.length
-                  const hasProgress = sDone > 0 && !isAllDone
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => changeSlot(s)}
-                      className={`chip transition-all active:scale-95 ${
-                        isAllDone   ? 'bg-emerald-50 text-emerald-700'
-                        : hasProgress ? 'bg-orange-50 text-orange-700'
-                        : 'bg-white text-gray-500'
-                      }`}
-                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
-                    >
-                      <span>{MEAL_SLOT_EMOJI[s]}</span>
-                      <span className="font-semibold">{MEAL_SLOT_LABEL[s]}</span>
-                      <span className={`font-bold ${isAllDone ? 'text-emerald-600' : hasProgress ? 'text-orange-500' : 'text-gray-400'}`}>
-                        {sDone}/{sCusts.length}
-                      </span>
-                      {isAllDone && <span className="text-emerald-500">✓</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
             </div>
           )}
 

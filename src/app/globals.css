@@ -76,8 +76,8 @@ html,
 body {
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
-  overflow-x: hidden; /* prevent horizontal pan in Capacitor WebView */
-  touch-action: pan-y; /* allow vertical scroll only at root level */
+  overflow-x: hidden;              /* clip any stray horizontal overflow */
+  overscroll-behavior-x: none;    /* prevent lateral pan in Capacitor WebView */
 }
 
 body {
