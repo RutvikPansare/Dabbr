@@ -39,7 +39,7 @@ export default async function RiderPage() {
       getRiderAssignments(riderInfo.id, today),
       db
         .from('customers')
-        .select('*, pauses(*), subscriptions(*)')
+        .select('*, subscriptions(*), pauses(pause_date)')
         .eq('provider_id', riderInfo.provider_id)
         .order('name'),
       db.from('meal_plans').select('*').eq('provider_id', riderInfo.provider_id),
@@ -73,7 +73,10 @@ export default async function RiderPage() {
   for (const mp of (mealPlans ?? [])) mpMap[mp.id] = mp
 
   const enrichedCustomers = (allCustomers ?? [])
-    .filter((c: any) => hasFull || assignedAreas.has(c.area))
+    // Normalise null/blank area → 'Other' to match provider-side grouping key.
+    // Without this, customers with no area are invisible when the rider is
+    // assigned the 'Other' area bucket.
+    .filter((c: any) => hasFull || assignedAreas.has(c.area?.trim() || 'Other'))
     .map((c: any) => ({
       ...c,
       subscriptions: (c.subscriptions ?? []).map((s: any) => ({
@@ -105,6 +108,7 @@ export default async function RiderPage() {
 
   return (
     <RiderClient
+      riderId={riderInfo.id}
       riderName={riderInfo.name}
       today={today}
       customers={enrichedCustomers}

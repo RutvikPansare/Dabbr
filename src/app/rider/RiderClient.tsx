@@ -82,6 +82,7 @@ interface RiderNotification {
 }
 
 interface Props {
+  riderId: string
   riderName: string
   today: string
   customers: Customer[]
@@ -93,7 +94,7 @@ interface Props {
   extras: Record<string, ExtraItem[]>
 }
 
-export default function RiderClient({ riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider, isAreaBased, extras }: Props) {
+export default function RiderClient({ riderId, riderName, today, customers, initialStatuses, hasAssignment, notifications: initialNotifications, isAlsoProvider, isAreaBased, extras }: Props) {
   const router = useRouter()
   const [statuses, setStatuses] = useState<Record<string, DeliveryStatus>>(
     initialStatuses as Record<string, DeliveryStatus>
@@ -166,14 +167,15 @@ export default function RiderClient({ riderName, today, customers, initialStatus
 
   useEffect(() => { statusesRef.current = statuses }, [statuses])
 
-  // Realtime subscription
+  // Realtime subscription — delivery_logs (status updates) + rider_assignments (assignment changes)
   useEffect(() => {
     let channel: any = null
     async function subscribe() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       channel = supabase
-        .channel(`rider-logs-${today}`)
+        .channel(`rider-${riderId}-${today}`)
+        // Delivery log changes → update local status state immediately
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -188,11 +190,22 @@ export default function RiderClient({ riderName, today, customers, initialStatus
             [key]: payload.eventType === 'DELETE' ? 'pending' : row.status,
           }))
         })
+        // Assignment changes → refresh from server so hasAssignment + customer list are accurate.
+        // This means cancellation is immediate: rider sees "No deliveries assigned" as soon as
+        // the provider removes them, without waiting for the 60-second poll.
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'rider_assignments',
+          filter: `rider_id=eq.${riderId}`,
+        }, () => {
+          router.refresh()
+        })
         .subscribe()
     }
     subscribe()
     return () => { channel?.unsubscribe() }
-  }, [today])
+  }, [riderId, today]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh server data: on tab/app foreground + every 60s.
   // This picks up new customer assignments without a manual page reload.

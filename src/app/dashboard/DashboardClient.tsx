@@ -1628,12 +1628,14 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     setAssignments([])
     setAssignModal(false)
     setPickerOpen(new Set())
-    // Retry unassign calls — idempotent (DELETE is safe to repeat)
+    // Retry unassign calls — idempotent (DELETE is safe to repeat).
+    // Pass composite key fields alongside assignment_id so the API can fall
+    // back to composite-key delete if the UUID hasn't landed yet.
     toRemove.forEach(a => {
       fetchWithRetry(() => fetch('/api/rider/unassign', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignment_id: a.id }),
+        body: JSON.stringify({ assignment_id: a.id, rider_id: a.rider_id, assignment_date: today, scope: a.scope, area_name: a.area_name }),
       })).catch(err => console.warn('[stopRun] unassign failed after retries:', err))
     })
   }
@@ -3200,8 +3202,10 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           setAssignModal(false)
           setPickerOpen(new Set())
           // Remove stale assignments (in committed but not in draft) — retry, idempotent
+          // Always send composite key fields alongside assignment_id so the API can fall back
+          // to a composite-key delete if the ID is still a draft string (race condition guard).
           assignments.filter(a => !draft.some(d => d.rider_id === a.rider_id && d.scope === a.scope && d.area_name === a.area_name))
-            .forEach(a => fetchWithRetry(() => fetch('/api/rider/unassign', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_id: a.id }) }))
+            .forEach(a => fetchWithRetry(() => fetch('/api/rider/unassign', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_id: a.id, rider_id: a.rider_id, assignment_date: today, scope: a.scope, area_name: a.area_name }) }))
               .catch(err => console.warn('[commitRun] unassign failed after retries:', err)))
           // Add new assignments (in draft but not in committed) — retry, upsert-safe
           draft.filter(d => !assignments.some(a => a.rider_id === d.rider_id && a.scope === d.scope && a.area_name === d.area_name))
