@@ -1273,7 +1273,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             <div className="h-9 w-9 rounded-xl bg-white/15 shrink-0" />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]">
+        <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))]" style={{ touchAction: 'pan-y' }}>
           <div className="mx-auto max-w-2xl px-4 mt-5">
             <div className="h-3 w-32 rounded-full bg-gray-200 mb-2 animate-pulse" />
             <div className="grid grid-cols-2 gap-3">
@@ -1598,29 +1598,21 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   async function quickAddRider() {
     const name  = quickRiderName.trim()
     const phone = quickRiderPhone.replace(/\D/g, '').slice(-10)
-    if (!name)          { setQuickRiderError('Name is required'); return }
+    if (!name)               { setQuickRiderError('Name is required'); return }
     if (phone.length !== 10) { setQuickRiderError('Enter a valid 10-digit WhatsApp number'); return }
     setQuickRiderSaving(true)
     setQuickRiderError('')
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setQuickRiderError('Not signed in'); setQuickRiderSaving(false); return }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { createAdminClient } = await import('@/lib/supabase/admin')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = createAdminClient() as any
-      const { data, error } = await db
-        .from('delivery_riders')
-        .insert({ provider_id: user.id, name, whatsapp_number: phone, invite_status: 'pending' })
-        .select('id, name, whatsapp_number, email, invite_status')
-        .single()
-      if (error) { setQuickRiderError(error.message); return }
-      if (data) {
-        setRiders(prev => [...prev, data])
-        setQuickRiderName('')
-        setQuickRiderPhone('')
-      }
+      const res = await fetch('/api/rider/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setQuickRiderError(json.error ?? 'Failed to add rider'); return }
+      setRiders(prev => [...prev, json.rider])
+      setQuickRiderName('')
+      setQuickRiderPhone('')
     } catch (e: any) {
       setQuickRiderError(e?.message ?? 'Failed to add rider')
     } finally {
@@ -1877,7 +1869,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>
 
       {/* ── Scrollable content (mobile) / Document flow (desktop) ── */}
-      <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))] lg:flex-none lg:overflow-visible lg:pb-12">
+      <div className="flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))] lg:flex-none lg:overflow-visible lg:pb-12" style={{ touchAction: 'pan-y' }}>
 
       {overCustomerLimit && customerLimit != null && (
         <main className="mx-auto max-w-2xl px-4 pt-6 lg:max-w-3xl lg:pt-10">
