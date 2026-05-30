@@ -2262,40 +2262,6 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             </div>
 
-            {/* ── Overview: per-slot progress chips ── */}
-            {slotFilter === 'all' && deliveryTrackingEnabled && deliveryToday.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-4 py-3 border-b border-gray-100 bg-gray-50/40">
-                {MEAL_SLOTS.map(s => {
-                  const sCusts = deliveryToday.filter(c => customerMealSlots(c).includes(s))
-                  if (!sCusts.length) return null
-                  const sDone = sCusts.filter(c => deliveryStatuses[`${c.id}:${s}`] === 'delivered').length
-                  const isAllDone = sDone === sCusts.length
-                  const hasProgress = sDone > 0 && !isAllDone
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => changeSlot(s)}
-                      className={`chip transition-all active:scale-95 ${
-                        isAllDone   ? 'bg-emerald-50 text-emerald-700'
-                        : hasProgress ? 'bg-orange-50 text-orange-700'
-                        : 'bg-white text-gray-500'
-                      }`}
-                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
-                    >
-                      <span className="text-sm leading-none">{MEAL_SLOT_EMOJI[s]}</span>
-                      <span className="font-semibold">{MEAL_SLOT_LABEL[s]}</span>
-                      <span className={`font-bold ${isAllDone ? 'text-emerald-600' : hasProgress ? 'text-orange-500' : 'text-gray-400'}`}>
-                        {sDone}/{sCusts.length}
-                      </span>
-                      {isAllDone
-                        ? <span className="text-emerald-500 text-[10px]">✓</span>
-                        : <ChevronRight className="w-3 h-3 opacity-40" />
-                      }
-                    </button>
-                  )
-                })}
-              </div>
-            )}
 
             {/* ── Workspace: progress bar ── */}
             {slotFilter !== 'all' && deliveryTrackingEnabled && workspaceCustomers.length > 0 && !allDone && (
