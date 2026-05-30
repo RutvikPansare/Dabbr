@@ -9,7 +9,7 @@ import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
   MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle, Play, RotateCcw, Zap, ChevronUp, List,
-  ChevronLeft, HelpCircle, Gift, Phone, Flag,
+  ChevronLeft, HelpCircle, Gift, Phone, Flag, AlignJustify,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { fetchWithRetry } from '@/lib/fetch-retry'
@@ -1642,40 +1642,56 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {isExpired && <Paywall />}
 
-      {/* ── Mobile header — gradient pill, hidden on desktop ── */}
+      {/* ── Mobile header — hidden on desktop ── */}
       <div
-        className="shrink-0 z-30 overflow-hidden pt-5 pb-5 shadow-[0_4px_20px_rgba(0,0,0,0.12)] lg:hidden"
+        className="shrink-0 z-30 overflow-hidden lg:hidden"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
+        {/* Decorative blur blob */}
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-        <div className="relative mx-auto max-w-2xl px-4 flex items-center gap-3">
+
+        <div
+          className="relative mx-auto max-w-2xl px-4 pb-4 flex items-start gap-3"
+          style={{ paddingTop: 'calc(0.85rem + env(safe-area-inset-top))' }}
+        >
+          {/* ── Menu / profile button ── */}
           <button
             onClick={() => setMoreOpen(true)}
-            className="shrink-0 active:scale-95 transition-transform"
-            aria-label="More options"
+            className="shrink-0 active:scale-95 transition-transform mt-0.5"
+            aria-label="Open menu"
           >
-            {provider?.logo_url ? (
-              <img
-                src={provider.logo_url}
-                alt={provider.name}
-                className="w-11 h-11 rounded-2xl object-cover border-2 border-white/25 shadow-md"
-              />
-            ) : (
-              <div className="w-11 h-11 rounded-2xl bg-white/20 border-2 border-white/25 flex items-center justify-center shadow-md">
-                <span className="text-white text-[15px] font-black leading-none">
-                  {providerName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join('')}
-                </span>
+            <div className="relative">
+              {/* Avatar circle */}
+              {provider?.logo_url ? (
+                <img
+                  src={provider.logo_url}
+                  alt={provider.name}
+                  className="w-11 h-11 rounded-full object-cover border-2 border-white/30 shadow-md"
+                />
+              ) : (
+                <div className="w-11 h-11 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center shadow-md">
+                  <span className="text-white text-[15px] font-black leading-none">
+                    {providerName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join('')}
+                  </span>
+                </div>
+              )}
+              {/* Menu badge — signals this is tappable */}
+              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm">
+                <AlignJustify className="w-2.5 h-2.5 text-orange-500" strokeWidth={2.5} />
               </div>
-            )}
+            </div>
           </button>
+
+          {/* ── Greeting block ── */}
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold text-white/60 tracking-wide leading-none mb-1">
-              {formatTodayLong(today)}
+            <p className="text-[11px] font-semibold text-white/55 tracking-wide leading-none">
+              {formatTodayShort(today)}
             </p>
-            <h1 className="text-xl font-black text-white tracking-tight leading-tight flex items-center gap-1.5">
-              {greeting}, {providerName}
+            <h1 className="mt-1 text-[1.35rem] font-black text-white tracking-tight leading-tight flex items-center gap-1.5">
+              {greeting}, {providerName.split(' ')[0]}
               <GreetingIcon className="w-5 h-5 text-yellow-300 shrink-0" strokeWidth={2.5} />
             </h1>
+            {/* Plan / trial badge */}
             {!trialBadge && activePlanName && (
               <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${activePlanName === 'Free' ? 'border-white/15 bg-white/10 text-white/70' : 'border-white/20 bg-white/15 text-white'}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${activePlanName === 'Free' ? 'bg-white/50' : 'bg-emerald-300'}`} />
@@ -1689,29 +1705,21 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               </div>
             )}
           </div>
-          <div className="shrink-0 flex items-center gap-2">
-            {/* Notification bell */}
-            <button
-              ref={bellRef}
-              onClick={openBell}
-              className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 hover:bg-white/25 active:scale-95 transition-all"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {totalBellCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
-                  {totalBellCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 hover:bg-white/25 active:scale-95 transition-all"
-              title="Sign out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+
+          {/* ── Bell only ── (logout moved to panel) */}
+          <button
+            ref={bellRef}
+            onClick={openBell}
+            className="relative flex items-center justify-center h-9 w-9 rounded-xl bg-white/15 text-white border border-white/20 active:scale-95 transition-all mt-0.5 shrink-0"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {totalBellCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white leading-none">
+                {totalBellCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
