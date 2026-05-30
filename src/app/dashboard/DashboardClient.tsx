@@ -2214,8 +2214,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     }`}
                   >
                     {runIsActive
-                      ? <><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" /><span>Run Active</span></>
-                      : <><Play className="w-3.5 h-3.5" /><span>Start Run</span></>
+                      ? <><Check className="w-3.5 h-3.5 shrink-0" /><span>Assigned</span></>
+                      : <><Bike className="w-3.5 h-3.5" /><span>Assign Rider</span></>
                     }
                   </button>
                   )}
@@ -3128,7 +3128,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
         </div>
       )}
 
-      {/* ── Start Run modal ── */}
+      {/* ── Assign Rider modal ── */}
       {assignModal && (() => {
         // ── Draft helpers — operate on draftAssignments only, no API calls ──
         // API calls happen only when "Start Deliveries" is pressed.
@@ -3235,7 +3235,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     <div className="flex items-center gap-2">
                       {runIsActive && <span className="w-2 h-2 rounded-full bg-green-500" />}
                       <p className="text-base font-black text-gray-900">
-                        {runIsActive ? 'Delivery Run' : 'Start Run'}
+                        {runIsActive ? 'Rider Assignment' : 'Assign Rider'}
                       </p>
                     </div>
                     <p className="text-xs font-semibold text-gray-400 mt-0.5">
@@ -3332,14 +3332,24 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                                   )}
                                 </p>
                               </div>
-                              <div className="shrink-0 flex items-center gap-2">
+                              <div className="shrink-0 flex items-center gap-1.5">
                                 {assigned ? (
-                                  <span className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1">
-                                    <Bike className="w-3 h-3 text-orange-500 shrink-0" />
-                                    <span className="text-[11px] font-bold text-gray-800 max-w-[80px] truncate">
-                                      {assigned.rider_name}
+                                  <>
+                                    <span className="flex items-center gap-1.5 rounded-xl bg-orange-50 border border-orange-100 px-2.5 py-1">
+                                      <Bike className="w-3 h-3 text-orange-500 shrink-0" />
+                                      <span className="text-[11px] font-bold text-gray-800 max-w-[80px] truncate">
+                                        {assigned.rider_name}
+                                      </span>
                                     </span>
-                                  </span>
+                                    {/* Quick per-area / per-row cancel — stop propagation so the row picker doesn't toggle */}
+                                    <button
+                                      onClick={e => { e.stopPropagation(); draftUnassignRow(row.scope, row.areaKey) }}
+                                      className="flex h-6 w-6 items-center justify-center rounded-lg bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 active:scale-90 transition-all shrink-0"
+                                      title="Cancel assignment"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </>
                                 ) : (
                                   <span className={`text-[11px] font-semibold rounded-xl border border-dashed px-2.5 py-1 ${flashUnassigned ? 'border-red-300 text-red-400 bg-red-50' : 'border-gray-200 text-gray-300'}`}>
                                     Unassigned
@@ -3412,13 +3422,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           onClick={stopRun}
                           className="rounded-2xl border border-red-200 bg-red-50 py-3.5 text-sm font-black text-red-600 active:scale-[0.98] transition-all hover:bg-red-100"
                         >
-                          Stop Run
+                          Cancel All
                         </button>
                         <button
                           onClick={() => commitRun()}
                           className="rounded-2xl bg-green-500 py-3.5 text-sm font-black text-white shadow-lg shadow-green-500/25 active:scale-[0.98] transition-all"
                         >
-                          ✓ Update Run
+                          ✓ Update Assignment
                         </button>
                       </div>
                     ) : (
@@ -3434,7 +3444,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         }}
                         className="w-full rounded-2xl bg-orange-500 py-3.5 text-sm font-black text-white shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all"
                       >
-                        Start Deliveries
+                        Assign
                       </button>
                     )}
                   </div>
