@@ -4,9 +4,9 @@ import LoginForm from './LoginTabs'
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; ref?: string }>
 }) {
-  const { error } = await searchParams
+  const { error, ref } = await searchParams
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#FF730D] via-[#F4620A] to-[#D44800] px-4 overflow-hidden">
@@ -54,7 +54,7 @@ export default async function LoginPage({
             </div>
           )}
 
-          <LoginForm />
+          <LoginForm refCode={ref} />
         </div>
 
         {/* Bottom links */}

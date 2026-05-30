@@ -3708,18 +3708,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
               <ChevronRight className="w-4 h-4 text-gray-300 ml-auto shrink-0" />
             </Link>
 
-            <button
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all opacity-50 cursor-not-allowed"
-              disabled
+            <Link
+              href="/settings#referral"
+              onClick={() => setMoreOpen(false)}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50">
                 <Gift className="w-5 h-5 text-purple-500" />
               </div>
               <div className="flex-1 text-left">
-                <span className="text-[15px] font-semibold text-gray-900">Refer a Friend</span>
-                <span className="block text-[11px] text-gray-400">Coming soon</span>
+                <span className="text-[15px] font-semibold text-gray-900 block">Refer a Friend</span>
+                <span className="text-[11px] text-purple-500 font-semibold">You both get 15 days free 🎁</span>
               </div>
-            </button>
+              <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+            </Link>
 
             <a
               href="mailto:rutvik.pansare@gmail.com"

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { User, Users, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX, Info, MapPin, Navigation, Loader2 } from 'lucide-react'
+import { User, Users, MessageCircle, AlertTriangle, CheckCircle2, ClipboardList, Check, Copy, ExternalLink, Palette, Upload, Utensils, Plus, Trash2, CalendarOff, Bike, ChevronDown, CalendarRange, X as XIcon, CalendarSearch, HandCoins, ChevronRight, UserX, Info, MapPin, Navigation, Loader2, Gift } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { validateSlug } from '@/lib/branding'
 import { invalidateSettings, invalidateCustomers } from '@/lib/revalidate'
@@ -151,20 +151,40 @@ export default function SettingsClient({ providerId, userEmail, provider, initia
     status: string; plan: string | null; paid_at: string | null; created_at: string
   } | null>(null)
 
-  // Billing ledger — paid transactions + refunds merged and sorted
+  // Billing ledger — paid transactions + refunds + referral rewards merged and sorted
   type LedgerEntry =
     | { kind: 'payment'; id: string; plan: string; amount: number; date: string; razorpay_payment_id: string | null }
     | { kind: 'refund';  id: string; amount: number; reason: string | null; date: string; razorpay_refund_id: string | null }
+    | { kind: 'referral_reward'; id: string; bonus_days: number; role: string; date: string }
 
   const [ledger, setLedger] = useState<LedgerEntry[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(true)
+
+  // Referral section state
+  type ReferralEntry = { id: string; name: string; status: string; joinedAt: string; rewardedAt: string | null }
+  const [referralCode, setReferralCode]         = useState<string | null>(null)
+  const [referralList, setReferralList]         = useState<ReferralEntry[]>([])
+  const [totalBonusDays, setTotalBonusDays]     = useState(0)
+  const [codeCopied, setCodeCopied]             = useState(false)
+
+  useEffect(() => {
+    fetch('/api/referral-status')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d || d.error) return
+        setReferralCode(d.referralCode)
+        setReferralList(d.referrals ?? [])
+        setTotalBonusDays(d.totalBonusDays ?? 0)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     async function fetchBillingData() {
       try {
         const res = await fetch('/api/billing-history')
         if (!res.ok) return
-        const { txns, refunds, latestTransaction: latest } = await res.json()
+        const { txns, refunds, rewards, latestTransaction: latest } = await res.json()
 
         // Set latest transaction for pending/failed banner
         if (latest) setLatestTransaction(latest)
@@ -178,6 +198,9 @@ export default function SettingsClient({ providerId, userEmail, provider, initia
         }
         for (const r of (refunds ?? [])) {
           entries.push({ kind: 'refund', id: r.id, amount: r.amount, reason: r.reason, date: r.created_at, razorpay_refund_id: r.razorpay_refund_id })
+        }
+        for (const rr of (rewards ?? [])) {
+          entries.push({ kind: 'referral_reward', id: rr.id, bonus_days: rr.bonus_days, role: rr.role, date: rr.created_at })
         }
         entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         setLedger(entries)
@@ -2042,6 +2065,23 @@ export default function SettingsClient({ providerId, userEmail, provider, initia
                         </span>
                       </div>
                     )
+                  } else if (entry.kind === 'referral_reward') {
+                    return (
+                      <div key={entry.id} className="flex items-center gap-3 px-4 py-3 bg-purple-50">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-100">
+                          <Gift className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-purple-900">Referral Bonus</p>
+                          <p className="text-xs font-semibold text-purple-500">
+                            {dateStr} · {entry.role === 'referrer' ? 'You referred someone' : 'You were referred'}
+                          </p>
+                        </div>
+                        <span className="text-sm font-black text-purple-700 shrink-0">
+                          +{entry.bonus_days} days
+                        </span>
+                      </div>
+                    )
                   } else {
                     return (
                       <div key={entry.id} className="flex items-center gap-3 px-4 py-3 bg-white">
@@ -2067,6 +2107,112 @@ export default function SettingsClient({ providerId, userEmail, provider, initia
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Referral Program ── */}
+        <div id="referral" className="glass-card rounded-[2rem] p-6 shadow-sm scroll-mt-28">
+          <h2 className="mb-1 text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="flex items-center justify-center p-1.5 bg-purple-50 rounded-xl">
+              <Gift className="w-4 h-4 text-purple-500" />
+            </span>
+            Referral Program
+          </h2>
+          <p className="mb-5 text-xs font-semibold text-gray-400">
+            Invite another tiffin provider. When they subscribe, you both get 15 days free.
+          </p>
+
+          {/* Referral code */}
+          {referralCode ? (
+            <div className="rounded-2xl border border-purple-100 bg-purple-50 px-4 py-4 mb-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-purple-500 mb-2">Your Referral Code</p>
+              <div className="flex items-center gap-3">
+                <span className="flex-1 text-2xl font-black tracking-widest text-purple-900 select-all">
+                  {referralCode}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(referralCode)
+                    setCodeCopied(true)
+                    setTimeout(() => setCodeCopied(false), 2000)
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl bg-purple-500 px-3 py-2 text-xs font-black text-white active:scale-95 transition-all shrink-0"
+                >
+                  {codeCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {codeCopied ? 'Copied!' : 'Copy'}
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Join me on Dabbr — the easiest tiffin management app! Use my referral code *${referralCode}* when you sign up and we both get 15 bonus days free. 🎁\n\nhttps://dabbr.in/login?ref=${referralCode}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-xl bg-green-500 px-3 py-2 text-xs font-black text-white active:scale-95 transition-all shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  Share
+                </a>
+              </div>
+              <p className="mt-3 text-[11px] font-semibold text-purple-600 leading-relaxed">
+                🎁 You get <strong>+15 days Pro</strong> · 🎁 They get <strong>+15 days Pro</strong> — when they subscribe
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-purple-100 bg-purple-50 px-4 py-4 mb-4 animate-pulse">
+              <div className="h-4 w-24 bg-purple-200 rounded-lg mb-2" />
+              <div className="h-8 w-32 bg-purple-200 rounded-lg" />
+            </div>
+          )}
+
+          {/* Stats row */}
+          {referralList.length > 0 && (
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 rounded-2xl bg-gray-50 border border-gray-100 px-3 py-3 text-center">
+                <p className="text-xl font-black text-gray-900">{referralList.filter(r => r.status === 'rewarded').length}</p>
+                <p className="text-[10px] font-bold text-gray-400 mt-0.5">Successful</p>
+              </div>
+              <div className="flex-1 rounded-2xl bg-purple-50 border border-purple-100 px-3 py-3 text-center">
+                <p className="text-xl font-black text-purple-700">+{totalBonusDays}</p>
+                <p className="text-[10px] font-bold text-purple-400 mt-0.5">Bonus days</p>
+              </div>
+              <div className="flex-1 rounded-2xl bg-gray-50 border border-gray-100 px-3 py-3 text-center">
+                <p className="text-xl font-black text-gray-900">{referralList.filter(r => r.status === 'pending').length}</p>
+                <p className="text-[10px] font-bold text-gray-400 mt-0.5">Pending</p>
+              </div>
+            </div>
+          )}
+
+          {/* Referral list */}
+          {referralList.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">Your Referrals</p>
+              <div className="rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                {referralList.map(r => (
+                  <div key={r.id} className="flex items-center gap-3 px-4 py-3 bg-white">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${r.status === 'rewarded' ? 'bg-purple-50' : 'bg-gray-50'}`}>
+                      {r.status === 'rewarded'
+                        ? <Gift className="w-4 h-4 text-purple-500" />
+                        : <Loader2 className="w-4 h-4 text-gray-300 animate-spin" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-gray-900 truncate">{r.name}</p>
+                      <p className="text-xs font-semibold text-gray-400">
+                        Joined {new Date(r.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    {r.status === 'rewarded' ? (
+                      <span className="text-xs font-black text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full shrink-0">+15 days ✓</span>
+                    ) : (
+                      <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full shrink-0">Awaiting sub</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {referralList.length === 0 && referralCode && (
+            <p className="text-center text-xs font-semibold text-gray-400 py-3">
+              No referrals yet. Share your code to get started!
+            </p>
+          )}
         </div>
 
         {/* Sign out */}

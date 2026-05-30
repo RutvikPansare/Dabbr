@@ -13,7 +13,7 @@ function formatPhone(phone: string) {
   return phone
 }
 
-export default function LoginForm() {
+export default function LoginForm({ refCode }: { refCode?: string }) {
   const [step, setStep]                       = useState<Step>('default')
   const [phone, setPhone]                     = useState('')
   const [normalizedPhone, setNormalizedPhone] = useState('')
@@ -30,6 +30,13 @@ export default function LoginForm() {
     if (step === 'phone') setTimeout(() => phoneRef.current?.focus(), 50)
     if (step === 'otp')   otpRef.current?.focus()
   }, [step])
+
+  // Persist referral code from URL param into sessionStorage so onboarding can read it
+  useEffect(() => {
+    if (refCode) {
+      try { sessionStorage.setItem('dabbr_ref_code', refCode.trim().toUpperCase()) } catch (_) {}
+    }
+  }, [refCode])
 
   // ── Phone OTP ──────────────────────────────────────────────────────────────
 

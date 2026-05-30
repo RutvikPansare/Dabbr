@@ -10,7 +10,7 @@ export async function GET() {
 
     const admin = createAdminClient()
 
-    const [txnResult, refundResult] = await Promise.all([
+    const [txnResult, refundResult, rewardResult] = await Promise.all([
       admin
         .from('billing_transactions')
         .select('id, status, plan, amount, paid_at, created_at, razorpay_payment_id')
@@ -21,15 +21,22 @@ export async function GET() {
         .select('id, amount, reason, razorpay_refund_id, created_at')
         .eq('provider_id', user.id)
         .order('created_at', { ascending: false }),
+      admin
+        .from('referral_rewards')
+        .select('id, bonus_days, role, created_at')
+        .eq('provider_id', user.id)
+        .order('created_at', { ascending: false }),
     ])
 
-    const txns = txnResult.data ?? []
-    // billing_refunds table may not exist yet — ignore error gracefully
+    const txns    = txnResult.data    ?? []
     const refunds = refundResult.data ?? []
+    // referral_rewards table may not exist yet — ignore error gracefully
+    const rewards = rewardResult.data ?? []
 
     return NextResponse.json({
       txns,
       refunds,
+      rewards,
       latestTransaction: txns[0] ?? null,
     })
   } catch (e) {
