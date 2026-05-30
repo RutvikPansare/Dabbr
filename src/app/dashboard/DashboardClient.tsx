@@ -9,7 +9,7 @@ import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
   MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle, Play, RotateCcw, Zap, ChevronUp, List,
-  ChevronLeft, HelpCircle, Gift, Phone, Flag, AlignJustify, Search,
+  ChevronLeft, HelpCircle, Gift, Phone, Flag, AlignJustify, Search, UserPlus,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { fetchWithRetry } from '@/lib/fetch-retry'
@@ -861,6 +861,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [quickRiderPhone, setQuickRiderPhone] = useState('')
   const [quickRiderSaving, setQuickRiderSaving] = useState(false)
   const [quickRiderError, setQuickRiderError]   = useState('')
+  const [showQuickAdd, setShowQuickAdd]         = useState(false)
   // Inline contact picker for rider quick-add
   type ContactPickerStep = 'loading' | 'list' | 'error'
   const [contactPicker, setContactPicker] = useState(false)
@@ -1730,6 +1731,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     setAssignments([])
     setAssignModal(false)
     setPickerOpen(new Set())
+    setShowQuickAdd(false)
     // Retry unassign calls — idempotent (DELETE is safe to repeat).
     // Pass composite key fields alongside assignment_id so the API can fall
     // back to composite-key delete if the UUID hasn't landed yet.
@@ -3303,6 +3305,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           setAssignments(draft)
           setAssignModal(false)
           setPickerOpen(new Set())
+          setShowQuickAdd(false)
           // Remove stale assignments (in committed but not in draft) — retry, idempotent
           // Always send composite key fields alongside assignment_id so the API can fall back
           // to a composite-key delete if the ID is still a draft string (race condition guard).
@@ -3331,7 +3334,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-[calc(1rem+env(safe-area-inset-top))]">
-            <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => { setAssignModal(false); setPickerOpen(new Set()) }} />
+            <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => { setAssignModal(false); setPickerOpen(new Set()); setShowQuickAdd(false) }} />
             <div className="relative z-10 w-full max-w-md animate-in fade-in-0 zoom-in-95 duration-200">
               <div className="max-h-[min(82vh,720px)] rounded-[2rem] bg-white shadow-2xl border border-white/80 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
@@ -3366,7 +3369,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       </button>
                     </div>
                     <button
-                      onClick={() => { setAssignModal(false); setPickerOpen(new Set()) }}
+                      onClick={() => { setAssignModal(false); setPickerOpen(new Set()); setShowQuickAdd(false) }}
                       className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 active:scale-95 transition-all shrink-0"
                     >
                       <X className="w-4 h-4" />
@@ -3411,7 +3414,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         </div>
                       </div>
 
-                      {/* Quick-add form */}
+                      {/* Quick-add form — always visible when no riders */}
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
                           <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Quick add rider</p>
@@ -3456,6 +3459,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       </div>
                     </div>
                   ) : (
+                    <div>
                     <div className="divide-y divide-gray-50">
                       {dispatchRows.map(row => {
                         const assigned = getDraftRider(row.key)
@@ -3567,6 +3571,76 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                           </div>
                         )
                       })}
+                    </div>
+
+                    {/* Collapsible "+ Add Rider" section */}
+                    <div className="border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          setShowQuickAdd(v => !v)
+                          if (!showQuickAdd) {
+                            setQuickRiderName('')
+                            setQuickRiderPhone('')
+                            setQuickRiderError('')
+                          }
+                        }}
+                        className="flex w-full items-center justify-between px-5 py-3 active:bg-gray-50 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 text-[12px] font-black text-gray-500">
+                          <UserPlus className="w-3.5 h-3.5" />
+                          Add another rider
+                        </span>
+                        {showQuickAdd
+                          ? <ChevronUp className="w-3.5 h-3.5 text-gray-300" />
+                          : <ChevronDown className="w-3.5 h-3.5 text-gray-300" />
+                        }
+                      </button>
+
+                      {showQuickAdd && (
+                        <div className="px-5 pb-5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Quick add rider</p>
+                            <button
+                              onClick={openContactPicker}
+                              className="flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-600 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
+                            >
+                              <Users className="w-3 h-3" />
+                              From Contacts
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={quickRiderName}
+                            onChange={e => { setQuickRiderName(e.target.value); setQuickRiderError('') }}
+                            placeholder="Rider name"
+                            className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 placeholder:text-gray-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all"
+                          />
+                          <div className="flex items-center gap-2 rounded-2xl border border-gray-200 px-4 overflow-hidden focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+                            <span className="text-sm font-bold text-gray-400 shrink-0 py-3">+91</span>
+                            <div className="w-px h-4 bg-gray-200 shrink-0" />
+                            <input
+                              type="tel"
+                              inputMode="numeric"
+                              maxLength={10}
+                              value={quickRiderPhone}
+                              onChange={e => { setQuickRiderPhone(e.target.value.replace(/\D/g, '')); setQuickRiderError('') }}
+                              placeholder="WhatsApp number"
+                              className="flex-1 py-3 text-sm font-semibold text-gray-900 bg-transparent outline-none placeholder:text-gray-300"
+                            />
+                          </div>
+                          {quickRiderError && (
+                            <p className="text-xs font-semibold text-red-500 px-1">{quickRiderError}</p>
+                          )}
+                          <button
+                            onClick={quickAddRider}
+                            disabled={quickRiderSaving || !quickRiderName.trim() || quickRiderPhone.replace(/\D/g,'').length < 10}
+                            className="w-full rounded-2xl bg-orange-500 py-3 text-sm font-black text-white shadow-md shadow-orange-200 active:scale-[0.98] transition-all disabled:opacity-50"
+                          >
+                            {quickRiderSaving ? 'Adding…' : '+ Add Rider'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     </div>
                   )}
                 </div>
