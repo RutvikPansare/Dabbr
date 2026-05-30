@@ -9,7 +9,7 @@ import {
   Sun, Sunrise, Moon, Leaf, Drumstick, AlertTriangle, Box, PartyPopper,
   Copy, Check, LogOut, MessageSquare, X, Users, CheckCheck, Bike, Send, Edit2, ChevronDown,
   MapPin, ChevronRight, UtensilsCrossed, Plus, Sparkles, Bell, XCircle, Play, RotateCcw, Zap, ChevronUp, List,
-  ChevronLeft, HelpCircle, Gift, Phone, Flag, AlignJustify,
+  ChevronLeft, HelpCircle, Gift, Phone, Flag, AlignJustify, Search,
 } from 'lucide-react'
 import { formatMealSlots, MEAL_SLOTS, MEAL_SLOT_EMOJI, MEAL_SLOT_LABEL } from '@/lib/meals'
 import { fetchWithRetry } from '@/lib/fetch-retry'
@@ -861,6 +861,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [quickRiderPhone, setQuickRiderPhone] = useState('')
   const [quickRiderSaving, setQuickRiderSaving] = useState(false)
   const [quickRiderError, setQuickRiderError]   = useState('')
+  // Inline contact picker for rider quick-add
+  type ContactPickerStep = 'loading' | 'list' | 'error'
+  const [contactPicker, setContactPicker] = useState(false)
+  const [contactPickerStep, setContactPickerStep] = useState<ContactPickerStep>('loading')
+  const [contactPickerError, setContactPickerError] = useState('')
+  const [contactList, setContactList] = useState<{ id: string; name: string; phone: string }[]>([])
+  const [contactSearch, setContactSearch] = useState('')
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(
@@ -1618,6 +1625,63 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     } finally {
       setQuickRiderSaving(false)
     }
+  }
+
+  async function openContactPicker() {
+    setContactPicker(true)
+    setContactPickerStep('loading')
+    setContactPickerError('')
+    setContactSearch('')
+    try {
+      const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
+      if (isNative) {
+        const ContactsPlugin = (window as any).Capacitor?.Plugins?.Contacts
+        if (!ContactsPlugin) throw new Error('Contacts plugin not available.')
+        const { contacts: perm } = await ContactsPlugin.requestPermissions()
+        if (perm !== 'granted') throw new Error("Contacts permission denied. Allow it in Settings → Apps → Dabbr → Permissions.")
+        const { contacts: raw } = await ContactsPlugin.getContacts({ projection: { name: true, phones: true } })
+        setContactList(buildContactEntries(raw ?? []))
+        setContactPickerStep('list')
+      } else if ('contacts' in navigator && 'ContactsManager' in window) {
+        const results = await (navigator as any).contacts.select(['name', 'tel'], { multiple: true })
+        setContactList(buildContactEntries(results.map((c: any) => ({
+          name: { display: Array.isArray(c.name) ? c.name[0] : c.name },
+          phones: (Array.isArray(c.tel) ? c.tel : [c.tel]).map((t: string) => ({ number: t })),
+        }))))
+        setContactPickerStep('list')
+      } else {
+        throw new Error('Contacts access requires the Dabbr Android app.')
+      }
+    } catch (e: any) {
+      setContactPickerError(e?.message ?? 'Could not load contacts.')
+      setContactPickerStep('error')
+    }
+  }
+
+  function buildContactEntries(raw: any[]): { id: string; name: string; phone: string }[] {
+    const seen = new Set<string>()
+    const entries: { id: string; name: string; phone: string }[] = []
+    for (const c of raw) {
+      const name = (c.name?.display ?? c.name?.given ?? '').trim()
+      if (!name) continue
+      for (const ph of (c.phones ?? [])) {
+        const digits = (ph.number ?? '').replace(/\D/g, '')
+        const phone  = digits.replace(/^(\+?91|0)(\d{10})$/, '$2')
+        if (phone.length !== 10) continue
+        if (seen.has(phone)) continue
+        seen.add(phone)
+        entries.push({ id: `${name}-${phone}`, name, phone })
+        break
+      }
+    }
+    return entries.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  function pickContact(c: { name: string; phone: string }) {
+    setQuickRiderName(c.name)
+    setQuickRiderPhone(c.phone)
+    setQuickRiderError('')
+    setContactPicker(false)
   }
 
   function assignRider(riderId: string, scope: 'full' | 'area', areaName: string | null) {
@@ -3349,7 +3413,16 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
                       {/* Quick-add form */}
                       <div className="space-y-2.5">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Quick add rider</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Quick add rider</p>
+                          <button
+                            onClick={openContactPicker}
+                            className="flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-600 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
+                          >
+                            <Users className="w-3 h-3" />
+                            From Contacts
+                          </button>
+                        </div>
                         <input
                           type="text"
                           value={quickRiderName}
@@ -3556,6 +3629,115 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
       </div>{/* end scrollable content */}
 
       <BottomNav />
+
+      {/* ── Contact picker (rider quick-add) ────────────────────────────────── */}
+      {contactPicker && (
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setContactPicker(false)} />
+          <div
+            className="relative bg-white rounded-t-[2rem] flex flex-col shadow-2xl"
+            style={{ maxHeight: '85vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-10 h-1 rounded-full bg-gray-200" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 shrink-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100 shrink-0">
+                <Users className="w-4 h-4 text-orange-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-gray-900">Choose from Contacts</p>
+                {contactPickerStep === 'list' && (
+                  <p className="text-xs font-medium text-gray-400">{contactList.length} contacts · tap to select</p>
+                )}
+              </div>
+              <button
+                onClick={() => setContactPicker(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 active:scale-95 transition-all shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
+
+              {/* Loading */}
+              {contactPickerStep === 'loading' && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="w-8 h-8 border-[3px] border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                  <p className="text-sm font-semibold text-gray-400">Loading contacts…</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {contactPickerStep === 'error' && (
+                <div className="p-5">
+                  <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-4 flex gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-800">Cannot access contacts</p>
+                      <p className="text-xs font-medium text-amber-700 mt-1">{contactPickerError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact list */}
+              {contactPickerStep === 'list' && (() => {
+                const q = contactSearch.toLowerCase()
+                const filtered = q
+                  ? contactList.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q))
+                  : contactList
+                return (
+                  <div>
+                    {/* Search */}
+                    <div className="px-4 pt-3 pb-2 sticky top-0 bg-white z-10 border-b border-gray-50">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search name or number…"
+                          value={contactSearch}
+                          onChange={e => setContactSearch(e.target.value)}
+                          autoFocus
+                          className="w-full rounded-2xl border border-gray-200 bg-gray-50 pl-9 pr-4 py-2.5 text-sm font-medium outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all"
+                        />
+                      </div>
+                    </div>
+                    {filtered.length === 0 ? (
+                      <div className="py-12 text-center">
+                        <p className="text-sm font-semibold text-gray-400">No contacts match</p>
+                      </div>
+                    ) : filtered.map((c, i) => (
+                      <button
+                        key={c.id}
+                        onClick={() => pickContact(c)}
+                        className={`w-full flex items-center gap-3 px-5 py-3.5 text-left transition-colors active:bg-orange-50 ${
+                          i !== filtered.length - 1 ? 'border-b border-gray-50' : ''
+                        }`}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-sm font-black text-gray-500">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
+                          <p className="text-xs font-medium text-gray-400 mt-0.5">+91 {c.phone}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── View Extras modal ───────────────────────────────────────────── */}
       {extrasViewModal && (
