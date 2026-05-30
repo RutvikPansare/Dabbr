@@ -3423,7 +3423,12 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 </div>
 
                 {/* Footer */}
-                {riders.length > 0 && (
+                {riders.length > 0 && (() => {
+                  // Dirty check: has the user changed anything vs committed assignments?
+                  const hasDraftChanges =
+                    assignments.some(a => !draftAssignments.some(d => d.rider_id === a.rider_id && d.scope === a.scope && d.area_name === a.area_name)) ||
+                    draftAssignments.some(d => !assignments.some(a => a.rider_id === d.rider_id && a.scope === d.scope && a.area_name === d.area_name))
+                  return (
                   <div className="px-5 py-4 border-t border-gray-100 shrink-0 space-y-2">
                     {noAssignFlash && draftAssignments.length === 0 && (
                       <p className="text-center text-xs font-bold text-red-500 animate-pulse">
@@ -3440,7 +3445,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                         </button>
                         <button
                           onClick={() => commitRun()}
-                          className="rounded-2xl bg-green-500 py-3.5 text-sm font-black text-white shadow-lg shadow-green-500/25 active:scale-[0.98] transition-all"
+                          disabled={!hasDraftChanges}
+                          className="rounded-2xl bg-green-500 py-3.5 text-sm font-black text-white shadow-lg shadow-green-500/25 active:scale-[0.98] transition-all disabled:opacity-40 disabled:shadow-none disabled:cursor-default"
                         >
                           ✓ Update Assignment
                         </button>
@@ -3462,7 +3468,8 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       </button>
                     )}
                   </div>
-                )}
+                  )
+                })()}
 
               </div>
             </div>
