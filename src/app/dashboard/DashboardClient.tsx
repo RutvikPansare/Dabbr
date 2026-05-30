@@ -850,7 +850,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   // Start Run dispatch state
   const [runGrouping, setRunGrouping] = useState<'list' | 'area'>('list')
   const [yesterdayAssignments, setYesterdayAssignments] = useState<{ rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
-  const [pickerOpen, setPickerOpen] = useState<string | null>(null) // area key or 'full' — which row's rider picker is open
+  const [pickerOpen, setPickerOpen] = useState<Set<string>>(new Set()) // keys of rows whose rider picker is expanded
   const [noAssignFlash, setNoAssignFlash] = useState(false) // flashes rows when user hits Start Deliveries with nothing assigned
   // draftAssignments: staged inside the modal only — no API calls until "Start Deliveries" is pressed
   const [draftAssignments, setDraftAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
@@ -1568,7 +1568,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
   async function openAssignModal() {
     setRunGrouping(deliveryView) // default to current dashboard grouping
-    setPickerOpen(null)
+    setPickerOpen(new Set())
     setNoAssignFlash(false)
     setDraftAssignments([...assignments]) // seed draft from current committed state
     setAssignModal(true)
@@ -1627,7 +1627,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     const toRemove = [...assignmentsRef.current]
     setAssignments([])
     setAssignModal(false)
-    setPickerOpen(null)
+    setPickerOpen(new Set())
     // Retry unassign calls — idempotent (DELETE is safe to repeat)
     toRemove.forEach(a => {
       fetchWithRetry(() => fetch('/api/rider/unassign', {
@@ -3150,13 +3150,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
             ...prev.filter(a => !(a.scope === scope && (scope === 'full' || a.area_name === areaKey))),
             { id: `draft-${riderId}-${scope}-${areaKey}`, rider_id: riderId, rider_name: rider?.name ?? '', scope, area_name: areaKey },
           ])
-          setPickerOpen(null)
+          // Keep rows expanded after selecting a rider
         }
         function draftUnassignRow(scope: 'full' | 'area', areaKey: string | null) {
           setDraftAssignments(prev => prev.filter(a =>
             scope === 'full' ? a.scope !== 'full' : !(a.scope === 'area' && a.area_name === areaKey)
           ))
-          setPickerOpen(null)
+          // Keep rows expanded after removing a rider
         }
         function reuseYesterday() {
           setDraftAssignments(prev => {
@@ -3198,7 +3198,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
           // Optimistically commit
           setAssignments(draft)
           setAssignModal(false)
-          setPickerOpen(null)
+          setPickerOpen(new Set())
           // Remove stale assignments (in committed but not in draft) — retry, idempotent
           assignments.filter(a => !draft.some(d => d.rider_id === a.rider_id && d.scope === a.scope && d.area_name === a.area_name))
             .forEach(a => fetchWithRetry(() => fetch('/api/rider/unassign', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignment_id: a.id }) }))
@@ -3225,7 +3225,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-[calc(1rem+env(safe-area-inset-top))]">
-            <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => { setAssignModal(false); setPickerOpen(null) }} />
+            <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={() => { setAssignModal(false); setPickerOpen(new Set()) }} />
             <div className="relative z-10 w-full max-w-md animate-in fade-in-0 zoom-in-95 duration-200">
               <div className="max-h-[min(82vh,720px)] rounded-[2rem] bg-white shadow-2xl border border-white/80 flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
@@ -3247,20 +3247,20 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     {/* Grouping toggle */}
                     <div className="flex items-center bg-gray-100 rounded-xl p-0.5 gap-0.5">
                       <button
-                        onClick={() => setRunGrouping('list')}
+                        onClick={() => { setRunGrouping('list'); setPickerOpen(new Set()) }}
                         className={`flex items-center gap-1 rounded-[9px] px-2.5 py-1.5 text-[11px] font-bold transition-all ${runGrouping === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
                       >
                         <List className="w-3 h-3" />List
                       </button>
                       <button
-                        onClick={() => setRunGrouping('area')}
+                        onClick={() => { setRunGrouping('area'); setPickerOpen(new Set()) }}
                         className={`flex items-center gap-1 rounded-[9px] px-2.5 py-1.5 text-[11px] font-bold transition-all ${runGrouping === 'area' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
                       >
                         <MapPin className="w-3 h-3" />Area
                       </button>
                     </div>
                     <button
-                      onClick={() => { setAssignModal(false); setPickerOpen(null) }}
+                      onClick={() => { setAssignModal(false); setPickerOpen(new Set()) }}
                       className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 active:scale-95 transition-all shrink-0"
                     >
                       <X className="w-4 h-4" />
@@ -3311,14 +3311,28 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                       {dispatchRows.map(row => {
                         const assigned = getDraftRider(row.key)
                         const hint = getYdHint(row.areaKey)
-                        const isOpen = pickerOpen === row.key
+                        // Empty set = fresh open = all rows expanded by default
+                        const isOpen = pickerOpen.size === 0 ? true : pickerOpen.has(row.key)
 
                         const flashUnassigned = noAssignFlash && !assigned
                         return (
                           <div key={row.key}>
                             <div
                               className={`flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors ${flashUnassigned ? 'bg-red-50/60 animate-pulse' : 'active:bg-gray-50'}`}
-                              onClick={() => setPickerOpen(isOpen ? null : row.key)}
+                              onClick={() => {
+                                // Build explicit set from all row keys then toggle this one
+                                const allKeys = new Set(dispatchRows.map(r => r.key))
+                                if (pickerOpen.size === 0) {
+                                  // Currently all-open (default) — close just this row
+                                  allKeys.delete(row.key)
+                                  setPickerOpen(allKeys)
+                                } else {
+                                  const next = new Set(pickerOpen)
+                                  if (next.has(row.key)) next.delete(row.key)
+                                  else next.add(row.key)
+                                  setPickerOpen(next)
+                                }
+                              }}
                             >
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-black text-gray-900 truncate">{row.label}</p>
