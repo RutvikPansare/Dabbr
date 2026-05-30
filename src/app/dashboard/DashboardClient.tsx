@@ -759,6 +759,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [moreOpen, setMoreOpen] = useState(false)
   const bellRef = useRef<HTMLButtonElement>(null)
   const desktopBellRef = useRef<HTMLButtonElement>(null)
+  const mobileHeaderRef = useRef<HTMLDivElement>(null)
   const [bellDropPos, setBellDropPos] = useState<{ top: number; right: number } | null>(null)
 
   function openBell() {
@@ -766,9 +767,13 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     const el = (desktopBellRef.current?.offsetParent != null ? desktopBellRef : bellRef).current
     if (el) {
       const rect = el.getBoundingClientRect()
-      // Add extra gap on mobile (header is taller with safe-area); clamp so it never hugs the very top
-      const gap = window.innerWidth < 1024 ? 16 : 8
-      setBellDropPos({ top: rect.bottom + gap, right: window.innerWidth - rect.right })
+      // On mobile, anchor below the full header (not just the bell button) so the
+      // dropdown never gets clipped by the safe-area / gradient header.
+      const headerBottom = mobileHeaderRef.current
+        ? mobileHeaderRef.current.getBoundingClientRect().bottom
+        : rect.bottom
+      const top = window.innerWidth < 1024 ? headerBottom + 8 : rect.bottom + 8
+      setBellDropPos({ top, right: window.innerWidth - rect.right })
     }
     setCancelBellOpen(o => !o)
   }
@@ -1646,6 +1651,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
 
       {/* ── Mobile header — hidden on desktop ── */}
       <div
+        ref={mobileHeaderRef}
         className="shrink-0 z-30 overflow-hidden lg:hidden"
         style={{ background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' }}
       >
