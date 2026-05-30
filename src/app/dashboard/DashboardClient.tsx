@@ -856,6 +856,11 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
   const [draftAssignments, setDraftAssignments] = useState<{ id: string; rider_id: string; rider_name: string; scope: 'full' | 'area'; area_name: string | null }[]>([])
   const runIsActive = assignments.length > 0
   const [runCompleted, setRunCompleted] = useState(false)
+  // Quick-add rider form (shown inside modal when no riders exist)
+  const [quickRiderName, setQuickRiderName]   = useState('')
+  const [quickRiderPhone, setQuickRiderPhone] = useState('')
+  const [quickRiderSaving, setQuickRiderSaving] = useState(false)
+  const [quickRiderError, setQuickRiderError]   = useState('')
 
   // ── Delivery tracking state ───────────────────────────────────────────────
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(
@@ -1582,6 +1587,39 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     } catch { /* ignore */ }
   }
 
+  async function quickAddRider() {
+    const name  = quickRiderName.trim()
+    const phone = quickRiderPhone.replace(/\D/g, '').slice(-10)
+    if (!name)          { setQuickRiderError('Name is required'); return }
+    if (phone.length !== 10) { setQuickRiderError('Enter a valid 10-digit WhatsApp number'); return }
+    setQuickRiderSaving(true)
+    setQuickRiderError('')
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setQuickRiderError('Not signed in'); setQuickRiderSaving(false); return }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any
+      const { data, error } = await db
+        .from('delivery_riders')
+        .insert({ provider_id: user.id, name, whatsapp_number: phone, invite_status: 'pending' })
+        .select('id, name, whatsapp_number, email, invite_status')
+        .single()
+      if (error) { setQuickRiderError(error.message); return }
+      if (data) {
+        setRiders(prev => [...prev, data])
+        setQuickRiderName('')
+        setQuickRiderPhone('')
+      }
+    } catch (e: any) {
+      setQuickRiderError(e?.message ?? 'Failed to add rider')
+    } finally {
+      setQuickRiderSaving(false)
+    }
+  }
+
   function assignRider(riderId: string, scope: 'full' | 'area', areaName: string | null) {
     const rider = riders.find(r => r.id === riderId)
     const tempId = `temp-${Date.now()}-${Math.random()}`
@@ -2200,7 +2238,7 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                     </p>
                   </div>
                 </div>
-              {riders.length > 0 && workspaceCustomers.length > 0 && (
+              {workspaceCustomers.length > 0 && (
                 <div className="grid grid-cols-2 gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-1.5 sm:flex sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shrink-0">
                   {runCompleted && !runIsActive ? (
                     <span className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-black bg-green-100 border border-green-200 text-green-700 sm:rounded-2xl">
@@ -3299,16 +3337,50 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
                 {/* Dispatch rows */}
                 <div className="overflow-y-auto overscroll-contain flex-1">
                   {riders.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center px-6 py-12 gap-3 text-center">
-                      <Bike className="w-8 h-8 text-gray-300" />
-                      <p className="text-sm font-black text-gray-700">No riders yet</p>
-                      <p className="text-xs font-medium text-gray-400">Add riders in Settings first.</p>
-                      <button
-                        onClick={() => { setAssignModal(false); router.push('/settings') }}
-                        className="rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white active:scale-95 transition-all"
-                      >
-                        Go to Settings
-                      </button>
+                    <div className="px-5 py-6 space-y-4">
+                      {/* Nudge */}
+                      <div className="flex items-start gap-3 rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3.5">
+                        <Bike className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-black text-gray-800">No riders added yet</p>
+                          <p className="text-xs font-medium text-gray-500 mt-0.5">Add your first delivery rider below to start assigning routes.</p>
+                        </div>
+                      </div>
+
+                      {/* Quick-add form */}
+                      <div className="space-y-2.5">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-gray-400">Quick add rider</p>
+                        <input
+                          type="text"
+                          value={quickRiderName}
+                          onChange={e => { setQuickRiderName(e.target.value); setQuickRiderError('') }}
+                          placeholder="Rider name"
+                          className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 placeholder:text-gray-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none transition-all"
+                        />
+                        <div className="flex items-center gap-2 rounded-2xl border border-gray-200 px-4 overflow-hidden focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all">
+                          <span className="text-sm font-bold text-gray-400 shrink-0 py-3">+91</span>
+                          <div className="w-px h-4 bg-gray-200 shrink-0" />
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={10}
+                            value={quickRiderPhone}
+                            onChange={e => { setQuickRiderPhone(e.target.value.replace(/\D/g, '')); setQuickRiderError('') }}
+                            placeholder="WhatsApp number"
+                            className="flex-1 py-3 text-sm font-semibold text-gray-900 bg-transparent outline-none placeholder:text-gray-300"
+                          />
+                        </div>
+                        {quickRiderError && (
+                          <p className="text-xs font-semibold text-red-500 px-1">{quickRiderError}</p>
+                        )}
+                        <button
+                          onClick={quickAddRider}
+                          disabled={quickRiderSaving || !quickRiderName.trim() || quickRiderPhone.replace(/\D/g,'').length < 10}
+                          className="w-full rounded-2xl bg-orange-500 py-3 text-sm font-black text-white shadow-md shadow-orange-200 active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                          {quickRiderSaving ? 'Adding…' : '+ Add Rider'}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-50">
