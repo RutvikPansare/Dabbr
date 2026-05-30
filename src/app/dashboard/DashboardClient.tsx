@@ -766,7 +766,9 @@ export default function DashboardClient({ userId, userEmail, initialData }: Prop
     const el = (desktopBellRef.current?.offsetParent != null ? desktopBellRef : bellRef).current
     if (el) {
       const rect = el.getBoundingClientRect()
-      setBellDropPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+      // Add extra gap on mobile (header is taller with safe-area); clamp so it never hugs the very top
+      const gap = window.innerWidth < 1024 ? 16 : 8
+      setBellDropPos({ top: rect.bottom + gap, right: window.innerWidth - rect.right })
     }
     setCancelBellOpen(o => !o)
   }
